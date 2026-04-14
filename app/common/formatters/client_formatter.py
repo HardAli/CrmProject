@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 
 from app.database.models.client import Client
@@ -15,7 +15,7 @@ def _format_money(value: Decimal | None) -> str:
 def _format_datetime(value: datetime | None) -> str:
     if value is None:
         return "—"
-    local_dt = value.astimezone(UTC)
+    local_dt = value.astimezone(timezone.utc)
     return local_dt.strftime("%d.%m.%Y %H:%M UTC")
 
 

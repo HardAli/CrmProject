@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 
 _PHONE_PATTERN = re.compile(r"^\+?[0-9\-()\s]{10,20}$")
@@ -54,7 +54,7 @@ def parse_next_contact_at(raw_value: str) -> datetime:
         try:
             parsed = datetime.strptime(value, dt_format)
             if parsed.tzinfo is None:
-                parsed = parsed.replace(tzinfo=UTC)
+                parsed = parsed.replace(tzinfo=timezone.utc)
             return parsed
         except ValueError:
             continue
