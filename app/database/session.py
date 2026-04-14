@@ -20,8 +20,21 @@ def _build_async_database_url(raw_url: str) -> str:
     return parsed_url.render_as_string(hide_password=False)
 
 
+DATABASE_URL = _build_async_database_url(settings.database_url)
+
+if DATABASE_URL.startswith("postgresql+asyncpg://"):
+    try:
+        import asyncpg  # noqa: F401
+    except ModuleNotFoundError as exc:  # pragma: no cover - startup guard
+        msg = (
+            "Database URL uses the asyncpg driver, but dependency 'asyncpg' is missing. "
+            "Install it with: pip install asyncpg"
+        )
+        raise RuntimeError(msg) from exc
+
+
 engine: AsyncEngine = create_async_engine(
-    _build_async_database_url(settings.database_url),
+    DATABASE_URL,
     pool_pre_ping=True,
 )
 
