@@ -1,6 +1,12 @@
 from __future__ import annotations
 
-from enum import StrEnum
+import enum
+
+StrEnum = getattr(enum, "StrEnum", None)
+
+if StrEnum is None:
+    class StrEnum(str, enum.Enum):
+        """Backward-compatible StrEnum for Python < 3.11."""
 
 
 class UserRole(StrEnum):
