@@ -17,7 +17,9 @@ class UserRole(StrEnum):
 
 class RequestType(StrEnum):
     BUY = "buy"
+    SELL = "sell"
     RENT = "rent"
+    RENT_OUT = "rent_out"
 
 
 class PropertyType(StrEnum):
