@@ -1,11 +1,17 @@
 from __future__ import annotations
 
-from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
+
+from app.common.enums import ClientStatus
+from app.database.models.client import Client
 
 CANCEL_TEXT = "❌ Отмена"
 SKIP_TEXT = "⏭ Пропустить"
 ADD_CLIENT_TEXT = "➕ Добавить клиента"
 CLIENTS_MENU_TEXT = "👥 Клиенты"
+MY_CLIENTS_TEXT = "👤 Мои клиенты"
+CLIENTS_BY_STATUS_TEXT = "🧭 По статусу"
+RECENT_CLIENTS_TEXT = "🕒 Последние добавленные"
 
 SOURCE_OPTIONS: tuple[str, ...] = (
     "Instagram",
@@ -30,16 +36,28 @@ PROPERTY_TYPE_OPTIONS: tuple[str, ...] = (
     "Участок",
 )
 
+STATUS_LABELS: dict[ClientStatus, str] = {
+    ClientStatus.NEW: "🆕 Новый",
+    ClientStatus.IN_PROGRESS: "🔄 В работе",
+    ClientStatus.WAITING: "📞 Ждёт звонка",
+    ClientStatus.CLOSED_SUCCESS: "✅ Закрыт",
+    ClientStatus.CLOSED_FAILED: "❌ Отказ",
+}
+
+
 
 def get_clients_menu_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text=ADD_CLIENT_TEXT)],
+            [KeyboardButton(text=MY_CLIENTS_TEXT), KeyboardButton(text=CLIENTS_BY_STATUS_TEXT)],
+            [KeyboardButton(text=RECENT_CLIENTS_TEXT)],
             [KeyboardButton(text="⬅️ Главное меню")],
         ],
         resize_keyboard=True,
         input_field_placeholder="Выберите действие по клиентам",
     )
+
 
 
 def get_cancel_keyboard() -> ReplyKeyboardMarkup:
@@ -90,3 +108,23 @@ def get_property_type_keyboard() -> ReplyKeyboardMarkup:
         ],
         resize_keyboard=True,
     )
+
+
+def get_status_filter_keyboard() -> InlineKeyboardMarkup:
+    rows = [[InlineKeyboardButton(text=label, callback_data=f"client_status:{status.value}")] for status, label in
+            STATUS_LABELS.items()]
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def get_clients_list_inline_keyboard(clients: list[Client]) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    for client in clients:
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=f"#{client.id} · {client.full_name}",
+                    callback_data=f"client_view:{client.id}",
+                )
+            ]
+        )
+    return InlineKeyboardMarkup(inline_keyboard=rows)

@@ -11,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.bot.keyboards.clients import (
     ADD_CLIENT_TEXT,
     CANCEL_TEXT,
-    CLIENTS_MENU_TEXT,
     SKIP_TEXT,
     SOURCE_OPTIONS,
     get_cancel_keyboard,
@@ -21,11 +20,10 @@ from app.bot.keyboards.clients import (
     get_skip_cancel_keyboard,
     get_source_keyboard,
 )
-from app.bot.keyboards.main_menu import get_main_menu_keyboard
 from app.bot.states.clients import ClientCreateStates
 from app.common.dto.clients import CreateClientDTO
 from app.common.enums import PropertyType, RequestType
-from app.common.formatters.client_formatter import format_client_card
+from app.common.formatters.client_formatter import format_client_created_card
 from app.common.utils.parsers import normalize_phone, parse_money, parse_next_contact_at
 from app.services.auth_service import AuthService
 from app.services.clients import ClientService
@@ -59,20 +57,6 @@ async def _get_current_user(message: Message, auth_service: AuthService):
         return None
 
     return user
-
-
-@router.message(F.text == CLIENTS_MENU_TEXT)
-async def open_clients_menu(message: Message, auth_service: AuthService) -> None:
-    user = await _get_current_user(message, auth_service)
-    if user is None:
-        return
-
-    await message.answer("Раздел клиентов. Выберите действие:", reply_markup=get_clients_menu_keyboard())
-
-
-@router.message(F.text == "⬅️ Главное меню")
-async def back_to_main_menu(message: Message) -> None:
-    await message.answer("Главное меню:", reply_markup=get_main_menu_keyboard())
 
 
 @router.message(Command("cancel"), ClientCreateStates)
@@ -297,7 +281,7 @@ async def process_next_contact_at(
     await state.clear()
 
     await message.answer(
-        format_client_card(client=client, manager_name=user.full_name),
+        format_client_created_card(client=client, manager_name=user.full_name),
         reply_markup=get_clients_menu_keyboard(),
     )
 
