@@ -8,8 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.keyboards.clients import CANCEL_TEXT, get_cancel_keyboard, get_client_card_actions_keyboard, get_status_change_keyboard
 from app.bot.states.clients import ClientCardStates
+from app.bot.states.tasks import NextContactStates
 from app.common.enums import ClientStatus
 from app.common.formatters.client_formatter import format_client_card
+from app.common.utils.parsers import parse_next_contact_at
 from app.services.auth_service import AuthService
 from app.services.clients import ClientService
 
@@ -192,6 +194,107 @@ async def save_note(
     await session.commit()
     await state.clear()
 
+    manager_name = client.manager.full_name if client.manager else "—"
+    await message.answer(
+        format_client_card(client=client, manager_name=manager_name, updated=True),
+        reply_markup=get_client_card_actions_keyboard(
+            client_id=client.id,
+            can_edit=client_service.can_edit_client(current_user=user, client=client),
+        ),
+    )
+
+
+@router.callback_query(F.data.startswith("client_set_next_contact:"))
+async def start_next_contact_change(
+        callback: CallbackQuery,
+        state: FSMContext,
+        auth_service: AuthService,
+        client_service: ClientService,
+) -> None:
+    if callback.message is None:
+        await callback.answer()
+        return
+
+    user = await auth_service.get_active_user_by_telegram_id(callback.from_user.id)
+    if user is None:
+        await callback.answer("Нет доступа", show_alert=True)
+        return
+
+    _, raw_client_id = callback.data.split(":", maxsplit=1)
+    if not raw_client_id.isdigit():
+        await callback.answer("Некорректный ID клиента", show_alert=True)
+        return
+
+    client = await client_service.get_client_for_view(current_user=user, client_id=int(raw_client_id))
+    if client is None:
+        await callback.answer("Клиент не найден или недоступен", show_alert=True)
+        return
+
+    if not client_service.can_edit_client(current_user=user, client=client):
+        await callback.answer("У вас нет прав на редактирование", show_alert=True)
+        return
+
+    await state.set_state(NextContactStates.value)
+    await state.update_data(client_id=client.id)
+    await callback.message.answer(
+        "Введите новую дату контакта: ДД.ММ.ГГГГ или ДД.ММ.ГГГГ ЧЧ:ММ",
+        reply_markup=get_cancel_keyboard(),
+    )
+    await callback.answer()
+
+
+@router.message(Command("cancel"), NextContactStates.value)
+@router.message(F.text == CANCEL_TEXT, NextContactStates.value)
+async def cancel_next_contact_change(message: Message, state: FSMContext) -> None:
+    await state.clear()
+    await message.answer("Изменение даты следующего контакта отменено.")
+
+
+@router.message(NextContactStates.value)
+async def save_next_contact(
+        message: Message,
+        state: FSMContext,
+        auth_service: AuthService,
+        client_service: ClientService,
+        session: AsyncSession,
+) -> None:
+    user = await auth_service.get_active_user_by_telegram_id(message.from_user.id)
+    if user is None:
+        await state.clear()
+        await message.answer("Нет доступа")
+        return
+
+    value = (message.text or "").strip()
+    try:
+        next_contact_at = parse_next_contact_at(value)
+    except ValueError:
+        await message.answer("Неверный формат даты. Пример: 25.04.2026 14:30")
+        return
+
+    state_data = await state.get_data()
+    client_id = state_data.get("client_id")
+    if not isinstance(client_id, int):
+        await state.clear()
+        await message.answer("Не удалось определить клиента. Откройте карточку заново.")
+        return
+
+    try:
+        client = await client_service.update_next_contact(
+            current_user=user,
+            client_id=client_id,
+            next_contact_at=next_contact_at,
+        )
+    except ValueError:
+        await state.clear()
+        await message.answer("Клиент не найден или недоступен.")
+        return
+    except PermissionError:
+        await state.clear()
+        await message.answer("У вас нет прав для изменения даты контакта.")
+        return
+
+    await session.commit()
+    await state.clear()
     manager_name = client.manager.full_name if client.manager else "—"
     await message.answer(
         format_client_card(client=client, manager_name=manager_name, updated=True),

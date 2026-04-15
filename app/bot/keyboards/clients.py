@@ -136,9 +136,12 @@ def get_client_card_actions_keyboard(client_id: int, can_edit: bool) -> InlineKe
             [
                 [InlineKeyboardButton(text="✏️ Изменить статус", callback_data=f"client_edit_status:{client_id}")],
                 [InlineKeyboardButton(text="📝 Добавить заметку", callback_data=f"client_add_note:{client_id}")],
+                [InlineKeyboardButton(text="📆 Назначить следующий контакт", callback_data=f"client_set_next_contact:{client_id}")],
+                [InlineKeyboardButton(text="✅ Создать задачу", callback_data=f"client_task_create:{client_id}")],
             ]
         )
 
+    rows.append([InlineKeyboardButton(text="📅 Задачи на сегодня", callback_data="tasks_today_dashboard")])
     rows.append([InlineKeyboardButton(text="📚 История", callback_data=f"client_history:{client_id}")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 

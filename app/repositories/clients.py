@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import date, datetime, time, timezone
 
 from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -56,6 +57,12 @@ class ClientRepository:
         await self._session.refresh(client)
         return client
 
+    async def update_next_contact(self, client: Client, next_contact_at: datetime | None) -> Client:
+        client.next_contact_at = next_contact_at
+        await self._session.flush()
+        await self._session.refresh(client)
+        return client
+
     async def get_by_manager(self, manager_id: int, limit: int = 10, offset: int = 0) -> Sequence[Client]:
         stmt = self._base_list_query().where(Client.manager_id == manager_id)
         stmt = stmt.limit(limit).offset(offset)
@@ -78,6 +85,44 @@ class ClientRepository:
 
     async def get_recent(self, limit: int = 10, manager_id: int | None = None) -> Sequence[Client]:
         stmt = self._base_list_query()
+        if manager_id is not None:
+            stmt = stmt.where(Client.manager_id == manager_id)
+        stmt = stmt.limit(limit)
+        result = await self._session.execute(stmt)
+        return result.scalars().all()
+
+    async def get_contacts_for_date(
+            self,
+            *,
+            manager_id: int | None,
+            target_date: date,
+            limit: int = 20,
+    ) -> Sequence[Client]:
+        day_start = datetime.combine(target_date, time.min, tzinfo=timezone.utc)
+        day_end = datetime.combine(target_date, time.max, tzinfo=timezone.utc)
+
+        stmt = self._base_list_query().where(
+            Client.next_contact_at.is_not(None),
+            Client.next_contact_at >= day_start,
+            Client.next_contact_at <= day_end,
+        )
+        if manager_id is not None:
+            stmt = stmt.where(Client.manager_id == manager_id)
+        stmt = stmt.limit(limit)
+        result = await self._session.execute(stmt)
+        return result.scalars().all()
+
+    async def get_overdue_contacts(
+            self,
+            *,
+            manager_id: int | None,
+            now_dt: datetime,
+            limit: int = 20,
+    ) -> Sequence[Client]:
+        stmt = self._base_list_query().where(
+            Client.next_contact_at.is_not(None),
+            Client.next_contact_at < now_dt,
+        )
         if manager_id is not None:
             stmt = stmt.where(Client.manager_id == manager_id)
         stmt = stmt.limit(limit)

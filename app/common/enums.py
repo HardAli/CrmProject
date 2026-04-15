@@ -57,6 +57,8 @@ class ClientActionType(StrEnum):
     STATUS_CHANGED = "status_changed"
     NOTE_ADDED = "note_added"
     CARD_VIEWED = "card_viewed"
+    TASK_CREATED = "task_created"
+    NEXT_CONTACT_CHANGED = "next_contact_changed"
 
 
 class ClientPropertyRelationStatus(StrEnum):

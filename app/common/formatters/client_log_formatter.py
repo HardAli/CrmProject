@@ -11,6 +11,8 @@ ACTION_LABELS: dict[ClientActionType, str] = {
     ClientActionType.STATUS_CHANGED: "статус изменён",
     ClientActionType.NOTE_ADDED: "добавлена заметка",
     ClientActionType.CARD_VIEWED: "открыта карточка",
+    ClientActionType.TASK_CREATED: "создана задача",
+    ClientActionType.NEXT_CONTACT_CHANGED: "изменён следующий контакт",
 }
 
 
