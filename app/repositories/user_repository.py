@@ -3,6 +3,7 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.common.enums import UserRole
 from app.database.models.user import User
 
 
@@ -14,3 +15,7 @@ class UserRepository:
         stmt = select(User).where(User.telegram_id == telegram_id).limit(1)
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
+
+    async def set_role(self, user: User, role: UserRole) -> None:
+        user.role = role
+        await self._session.flush()

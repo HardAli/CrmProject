@@ -40,10 +40,10 @@ STATUS_LABELS: dict[ClientStatus, str] = {
     ClientStatus.NEW: "🆕 Новый",
     ClientStatus.IN_PROGRESS: "🔄 В работе",
     ClientStatus.WAITING: "📞 Ждёт звонка",
+    ClientStatus.SHOWING: "🏠 Показ",
     ClientStatus.CLOSED_SUCCESS: "✅ Закрыт",
     ClientStatus.CLOSED_FAILED: "❌ Отказ",
 }
-
 
 
 def get_clients_menu_keyboard() -> ReplyKeyboardMarkup:
@@ -57,7 +57,6 @@ def get_clients_menu_keyboard() -> ReplyKeyboardMarkup:
         resize_keyboard=True,
         input_field_placeholder="Выберите действие по клиентам",
     )
-
 
 
 def get_cancel_keyboard() -> ReplyKeyboardMarkup:
@@ -127,4 +126,27 @@ def get_clients_list_inline_keyboard(clients: list[Client]) -> InlineKeyboardMar
                 )
             ]
         )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def get_client_card_actions_keyboard(client_id: int, can_edit: bool) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    if can_edit:
+        rows.extend(
+            [
+                [InlineKeyboardButton(text="✏️ Изменить статус", callback_data=f"client_edit_status:{client_id}")],
+                [InlineKeyboardButton(text="📝 Добавить заметку", callback_data=f"client_add_note:{client_id}")],
+            ]
+        )
+
+    rows.append([InlineKeyboardButton(text="📚 История", callback_data=f"client_history:{client_id}")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def get_status_change_keyboard(client_id: int) -> InlineKeyboardMarkup:
+    rows = [
+        [InlineKeyboardButton(text=label, callback_data=f"client_set_status:{client_id}:{status.value}")]
+        for status, label in STATUS_LABELS.items()
+    ]
+    rows.append([InlineKeyboardButton(text="↩️ Назад к карточке", callback_data=f"client_view:{client_id}")])
     return InlineKeyboardMarkup(inline_keyboard=rows)

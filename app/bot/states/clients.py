@@ -15,3 +15,7 @@ class ClientCreateStates(StatesGroup):
     budget_max = State()
     note = State()
     next_contact_at = State()
+
+
+class ClientCardStates(StatesGroup):
+    add_note = State()

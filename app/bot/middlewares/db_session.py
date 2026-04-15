@@ -8,6 +8,7 @@ from aiogram import BaseMiddleware
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.repositories.client_logs import ClientLogRepository
 from app.repositories.clients import ClientRepository
 from app.repositories.user_repository import UserRepository
 from app.services.auth_service import AuthService
@@ -30,12 +31,14 @@ class DbSessionMiddleware(BaseMiddleware):
         async with self._session_factory() as session:
             user_repository = UserRepository(session)
             client_repository = ClientRepository(session)
+            client_log_repository = ClientLogRepository(session)
 
             data["session"] = session
             data["user_repository"] = user_repository
             data["client_repository"] = client_repository
             data["auth_service"] = AuthService(user_repository)
-            data["client_service"] = ClientService(client_repository)
+            data["client_log_repository"] = client_log_repository
+            data["client_service"] = ClientService(client_repository, client_log_repository)
 
             try:
                 return await handler(event, data)

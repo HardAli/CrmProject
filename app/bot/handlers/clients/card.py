@@ -3,6 +3,7 @@ from __future__ import annotations
 from aiogram import F, Router
 from aiogram.types import CallbackQuery
 
+from app.bot.keyboards.clients import get_client_card_actions_keyboard
 from app.common.formatters.client_formatter import format_client_card
 from app.services.auth_service import AuthService
 from app.services.clients import ClientService
@@ -36,5 +37,11 @@ async def open_client_card(
         return
 
     manager_name = client.manager.full_name if client.manager else "—"
-    await callback.message.answer(format_client_card(client=client, manager_name=manager_name))
+    await callback.message.answer(
+        format_client_card(client=client, manager_name=manager_name),
+        reply_markup=get_client_card_actions_keyboard(
+            client_id=client.id,
+            can_edit=client_service.can_edit_client(current_user=user, client=client),
+        ),
+    )
     await callback.answer()

@@ -44,6 +44,18 @@ class ClientRepository:
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def update_status(self, client: Client, new_status: ClientStatus) -> Client:
+        client.status = new_status
+        await self._session.flush()
+        await self._session.refresh(client)
+        return client
+
+    async def update_note(self, client: Client, note: str) -> Client:
+        client.note = note
+        await self._session.flush()
+        await self._session.refresh(client)
+        return client
+
     async def get_by_manager(self, manager_id: int, limit: int = 10, offset: int = 0) -> Sequence[Client]:
         stmt = self._base_list_query().where(Client.manager_id == manager_id)
         stmt = stmt.limit(limit).offset(offset)

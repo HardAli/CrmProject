@@ -10,6 +10,7 @@ STATUS_LABELS: dict[ClientStatus, str] = {
     ClientStatus.NEW: "Новый",
     ClientStatus.IN_PROGRESS: "В работе",
     ClientStatus.WAITING: "Ждёт звонка",
+    ClientStatus.SHOWING: "Показ",
     ClientStatus.CLOSED_SUCCESS: "Закрыт",
     ClientStatus.CLOSED_FAILED: "Отказ",
 }
@@ -60,13 +61,17 @@ def format_clients_list(clients: list[Client], title: str, limit: int) -> str:
     return "\n".join(rows)
 
 
-def format_client_card(client: Client, manager_name: str) -> str:
+def format_client_card(client: Client, manager_name: str, updated: bool = False) -> str:
     status = STATUS_LABELS.get(client.status, client.status.value)
     request_type = REQUEST_TYPE_LABELS.get(client.request_type, client.request_type.value)
     property_type = PROPERTY_TYPE_LABELS.get(client.property_type, client.property_type.value)
 
+    header = f"<b>Карточка клиента #{client.id}</b>"
+    if updated:
+        header = f"✅ <b>Карточка обновлена</b>\n\n{header}"
+
     return (
-        f"<b>Карточка клиента #{client.id}</b>\n\n"
+        f"{header}\n\n"
         f"<b>ID клиента:</b> {client.id}\n"
         f"<b>Имя:</b> {client.full_name}\n"
         f"<b>Телефон:</b> {client.phone}\n"
@@ -76,7 +81,8 @@ def format_client_card(client: Client, manager_name: str) -> str:
         f"<b>Район:</b> {client.district or '—'}\n"
         f"<b>Комнаты:</b> {client.rooms if client.rooms is not None else '—'}\n"
         f"<b>Бюджет:</b> {_format_budget_range(client)}\n"
-        f"<b>Статус:</b> {status}\n"        f"<b>Заметка:</b> {client.note or '—'}\n"
+        f"<b>Статус:</b> {status}\n"
+        f"<b>Последняя заметка:</b> {client.note or '—'}\n"
         f"<b>Следующий контакт:</b> {_format_datetime(client.next_contact_at)}\n"
         f"<b>Ответственный менеджер:</b> {manager_name}\n"
         f"<b>Дата создания:</b> {_format_datetime(client.created_at)}\n"

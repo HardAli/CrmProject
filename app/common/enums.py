@@ -33,6 +33,7 @@ class ClientStatus(StrEnum):
     NEW = "new"
     IN_PROGRESS = "in_progress"
     WAITING = "waiting"
+    SHOWING = "showing"
     CLOSED_SUCCESS = "closed_success"
     CLOSED_FAILED = "closed_failed"
 
@@ -52,12 +53,10 @@ class TaskStatus(StrEnum):
 
 
 class ClientActionType(StrEnum):
-    NOTE = "note"
-    CALL = "call"
+    CLIENT_CREATED = "client_created"
     STATUS_CHANGED = "status_changed"
-    TASK_ASSIGNED = "task_assigned"
-    PROPERTY_SENT = "property_sent"
-    SHOWING_CREATED = "showing_created"
+    NOTE_ADDED = "note_added"
+    CARD_VIEWED = "card_viewed"
 
 
 class ClientPropertyRelationStatus(StrEnum):
