@@ -9,6 +9,9 @@ from app.bot.handlers.clients.create import router as client_create_router
 from app.bot.handlers.clients.list import router as client_list_router
 from app.bot.handlers.tasks.create import router as task_create_router
 from app.bot.handlers.tasks.list_today import router as task_list_router
+from app.bot.handlers.properties.create import router as property_create_router
+from app.bot.handlers.properties.list import router as property_list_router
+from app.bot.handlers.properties.card import router as property_card_router
 from app.bot.handlers.start import router as start_router
 
 
@@ -21,6 +24,9 @@ COMMON_ROUTERS: tuple[Router, ...] = (
     client_logs_router,
     task_create_router,
     task_list_router,
+    property_list_router,
+    property_create_router,
+    property_card_router,
 )
 
 

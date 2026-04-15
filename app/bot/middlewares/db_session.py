@@ -11,10 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.repositories.client_logs import ClientLogRepository
 from app.repositories.clients import ClientRepository
 from app.repositories.tasks import TaskRepository
+from app.repositories.properties import PropertyRepository
 from app.repositories.user_repository import UserRepository
 from app.services.auth_service import AuthService
 from app.services.clients import ClientService
 from app.services.tasks import TaskService
+from app.services.properties import PropertyService
 
 
 logger = logging.getLogger(__name__)
@@ -35,6 +37,7 @@ class DbSessionMiddleware(BaseMiddleware):
             client_repository = ClientRepository(session)
             client_log_repository = ClientLogRepository(session)
             task_repository = TaskRepository(session)
+            property_repository = PropertyRepository(session)
 
             data["session"] = session
             data["user_repository"] = user_repository
@@ -44,6 +47,8 @@ class DbSessionMiddleware(BaseMiddleware):
             data["client_service"] = ClientService(client_repository, client_log_repository)
             data["task_repository"] = task_repository
             data["task_service"] = TaskService(task_repository, client_repository, client_log_repository)
+            data["property_repository"] = property_repository
+            data["property_service"] = PropertyService(property_repository)
 
             try:
                 return await handler(event, data)
