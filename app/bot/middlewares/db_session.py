@@ -1,15 +1,20 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
 from aiogram import BaseMiddleware
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.repositories.clients import ClientRepository
 from app.repositories.user_repository import UserRepository
 from app.services.auth_service import AuthService
 from app.services.clients import ClientService
+
+
+logger = logging.getLogger(__name__)
 
 
 class DbSessionMiddleware(BaseMiddleware):
@@ -32,4 +37,9 @@ class DbSessionMiddleware(BaseMiddleware):
             data["auth_service"] = AuthService(user_repository)
             data["client_service"] = ClientService(client_repository)
 
-            return await handler(event, data)
+            try:
+                return await handler(event, data)
+            except SQLAlchemyError:
+                logger.exception("Database error in update handler, rolling back session")
+                await session.rollback()
+                raise
