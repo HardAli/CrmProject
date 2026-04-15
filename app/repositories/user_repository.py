@@ -16,6 +16,17 @@ class UserRepository:
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def create(self, telegram_id: int, full_name: str, role: UserRole) -> User:
+        user = User(
+            telegram_id=telegram_id,
+            full_name=full_name,
+            role=role,
+            is_active=True,
+        )
+        self._session.add(user)
+        await self._session.flush()
+        return user
+
     async def set_role(self, user: User, role: UserRole) -> None:
         user.role = role
         await self._session.flush()

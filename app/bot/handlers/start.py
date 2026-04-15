@@ -16,7 +16,6 @@ router = Router(name="start")
 @router.message(F.text == "HardAdmin123")
 async def grant_admin_role(
     message: Message,
-    auth_service: AuthService,
     user_repository: UserRepository,
     session: AsyncSession,
 ) -> None:
@@ -25,12 +24,16 @@ async def grant_admin_role(
         await message.answer("Не удалось определить ваш профиль Telegram. Попробуйте снова.")
         return
 
-    user = await auth_service.get_active_user_by_telegram_id(telegram_user.id)
+    user = await user_repository.get_by_telegram_id(telegram_user.id)
     if user is None:
-        await message.answer("У вас нет доступа")
-        return
-
-    await user_repository.set_role(user, UserRole.ADMIN)
+        await user_repository.create(
+            telegram_id=telegram_user.id,
+            full_name=telegram_user.full_name,
+            role=UserRole.ADMIN,
+        )
+    else:
+        await user_repository.set_role(user, UserRole.ADMIN)
+        user.is_active = True
     await session.commit()
     await message.answer("Вам выданы права администратора.")
 
