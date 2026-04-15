@@ -21,8 +21,7 @@ class ClientService:
             return await self._client_repository.get_recent(limit=limit)
         return await self._client_repository.get_by_manager(manager_id=current_user.id, limit=limit)
 
-    async def get_clients_by_status(self, current_user: User, status: ClientStatus, limit: int = 10) -> Sequence[
-        Client]:
+    async def get_clients_by_status(self, current_user: User, status: ClientStatus, limit: int = 10) -> Sequence[Client]:
         manager_id = None if self._can_view_all(current_user) else current_user.id
         return await self._client_repository.get_by_status(
             status=status,
