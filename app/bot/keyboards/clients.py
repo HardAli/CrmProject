@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
 
-from app.common.enums import ClientStatus
+from app.common.enums import ClientPropertyRelationStatus, ClientStatus
 from app.database.models.client import Client
+from app.database.models.client_property import ClientProperty
+from app.database.models.property import Property
 
 CANCEL_TEXT = "❌ Отмена"
 SKIP_TEXT = "⏭ Пропустить"
@@ -131,9 +133,12 @@ def get_clients_list_inline_keyboard(clients: list[Client]) -> InlineKeyboardMar
 
 def get_client_card_actions_keyboard(client_id: int, can_edit: bool) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
+    rows.append([InlineKeyboardButton(text="🏘 Объекты клиента", callback_data=f"client_properties:{client_id}")])
     if can_edit:
         rows.extend(
             [
+                [InlineKeyboardButton(text="🔗 Привязать объект",
+                                      callback_data=f"client_property_link_pick:{client_id}")],
                 [InlineKeyboardButton(text="✏️ Изменить статус", callback_data=f"client_edit_status:{client_id}")],
                 [InlineKeyboardButton(text="📝 Добавить заметку", callback_data=f"client_add_note:{client_id}")],
                 [InlineKeyboardButton(text="📆 Назначить следующий контакт", callback_data=f"client_set_next_contact:{client_id}")],
@@ -152,4 +157,78 @@ def get_status_change_keyboard(client_id: int) -> InlineKeyboardMarkup:
         for status, label in STATUS_LABELS.items()
     ]
     rows.append([InlineKeyboardButton(text="↩️ Назад к карточке", callback_data=f"client_view:{client_id}")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+RELATION_STATUS_LABELS: dict[ClientPropertyRelationStatus, str] = {
+    ClientPropertyRelationStatus.SENT: "📤 Отправлен",
+    ClientPropertyRelationStatus.INTERESTED: "🔥 Заинтересовал",
+    ClientPropertyRelationStatus.SHOWN: "🏠 Показан",
+    ClientPropertyRelationStatus.REJECTED: "❌ Отказался",
+    ClientPropertyRelationStatus.IN_NEGOTIATION: "🤝 В переговорах",
+    ClientPropertyRelationStatus.DEAL: "✅ Сделка",
+}
+
+
+def get_client_properties_list_keyboard(*, client_id: int, links: list[ClientProperty],
+                                        can_edit: bool) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    for link in links:
+        status = RELATION_STATUS_LABELS.get(link.relation_status, link.relation_status.value)
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=f"#{link.id} · {link.property.title} · {status}",
+                    callback_data=f"client_property_view:{link.id}",
+                )
+            ]
+        )
+
+    if can_edit:
+        rows.append([InlineKeyboardButton(text="🔗 Привязать объект",
+                                          callback_data=f"client_property_link_pick:{client_id}")])
+    rows.append([InlineKeyboardButton(text="↩️ Назад к карточке", callback_data=f"client_view:{client_id}")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def get_property_pick_for_link_keyboard(*, client_id: int, properties: list[Property]) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    for property_obj in properties:
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=f"#{property_obj.id} · {property_obj.title}",
+                    callback_data=f"client_property_link:{client_id}:{property_obj.id}",
+                )
+            ]
+        )
+    rows.append(
+        [InlineKeyboardButton(text="↩️ К объектам клиента", callback_data=f"client_properties:{client_id}")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def get_relation_status_change_keyboard(*, link_id: int, client_id: int) -> InlineKeyboardMarkup:
+    rows = [
+        [
+            InlineKeyboardButton(
+                text=label,
+                callback_data=f"client_property_set_status:{link_id}:{status.value}",
+            )
+        ]
+        for status, label in RELATION_STATUS_LABELS.items()
+    ]
+    rows.append(
+        [InlineKeyboardButton(text="↩️ К списку объектов клиента", callback_data=f"client_properties:{client_id}")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def get_client_property_card_keyboard(*, link_id: int, client_id: int, can_edit: bool) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    if can_edit:
+        rows.append(
+            [InlineKeyboardButton(text="🔄 Изменить статус связи",
+                                  callback_data=f"client_property_change_status:{link_id}")]
+        )
+    rows.append([InlineKeyboardButton(text="🏘 Объекты клиента", callback_data=f"client_properties:{client_id}")])
+    rows.append([InlineKeyboardButton(text="↩️ Карточка клиента", callback_data=f"client_view:{client_id}")])
     return InlineKeyboardMarkup(inline_keyboard=rows)

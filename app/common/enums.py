@@ -59,13 +59,17 @@ class ClientActionType(StrEnum):
     CARD_VIEWED = "card_viewed"
     TASK_CREATED = "task_created"
     NEXT_CONTACT_CHANGED = "next_contact_changed"
+    PROPERTY_LINKED = "property_linked"
+    PROPERTY_RELATION_STATUS_CHANGED = "property_relation_status_changed"
 
 
 class ClientPropertyRelationStatus(StrEnum):
     SENT = "sent"
-    VIEWED = "viewed"
-    LIKED = "liked"
+    INTERESTED = "interested"
+    SHOWN = "shown"
     REJECTED = "rejected"
+    IN_NEGOTIATION = "in_negotiation"
+    DEAL = "deal"
 
 
 class ShowingResult(StrEnum):

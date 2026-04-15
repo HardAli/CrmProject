@@ -73,6 +73,24 @@ class PropertyRepository:
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none() is not None
 
+    async def get_available_for_linking(
+            self,
+            *,
+            current_user: User,
+            limit: int = 10,
+            exclude_property_ids: set[int] | None = None,
+    ) -> Sequence[Property]:
+        stmt = self._base_list_query()
+        if current_user.role == UserRole.MANAGER:
+            stmt = stmt.where(Property.manager_id == current_user.id)
+
+        if exclude_property_ids:
+            stmt = stmt.where(~Property.id.in_(exclude_property_ids))
+
+        stmt = stmt.limit(limit)
+        result = await self._session.execute(stmt)
+        return result.scalars().all()
+
     @staticmethod
     def _base_list_query() -> Select[tuple[Property]]:
         return select(Property).options(joinedload(Property.manager)).order_by(Property.created_at.desc())

@@ -5,6 +5,7 @@ from aiogram import Dispatcher, Router
 from app.bot.handlers.clients.card import router as client_card_router
 from app.bot.handlers.clients.edit import router as client_edit_router
 from app.bot.handlers.clients.logs import router as client_logs_router
+from app.bot.handlers.clients.properties import router as client_properties_router
 from app.bot.handlers.clients.create import router as client_create_router
 from app.bot.handlers.clients.list import router as client_list_router
 from app.bot.handlers.tasks.create import router as task_create_router
@@ -23,6 +24,7 @@ COMMON_ROUTERS: tuple[Router, ...] = (
     client_edit_router,
     client_logs_router,
     task_create_router,
+    client_properties_router,
     task_list_router,
     property_list_router,
     property_create_router,
