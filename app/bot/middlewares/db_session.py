@@ -13,6 +13,7 @@ from app.repositories.client_properties import ClientPropertyRepository
 from app.repositories.clients import ClientRepository
 from app.repositories.tasks import TaskRepository
 from app.repositories.properties import PropertyRepository
+from app.repositories.statistics import StatisticsRepository
 from app.repositories.user_repository import UserRepository
 from app.services.auth_service import AuthService
 from app.services.clients import ClientService
@@ -20,6 +21,7 @@ from app.services.client_properties import ClientPropertyService
 from app.services.tasks import TaskService
 from app.services.properties import PropertyService
 from app.services.search import SearchService
+from app.services.statistics import StatisticsService
 
 
 logger = logging.getLogger(__name__)
@@ -42,6 +44,7 @@ class DbSessionMiddleware(BaseMiddleware):
             task_repository = TaskRepository(session)
             property_repository = PropertyRepository(session)
             client_property_repository = ClientPropertyRepository(session)
+            statistics_repository = StatisticsRepository(session)
 
             data["session"] = session
             data["user_repository"] = user_repository
@@ -55,6 +58,8 @@ class DbSessionMiddleware(BaseMiddleware):
             data["property_service"] = PropertyService(property_repository)
             data["search_service"] = SearchService(client_repository, property_repository)
             data["client_property_repository"] = client_property_repository
+            data["statistics_repository"] = statistics_repository
+            data["statistics_service"] = StatisticsService(statistics_repository)
             data["client_property_service"] = ClientPropertyService(
                 client_property_repository=client_property_repository,
                 client_repository=client_repository,
