@@ -3,9 +3,10 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from app.common.dto.properties import CreatePropertyDTO
-from app.common.enums import UserRole
+from app.common.enums import PropertyType, UserRole
 from app.database.models.property import Property
 from app.database.models.user import User
+from app.common.utils.phone_links import normalize_owner_phone
 from app.repositories.properties import PropertyRepository
 
 
@@ -19,6 +20,18 @@ class PropertyService:
 
         if current_user.role == UserRole.MANAGER and data.manager_id != current_user.id:
             raise PermissionError("Менеджер может создавать только свои объекты")
+
+        data.owner_phone = normalize_owner_phone(data.owner_phone)
+
+        if data.floor is not None and data.floor < 0:
+            raise ValueError("Этаж должен быть числом больше или равным 0.")
+
+        if data.property_type == PropertyType.APARTMENT and data.building_floors is None:
+            raise ValueError("Для квартиры необходимо указать этажность здания.")
+        if data.building_floors is not None and data.building_floors <= 0:
+            raise ValueError("Этажность здания должна быть положительным числом.")
+        if data.floor is not None and data.building_floors is not None and data.floor > data.building_floors:
+            raise ValueError("Этаж объекта не может быть больше этажности здания.")
 
         return await self._property_repository.create(data)
 

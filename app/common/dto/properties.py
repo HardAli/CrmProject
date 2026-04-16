@@ -12,10 +12,12 @@ class CreatePropertyDTO:
     property_type: PropertyType
     district: str
     address: str
+    owner_phone: str
     price: Decimal
     area: Decimal
     rooms: int | None
     floor: int | None
+    building_floors: int | None
     description: str | None
     link: str | None
     status: PropertyStatus

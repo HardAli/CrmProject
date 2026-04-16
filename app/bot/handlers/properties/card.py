@@ -3,6 +3,7 @@ from __future__ import annotations
 from aiogram import F, Router
 from aiogram.types import CallbackQuery
 
+from app.bot.keyboards.properties import get_property_actions_inline_keyboard
 from app.common.formatters.property_formatter import format_property_card
 from app.services.auth_service import AuthService
 from app.services.properties import PropertyService
@@ -36,5 +37,8 @@ async def open_property_card(
         return
 
     manager_name = property_obj.manager.full_name if property_obj.manager else "—"
-    await callback.message.answer(format_property_card(property_obj=property_obj, manager_name=manager_name))
+    await callback.message.answer(
+        format_property_card(property_obj=property_obj, manager_name=manager_name),
+        reply_markup=get_property_actions_inline_keyboard(property_obj),
+    )
     await callback.answer()

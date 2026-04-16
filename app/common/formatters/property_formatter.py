@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from app.common.enums import PropertyStatus, PropertyType
+from app.common.utils.phone_links import format_owner_phone
 from app.database.models.property import Property
 
 PROPERTY_TYPE_LABELS: dict[PropertyType, str] = {
@@ -59,6 +60,12 @@ def format_property_card(property_obj: Property, manager_name: str, updated: boo
 
     property_type = PROPERTY_TYPE_LABELS.get(property_obj.property_type, property_obj.property_type.value)
     status = PROPERTY_STATUS_LABELS.get(property_obj.status, property_obj.status.value)
+    building_floors_row = ""
+    if property_obj.property_type == PropertyType.APARTMENT:
+        building_floors_row = (
+            f"<b>Этажность здания:</b> "
+            f"{property_obj.building_floors if property_obj.building_floors is not None else '—'}\n"
+        )
 
     return (
         f"{header}\n\n"
@@ -67,10 +74,12 @@ def format_property_card(property_obj: Property, manager_name: str, updated: boo
         f"<b>Тип недвижимости:</b> {property_type}\n"
         f"<b>Район:</b> {property_obj.district or '—'}\n"
         f"<b>Адрес:</b> {property_obj.address or '—'}\n"
+        f"<b>Номер владельца:</b> {format_owner_phone(property_obj.owner_phone)}\n"
         f"<b>Цена:</b> {_format_money(property_obj.price)}\n"
         f"<b>Площадь (м²):</b> {_format_decimal(property_obj.area)}\n"
         f"<b>Комнаты:</b> {property_obj.rooms if property_obj.rooms is not None else '—'}\n"
-        f"<b>Этаж:</b> {property_obj.floor if property_obj.floor is not None else '—'}\n"
+        f"<b>Этаж:</b> {property_obj.floor if property_obj.floor is not None else '—'} из"
+        f"{building_floors_row}\n"
         f"<b>Описание:</b> {property_obj.description or '—'}\n"
         f"<b>Ссылка:</b> {property_obj.link or '—'}\n"
         f"<b>Статус:</b> {status}\n"

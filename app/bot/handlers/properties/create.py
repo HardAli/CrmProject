@@ -25,6 +25,7 @@ from app.common.dto.properties import CreatePropertyDTO
 from app.common.enums import PropertyStatus, PropertyType
 from app.common.formatters.property_formatter import format_property_created_card
 from app.common.utils.parsers import parse_money
+from app.common.utils.phone_links import normalize_owner_phone
 from app.services.auth_service import AuthService
 from app.services.properties import PropertyService
 
@@ -133,6 +134,19 @@ async def process_address(message: Message, state: FSMContext) -> None:
         return
 
     await state.update_data(address=address)
+    await state.set_state(PropertyCreateStates.owner_phone)
+    await message.answer("Введите номер владельца объекта.")
+
+
+@router.message(PropertyCreateStates.owner_phone)
+async def process_owner_phone(message: Message, state: FSMContext) -> None:
+    try:
+        owner_phone = normalize_owner_phone(message.text or "")
+    except ValueError as error:
+        await message.answer(f"{error}")
+        return
+
+    await state.update_data(owner_phone=owner_phone)
     await state.set_state(PropertyCreateStates.price)
     await message.answer("Введите цену (только число).")
 
@@ -191,6 +205,32 @@ async def process_floor(message: Message, state: FSMContext) -> None:
         return
 
     await state.update_data(floor=floor)
+    data = await state.get_data()
+    property_type = PropertyType(data["property_type"])
+    if property_type == PropertyType.APARTMENT:
+        await state.set_state(PropertyCreateStates.building_floors)
+        await message.answer("Введите этажность здания (положительное число).")
+        return
+
+    await state.set_state(PropertyCreateStates.description)
+    await message.answer("Введите описание (или «Пропустить»).", reply_markup=get_property_skip_cancel_keyboard())
+
+
+@router.message(PropertyCreateStates.building_floors)
+async def process_building_floors(message: Message, state: FSMContext) -> None:
+    value = (message.text or "").strip()
+    if not value.isdigit() or int(value) <= 0:
+        await message.answer("Этажность здания должна быть положительным целым числом.")
+        return
+
+    building_floors = int(value)
+    data = await state.get_data()
+    floor = data.get("floor")
+    if floor is not None and floor > building_floors:
+        await message.answer("Этаж объекта не может быть больше этажности здания.")
+        return
+
+    await state.update_data(building_floors=building_floors)
     await state.set_state(PropertyCreateStates.description)
     await message.answer("Введите описание (или «Пропустить»).", reply_markup=get_property_skip_cancel_keyboard())
 
@@ -244,10 +284,12 @@ async def process_status(
         property_type=PropertyType(data["property_type"]),
         district=data["district"],
         address=data["address"],
+        owner_phone=data["owner_phone"],
         price=Decimal(data["price"]),
         area=Decimal(data["area"]),
         rooms=data.get("rooms"),
         floor=data.get("floor"),
+        building_floors=data.get("building_floors"),
         description=data.get("description"),
         link=data.get("link"),
         status=PropertyStatus(status.value),
@@ -259,6 +301,9 @@ async def process_status(
     except PermissionError as error:
         await message.answer(str(error), reply_markup=get_properties_menu_keyboard())
         await state.clear()
+        return
+    except ValueError as error:
+        await message.answer(str(error))
         return
 
     await session.commit()
