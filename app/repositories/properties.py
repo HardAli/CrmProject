@@ -47,6 +47,11 @@ class PropertyRepository:
         result = await self._session.execute(stmt)
         return result.scalars().all()
 
+    async def get_all(self, limit: int = 10, offset: int = 0) -> Sequence[Property]:
+        stmt = self._base_list_query().limit(limit).offset(offset)
+        result = await self._session.execute(stmt)
+        return result.scalars().all()
+
     async def get_recent(self, limit: int = 10, manager_id: int | None = None) -> Sequence[Property]:
         stmt = self._base_list_query()
         if manager_id is not None:
@@ -54,6 +59,9 @@ class PropertyRepository:
         stmt = stmt.limit(limit)
         result = await self._session.execute(stmt)
         return result.scalars().all()
+
+    async def get_recent_global(self, limit: int = 10) -> Sequence[Property]:
+        return await self.get_all(limit=limit, offset=0)
 
     async def get_visible_for_user(
         self,
@@ -65,9 +73,7 @@ class PropertyRepository:
         if current_user.role == UserRole.MANAGER:
             return await self.get_by_manager(manager_id=current_user.id, limit=limit, offset=offset)
 
-        stmt = self._base_list_query().limit(limit).offset(offset)
-        result = await self._session.execute(stmt)
-        return result.scalars().all()
+        return await self.get_all(limit=limit, offset=offset)
 
     async def exists_for_manager(self, property_id: int, manager_id: int) -> bool:
         stmt = select(Property.id).where(Property.id == property_id, Property.manager_id == manager_id)

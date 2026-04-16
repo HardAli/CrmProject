@@ -31,6 +31,16 @@ class PropertyService:
         manager_id = current_user.id if current_user.role == UserRole.MANAGER else None
         return await self._property_repository.get_recent(limit=limit, manager_id=manager_id)
 
+    async def get_global_properties(self, current_user: User, limit: int = 10) -> Sequence[Property]:
+        if current_user.role not in {UserRole.ADMIN, UserRole.MANAGER, UserRole.SUPERVISOR}:
+            return []
+        return await self._property_repository.get_all(limit=limit)
+
+    async def get_recent_global_properties(self, current_user: User, limit: int = 10) -> Sequence[Property]:
+        if current_user.role not in {UserRole.ADMIN, UserRole.MANAGER, UserRole.SUPERVISOR}:
+            return []
+        return await self._property_repository.get_recent_global(limit=limit)
+
     async def get_property_for_view(self, current_user: User, property_id: int) -> Property | None:
         property_obj = await self._property_repository.get_by_id(property_id)
         if property_obj is None:
@@ -43,9 +53,7 @@ class PropertyService:
 
     @staticmethod
     def can_view_property(current_user: User, property_obj: Property) -> bool:
-        if current_user.role in {UserRole.ADMIN, UserRole.SUPERVISOR}:
-            return True
-        return property_obj.manager_id == current_user.id
+        return current_user.role in {UserRole.ADMIN, UserRole.MANAGER, UserRole.SUPERVISOR}
 
     @staticmethod
     def can_create_property(current_user: User) -> bool:

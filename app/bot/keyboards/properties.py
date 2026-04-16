@@ -9,6 +9,7 @@ from app.database.models.property import Property
 PROPERTIES_MENU_TEXT = "🏠 Объекты"
 ADD_PROPERTY_TEXT = "➕ Добавить объект"
 MY_PROPERTIES_TEXT = "👤 Мои объекты"
+GLOBAL_PROPERTIES_TEXT = "🌐 База объектов"
 RECENT_PROPERTIES_TEXT = "🕒 Последние добавленные"
 
 PROPERTY_TYPE_OPTIONS: tuple[str, ...] = (
@@ -44,7 +45,9 @@ def get_properties_menu_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text=ADD_PROPERTY_TEXT)],
-            [KeyboardButton(text=MY_PROPERTIES_TEXT), KeyboardButton(text=RECENT_PROPERTIES_TEXT)],
+            [KeyboardButton(text=MY_PROPERTIES_TEXT)],
+            [KeyboardButton(text=GLOBAL_PROPERTIES_TEXT)],
+            [KeyboardButton(text=RECENT_PROPERTIES_TEXT)],
             [KeyboardButton(text="⬅️ Главное меню")],
         ],
         resize_keyboard=True,

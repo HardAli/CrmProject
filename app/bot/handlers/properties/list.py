@@ -5,6 +5,7 @@ from aiogram.types import Message
 
 from app.bot.keyboards.main_menu import get_main_menu_keyboard
 from app.bot.keyboards.properties import (
+    GLOBAL_PROPERTIES_TEXT,
     MY_PROPERTIES_TEXT,
     PROPERTIES_MENU_TEXT,
     RECENT_PROPERTIES_TEXT,
@@ -78,3 +79,13 @@ async def show_recent_properties(message: Message, auth_service: AuthService, pr
 
     properties = list(await property_service.get_recent_properties(current_user=user, limit=DEFAULT_LIST_LIMIT))
     await _show_properties(message, properties, title="Последние добавленные объекты", limit=DEFAULT_LIST_LIMIT)
+
+    @router.message(F.text == GLOBAL_PROPERTIES_TEXT)
+    async def show_global_properties(message: Message, auth_service: AuthService,
+                                     property_service: PropertyService) -> None:
+        user = await _get_current_user(message, auth_service)
+        if user is None:
+            return
+
+        properties = list(await property_service.get_global_properties(current_user=user, limit=DEFAULT_LIST_LIMIT))
+        await _show_properties(message, properties, title="База объектов", limit=DEFAULT_LIST_LIMIT)
