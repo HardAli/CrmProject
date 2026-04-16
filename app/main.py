@@ -13,6 +13,7 @@ from app.bot.routers import setup_routers
 from app.config.settings import get_settings
 from app.database.init import init_database
 from app.database.session import async_session_factory, engine
+from app.workers.scheduler import ReminderScheduler
 
 
 logger = logging.getLogger(__name__)
@@ -39,13 +40,22 @@ async def run_polling() -> None:
     dispatcher.update.outer_middleware(DbSessionMiddleware(async_session_factory))
     setup_routers(dispatcher)
 
+    reminder_scheduler = ReminderScheduler(
+        bot=bot,
+        daily_summary_hour_utc=settings.reminder_daily_summary_hour_utc,
+        frequent_check_minutes=settings.reminder_check_interval_minutes,
+        upcoming_task_horizon_minutes=settings.reminder_task_horizon_minutes,
+    )
+
     await bot.delete_webhook(drop_pending_updates=True)
+    reminder_scheduler.start()
     try:
         await dispatcher.start_polling(bot)
     except SQLAlchemyError:
         logger.exception("Database error during bot polling")
         raise
     finally:
+        await reminder_scheduler.shutdown()
         await bot.session.close()
         await engine.dispose()
 

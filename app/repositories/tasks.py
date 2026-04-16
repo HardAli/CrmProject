@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 
 from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -40,10 +40,10 @@ class TaskRepository:
         await self._session.refresh(task)
         return task
 
-    async def get_my_tasks_for_date(
+    async def get_today_tasks_for_user(
         self,
         *,
-        user_id: int | None,
+        user_id: int,
         target_date: date,
         limit: int = 20,
     ) -> Sequence[Task]:
@@ -51,36 +51,89 @@ class TaskRepository:
         day_end = datetime.combine(target_date, time.max, tzinfo=timezone.utc)
 
         stmt = self._base_query().where(
+            Task.assigned_to == user_id,
             Task.due_at.is_not(None),
             Task.due_at >= day_start,
             Task.due_at <= day_end,
             Task.status.in_(ACTIVE_TASK_STATUSES),
         )
-        if user_id is not None:
-            stmt = stmt.where(Task.assigned_to == user_id)
 
-        stmt = stmt.limit(limit)
-        result = await self._session.execute(stmt)
+        result = await self._session.execute(stmt.limit(limit))
         return result.scalars().all()
 
-    async def get_overdue_tasks(
+    async def get_overdue_tasks_for_user(
         self,
         *,
-        user_id: int | None,
+        user_id: int,
         now_dt: datetime,
         limit: int = 20,
     ) -> Sequence[Task]:
         stmt = self._base_query().where(
+            Task.assigned_to == user_id,
             Task.due_at.is_not(None),
             Task.due_at < now_dt,
             Task.status.in_(ACTIVE_TASK_STATUSES),
         )
-        if user_id is not None:
-            stmt = stmt.where(Task.assigned_to == user_id)
 
-        stmt = stmt.limit(limit)
-        result = await self._session.execute(stmt)
+        result = await self._session.execute(stmt.limit(limit))
         return result.scalars().all()
+
+    async def get_upcoming_tasks_for_user(
+            self,
+            *,
+            user_id: int,
+            now_dt: datetime,
+            horizon_minutes: int,
+            limit: int = 20,
+    ) -> Sequence[Task]:
+        horizon_dt = now_dt + timedelta(minutes=horizon_minutes)
+        stmt = self._base_query().where(
+            Task.assigned_to == user_id,
+            Task.due_at.is_not(None),
+            Task.due_at >= now_dt,
+            Task.due_at <= horizon_dt,
+            Task.status.in_(ACTIVE_TASK_STATUSES),
+        )
+
+        result = await self._session.execute(stmt.limit(limit))
+        return result.scalars().all()
+
+    async def get_my_tasks_for_date(
+            self,
+            *,
+            user_id: int | None,
+            target_date: date,
+            limit: int = 20,
+    ) -> Sequence[Task]:
+        if user_id is None:
+            day_start = datetime.combine(target_date, time.min, tzinfo=timezone.utc)
+            day_end = datetime.combine(target_date, time.max, tzinfo=timezone.utc)
+            stmt = self._base_query().where(
+                Task.due_at.is_not(None),
+                Task.due_at >= day_start,
+                Task.due_at <= day_end,
+                Task.status.in_(ACTIVE_TASK_STATUSES),
+            )
+            result = await self._session.execute(stmt.limit(limit))
+            return result.scalars().all()
+        return await self.get_today_tasks_for_user(user_id=user_id, target_date=target_date, limit=limit)
+
+    async def get_overdue_tasks(
+            self,
+            *,
+            user_id: int | None,
+            now_dt: datetime,
+            limit: int = 20,
+    ) -> Sequence[Task]:
+        if user_id is None:
+            stmt = self._base_query().where(
+                Task.due_at.is_not(None),
+                Task.due_at < now_dt,
+                Task.status.in_(ACTIVE_TASK_STATUSES),
+            )
+            result = await self._session.execute(stmt.limit(limit))
+            return result.scalars().all()
+        return await self.get_overdue_tasks_for_user(user_id=user_id, now_dt=now_dt, limit=limit)
 
     async def get_by_client(self, *, client_id: int, limit: int = 20) -> Sequence[Task]:
         stmt = self._base_query().where(Task.client_id == client_id).limit(limit)

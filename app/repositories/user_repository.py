@@ -16,6 +16,15 @@ class UserRepository:
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def get_active_users(self) -> list[User]:
+        stmt = (
+            select(User)
+            .where(User.is_active.is_(True), User.telegram_id.is_not(None))
+            .order_by(User.id.asc())
+        )
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())
+
     async def create(self, telegram_id: int, full_name: str, role: UserRole) -> User:
         user = User(
             telegram_id=telegram_id,

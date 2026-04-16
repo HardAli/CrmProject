@@ -16,6 +16,9 @@ class Settings(BaseSettings):
 
     bot_token: str = Field(alias="BOT_TOKEN")
     database_url: str = Field(alias="DATABASE_URL")
+    reminder_daily_summary_hour_utc: int = Field(default=7, alias="REMINDER_DAILY_SUMMARY_HOUR_UTC")
+    reminder_check_interval_minutes: int = Field(default=15, alias="REMINDER_CHECK_INTERVAL_MINUTES")
+    reminder_task_horizon_minutes: int = Field(default=30, alias="REMINDER_TASK_HORIZON_MINUTES")
 
 
 @lru_cache(maxsize=1)

@@ -91,6 +91,24 @@ class ClientRepository:
         result = await self._session.execute(stmt)
         return result.scalars().all()
 
+    async def get_today_contacts_for_user(
+            self,
+            *,
+            user_id: int,
+            target_date: date,
+            limit: int = 20,
+    ) -> Sequence[Client]:
+        return await self.get_contacts_for_date(manager_id=user_id, target_date=target_date, limit=limit)
+
+    async def get_overdue_contacts_for_user(
+            self,
+            *,
+            user_id: int,
+            now_dt: datetime,
+            limit: int = 20,
+    ) -> Sequence[Client]:
+        return await self.get_overdue_contacts(manager_id=user_id, now_dt=now_dt, limit=limit)
+
     async def get_contacts_for_date(
             self,
             *,
