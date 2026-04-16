@@ -5,6 +5,7 @@ from aiogram.types import Message
 
 from app.bot.keyboards.main_menu import get_main_menu_keyboard
 from app.bot.keyboards.properties import (
+    BACK_TO_MAIN_MENU_TEXT,
     GLOBAL_PROPERTIES_TEXT,
     MY_PROPERTIES_TEXT,
     PROPERTIES_MENU_TEXT,
@@ -55,7 +56,7 @@ async def open_properties_menu(message: Message, auth_service: AuthService) -> N
     await message.answer("Раздел объектов. Выберите действие:", reply_markup=get_properties_menu_keyboard())
 
 
-@router.message(F.text == "⬅️ Главное меню")
+@router.message(F.text.in_({BACK_TO_MAIN_MENU_TEXT, "⬅️ Главное меню"}))
 async def back_to_main_menu(message: Message) -> None:
     await message.answer("Главное меню:", reply_markup=get_main_menu_keyboard())
 
@@ -80,12 +81,13 @@ async def show_recent_properties(message: Message, auth_service: AuthService, pr
     properties = list(await property_service.get_recent_properties(current_user=user, limit=DEFAULT_LIST_LIMIT))
     await _show_properties(message, properties, title="Последние добавленные объекты", limit=DEFAULT_LIST_LIMIT)
 
-    @router.message(F.text == GLOBAL_PROPERTIES_TEXT)
-    async def show_global_properties(message: Message, auth_service: AuthService,
-                                     property_service: PropertyService) -> None:
-        user = await _get_current_user(message, auth_service)
-        if user is None:
-            return
 
-        properties = list(await property_service.get_global_properties(current_user=user, limit=DEFAULT_LIST_LIMIT))
-        await _show_properties(message, properties, title="База объектов", limit=DEFAULT_LIST_LIMIT)
+@router.message(F.text == GLOBAL_PROPERTIES_TEXT)
+async def show_global_properties(message: Message, auth_service: AuthService,
+                                 property_service: PropertyService) -> None:
+    user = await _get_current_user(message, auth_service)
+    if user is None:
+        return
+
+    properties = list(await property_service.get_global_properties(current_user=user, limit=DEFAULT_LIST_LIMIT))
+    await _show_properties(message, properties, title="База объектов", limit=DEFAULT_LIST_LIMIT)

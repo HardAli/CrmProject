@@ -11,6 +11,7 @@ ADD_PROPERTY_TEXT = "➕ Добавить объект"
 MY_PROPERTIES_TEXT = "👤 Мои объекты"
 GLOBAL_PROPERTIES_TEXT = "🌐 База объектов"
 RECENT_PROPERTIES_TEXT = "🕒 Последние добавленные"
+BACK_TO_MAIN_MENU_TEXT = "Главное меню"
 
 PROPERTY_TYPE_OPTIONS: tuple[str, ...] = (
     "Квартира",
@@ -44,11 +45,9 @@ PROPERTY_STATUS_MAP: dict[str, PropertyStatus] = {
 def get_properties_menu_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text=ADD_PROPERTY_TEXT)],
-            [KeyboardButton(text=MY_PROPERTIES_TEXT)],
-            [KeyboardButton(text=GLOBAL_PROPERTIES_TEXT)],
-            [KeyboardButton(text=RECENT_PROPERTIES_TEXT)],
-            [KeyboardButton(text="⬅️ Главное меню")],
+            [KeyboardButton(text=ADD_PROPERTY_TEXT), KeyboardButton(text=RECENT_PROPERTIES_TEXT)],
+            [KeyboardButton(text=MY_PROPERTIES_TEXT), KeyboardButton(text=GLOBAL_PROPERTIES_TEXT)],
+            [KeyboardButton(text=BACK_TO_MAIN_MENU_TEXT)],
         ],
         resize_keyboard=True,
         input_field_placeholder="Выберите действие с объектами",
