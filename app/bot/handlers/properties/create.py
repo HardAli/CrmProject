@@ -4,7 +4,7 @@ from decimal import Decimal
 from urllib.parse import urlparse
 
 from aiogram import F, Router
-from aiogram.filters import Command
+from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -66,8 +66,8 @@ def _parse_url_or_skip(raw_value: str) -> str | None:
     raise ValueError("Ссылка должна начинаться с http:// или https:// и содержать домен.")
 
 
-@router.message(Command("cancel"), PropertyCreateStates)
-@router.message(F.text == CANCEL_TEXT, PropertyCreateStates)
+@router.message(Command("cancel"), StateFilter(PropertyCreateStates))
+@router.message(F.text == CANCEL_TEXT, StateFilter(PropertyCreateStates))
 async def cancel_property_creation(message: Message, state: FSMContext) -> None:
     await state.clear()
     await message.answer("Добавление объекта отменено.", reply_markup=get_properties_menu_keyboard())
@@ -271,7 +271,7 @@ async def process_status(
     )
 
 
-@router.message(PropertyCreateStates)
+@router.message(StateFilter(PropertyCreateStates))
 async def fallback_in_state(message: Message) -> None:
     await message.answer("Используйте предложенные кнопки или введите корректное значение.")
 

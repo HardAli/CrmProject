@@ -3,7 +3,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from aiogram import F, Router
-from aiogram.filters import Command
+from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -59,8 +59,8 @@ async def _get_current_user(message: Message, auth_service: AuthService):
     return user
 
 
-@router.message(Command("cancel"), ClientCreateStates)
-@router.message(F.text == CANCEL_TEXT, ClientCreateStates)
+@router.message(Command("cancel"), StateFilter(ClientCreateStates))
+@router.message(F.text == CANCEL_TEXT, StateFilter(ClientCreateStates))
 async def cancel_client_creation(message: Message, state: FSMContext) -> None:
     await state.clear()
     await message.answer("Добавление клиента отменено.", reply_markup=get_clients_menu_keyboard())
@@ -286,7 +286,7 @@ async def process_next_contact_at(
     )
 
 
-@router.message(ClientCreateStates)
+@router.message(StateFilter(ClientCreateStates))
 async def fallback_in_state(message: Message) -> None:
     await message.answer("Используйте предложенные кнопки или введите корректное значение.")
 

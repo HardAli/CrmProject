@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from aiogram import F, Router
-from aiogram.filters import Command
+from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -56,8 +56,8 @@ async def start_task_create(
     await callback.answer()
 
 
-@router.message(Command("cancel"), TaskCreateStates)
-@router.message(F.text == CANCEL_TEXT, TaskCreateStates)
+@router.message(Command("cancel"), StateFilter(TaskCreateStates))
+@router.message(F.text == CANCEL_TEXT, StateFilter(TaskCreateStates))
 async def cancel_task_create(message: Message, state: FSMContext) -> None:
     await state.clear()
     await message.answer("Создание задачи отменено.")

@@ -3,7 +3,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from aiogram import F, Router
-from aiogram.filters import Command
+from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
@@ -103,8 +103,8 @@ async def open_search_menu(message: Message, state: FSMContext, auth_service: Au
     await message.answer("Раздел поиска. Выберите сущность:", reply_markup=get_search_menu_keyboard())
 
 
-@router.message(F.text == CANCEL_TEXT, SearchStates)
-@router.message(Command("cancel"), SearchStates)
+@router.message(F.text == CANCEL_TEXT, StateFilter(SearchStates))
+@router.message(Command("cancel"), StateFilter(SearchStates))
 async def cancel_search(message: Message, state: FSMContext) -> None:
     await state.clear()
     await message.answer("Поиск отменён.", reply_markup=get_main_menu_keyboard())
@@ -473,7 +473,7 @@ async def property_filter_rooms(
     await message.answer("Поиск завершён. Можно запустить новый поиск.", reply_markup=get_search_menu_keyboard())
 
 
-@router.message(SearchStates)
+@router.message(StateFilter(SearchStates))
 async def fallback_search_state(message: Message) -> None:
     await message.answer("Используйте кнопки или введите корректное значение.")
 
