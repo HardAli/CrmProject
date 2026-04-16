@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import date, datetime, time, timezone
 
-from sqlalchemy import Select, select
+from sqlalchemy import Select, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
@@ -149,12 +149,22 @@ class ClientRepository:
 
         if manager_id is not None:
             stmt = stmt.where(Client.manager_id == manager_id)
-        if full_name:
-            stmt = stmt.where(Client.full_name.ilike(f"%{full_name}%"))
-        if phone:
-            stmt = stmt.where(Client.phone.ilike(f"%{phone}%"))
-        if district:
-            stmt = stmt.where(Client.district.ilike(f"%{district}%"))
+        if full_name and phone and district and full_name == phone == district:
+            quick_query = full_name
+            stmt = stmt.where(
+                or_(
+                    Client.full_name.ilike(f"%{quick_query}%"),
+                    Client.phone.ilike(f"%{quick_query}%"),
+                    Client.district.ilike(f"%{quick_query}%"),
+                )
+            )
+        else:
+            if full_name:
+                stmt = stmt.where(Client.full_name.ilike(f"%{full_name}%"))
+            if phone:
+                stmt = stmt.where(Client.phone.ilike(f"%{phone}%"))
+            if district:
+                stmt = stmt.where(Client.district.ilike(f"%{district}%"))
         if status:
             stmt = stmt.where(Client.status == status)
         if request_type:
