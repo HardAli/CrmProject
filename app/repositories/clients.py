@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from app.common.dto.clients import CreateClientDTO
-from app.common.enums import ClientStatus
+from app.common.enums import ClientStatus, RequestType
 from app.database.models.client import Client
 
 
@@ -134,6 +134,35 @@ class ClientRepository:
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none() is not None
 
+    async def search_clients(
+            self,
+            *,
+            full_name: str | None = None,
+            phone: str | None = None,
+            district: str | None = None,
+            status: ClientStatus | None = None,
+            request_type: RequestType | None = None,
+            manager_id: int | None = None,
+            limit: int = 10,
+    ) -> Sequence[Client]:
+        stmt = self._base_list_query()
+
+        if manager_id is not None:
+            stmt = stmt.where(Client.manager_id == manager_id)
+        if full_name:
+            stmt = stmt.where(Client.full_name.ilike(f"%{full_name}%"))
+        if phone:
+            stmt = stmt.where(Client.phone.ilike(f"%{phone}%"))
+        if district:
+            stmt = stmt.where(Client.district.ilike(f"%{district}%"))
+        if status:
+            stmt = stmt.where(Client.status == status)
+        if request_type:
+            stmt = stmt.where(Client.request_type == request_type)
+
+        result = await self._session.execute(stmt.limit(limit))
+        return result.scalars().all()
+
     @staticmethod
     def _base_list_query() -> Select[tuple[Client]]:
-        return select(Client).order_by(Client.created_at.desc())
+        return select(Client).options(joinedload(Client.manager)).order_by(Client.created_at.desc())

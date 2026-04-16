@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from decimal import Decimal
 
 from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from app.common.dto.properties import CreatePropertyDTO
-from app.common.enums import UserRole
+from app.common.enums import PropertyStatus, PropertyType, UserRole
 from app.database.models.property import Property
 from app.database.models.user import User
 
@@ -89,6 +90,41 @@ class PropertyRepository:
 
         stmt = stmt.limit(limit)
         result = await self._session.execute(stmt)
+        return result.scalars().all()
+
+    async def search_properties(
+            self,
+            *,
+            title: str | None = None,
+            district: str | None = None,
+            property_type: PropertyType | None = None,
+            status: PropertyStatus | None = None,
+            price_min: Decimal | None = None,
+            price_max: Decimal | None = None,
+            rooms: int | None = None,
+            manager_id: int | None = None,
+            limit: int = 10,
+    ) -> Sequence[Property]:
+        stmt = self._base_list_query()
+
+        if manager_id is not None:
+            stmt = stmt.where(Property.manager_id == manager_id)
+        if title:
+            stmt = stmt.where(Property.title.ilike(f"%{title}%"))
+        if district:
+            stmt = stmt.where(Property.district.ilike(f"%{district}%"))
+        if property_type:
+            stmt = stmt.where(Property.property_type == property_type)
+        if status:
+            stmt = stmt.where(Property.status == status)
+        if price_min is not None:
+            stmt = stmt.where(Property.price >= price_min)
+        if price_max is not None:
+            stmt = stmt.where(Property.price <= price_max)
+        if rooms is not None:
+            stmt = stmt.where(Property.rooms == rooms)
+
+        result = await self._session.execute(stmt.limit(limit))
         return result.scalars().all()
 
     @staticmethod

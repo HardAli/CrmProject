@@ -19,6 +19,7 @@ from app.services.clients import ClientService
 from app.services.client_properties import ClientPropertyService
 from app.services.tasks import TaskService
 from app.services.properties import PropertyService
+from app.services.search import SearchService
 
 
 logger = logging.getLogger(__name__)
@@ -52,6 +53,7 @@ class DbSessionMiddleware(BaseMiddleware):
             data["task_service"] = TaskService(task_repository, client_repository, client_log_repository)
             data["property_repository"] = property_repository
             data["property_service"] = PropertyService(property_repository)
+            data["search_service"] = SearchService(client_repository, property_repository)
             data["client_property_repository"] = client_property_repository
             data["client_property_service"] = ClientPropertyService(
                 client_property_repository=client_property_repository,
