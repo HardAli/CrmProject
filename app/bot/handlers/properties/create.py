@@ -297,7 +297,7 @@ async def process_status(
     )
 
     try:
-        property_obj = await property_service.create_property(current_user=user, data=dto)
+        property_obj, linked_clients_count = await property_service.create_property(current_user=user, data=dto)
     except PermissionError as error:
         await message.answer(str(error), reply_markup=get_properties_menu_keyboard())
         await state.clear()
@@ -314,6 +314,11 @@ async def process_status(
         format_property_created_card(property_obj=property_obj, manager_name=manager_name),
         reply_markup=get_properties_menu_keyboard(),
     )
+    if linked_clients_count > 0:
+        await message.answer(
+            f"🔗 Найдено {linked_clients_count} клиентов по совпадающему номеру. "
+            "Связи созданы автоматически.",
+        )
 
 
 @router.message(StateFilter(PropertyCreateStates))

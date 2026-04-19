@@ -276,7 +276,7 @@ async def process_next_contact_at(
         manager_id=user.id,
     )
 
-    client = await client_service.create_client(dto)
+    client, linked_properties_count = await client_service.create_client(dto)
     await session.commit()
     await state.clear()
 
@@ -284,6 +284,11 @@ async def process_next_contact_at(
         format_client_created_card(client=client, manager_name=user.full_name),
         reply_markup=get_clients_menu_keyboard(),
     )
+    if linked_properties_count > 0:
+        await message.answer(
+            f"🔗 Найдено {linked_properties_count} объектов по совпадающему номеру. "
+            "Связи созданы автоматически.",
+        )
 
 
 @router.message(StateFilter(ClientCreateStates))
