@@ -9,6 +9,7 @@ from app.database.models.property import Property
 
 CANCEL_TEXT = "❌ Отмена"
 SKIP_TEXT = "⏭ Пропустить"
+UNKNOWN_TEXT = "Неизвестно"
 ADD_CLIENT_TEXT = "➕ Добавить клиента"
 CLIENTS_MENU_TEXT = "👥 Клиенты"
 MY_CLIENTS_TEXT = "👤 Мои клиенты"
@@ -38,6 +39,24 @@ PROPERTY_TYPE_OPTIONS: tuple[str, ...] = (
     "Участок",
 )
 
+DISTRICT_OPTIONS: tuple[str, ...] = (
+    "Каратал",
+    "9-й",
+    "Военный городок",
+    "Бирлик",
+    "Болашак",
+    "Гарышкер",
+    "Жастар",
+    "Жетысу",
+    "Коктем",
+    "Мушелтой",
+    "Самал",
+    "Ынтымак",
+)
+
+ROOMS_OPTIONS: tuple[str, ...] = ("1", "2", "3", "4", "5", "Студия")
+NEXT_CONTACT_QUICK_OPTIONS: tuple[str, ...] = ("Сегодня", "Завтра", "Послезавтра")
+
 STATUS_LABELS: dict[ClientStatus, str] = {
     ClientStatus.NEW: "🆕 Новый",
     ClientStatus.IN_PROGRESS: "🔄 В работе",
@@ -66,6 +85,14 @@ def get_cancel_keyboard() -> ReplyKeyboardMarkup:
         keyboard=[[KeyboardButton(text=CANCEL_TEXT)]],
         resize_keyboard=True,
         input_field_placeholder="Заполните поле или отмените",
+    )
+
+
+def get_full_name_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text=UNKNOWN_TEXT)], [KeyboardButton(text=CANCEL_TEXT)]],
+        resize_keyboard=True,
+        input_field_placeholder="Введите ФИО или выберите «Неизвестно»",
     )
 
 
@@ -108,6 +135,46 @@ def get_property_type_keyboard() -> ReplyKeyboardMarkup:
             [KeyboardButton(text=CANCEL_TEXT)],
         ],
         resize_keyboard=True,
+    )
+
+
+def get_district_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text=DISTRICT_OPTIONS[0]), KeyboardButton(text=DISTRICT_OPTIONS[1])],
+            [KeyboardButton(text=DISTRICT_OPTIONS[2]), KeyboardButton(text=DISTRICT_OPTIONS[3])],
+            [KeyboardButton(text=DISTRICT_OPTIONS[4]), KeyboardButton(text=DISTRICT_OPTIONS[5])],
+            [KeyboardButton(text=DISTRICT_OPTIONS[6]), KeyboardButton(text=DISTRICT_OPTIONS[7])],
+            [KeyboardButton(text=DISTRICT_OPTIONS[8]), KeyboardButton(text=DISTRICT_OPTIONS[9])],
+            [KeyboardButton(text=DISTRICT_OPTIONS[10]), KeyboardButton(text=DISTRICT_OPTIONS[11])],
+            [KeyboardButton(text=SKIP_TEXT), KeyboardButton(text=CANCEL_TEXT)],
+        ],
+        resize_keyboard=True,
+        input_field_placeholder="Выберите район или введите вручную",
+    )
+
+
+def get_rooms_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text=ROOMS_OPTIONS[0]), KeyboardButton(text=ROOMS_OPTIONS[1]), KeyboardButton(text=ROOMS_OPTIONS[2])],
+            [KeyboardButton(text=ROOMS_OPTIONS[3]), KeyboardButton(text=ROOMS_OPTIONS[4]), KeyboardButton(text=ROOMS_OPTIONS[5])],
+            [KeyboardButton(text=SKIP_TEXT), KeyboardButton(text=CANCEL_TEXT)],
+        ],
+        resize_keyboard=True,
+        input_field_placeholder="Выберите комнаты или введите вручную",
+    )
+
+
+def get_next_contact_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text=NEXT_CONTACT_QUICK_OPTIONS[0]), KeyboardButton(text=NEXT_CONTACT_QUICK_OPTIONS[1])],
+            [KeyboardButton(text=NEXT_CONTACT_QUICK_OPTIONS[2])],
+            [KeyboardButton(text=SKIP_TEXT), KeyboardButton(text=CANCEL_TEXT)],
+        ],
+        resize_keyboard=True,
+        input_field_placeholder="Выберите дату или введите вручную",
     )
 
 

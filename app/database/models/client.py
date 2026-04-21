@@ -4,7 +4,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, Index, Numeric, SmallInteger, String, Text
+from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, Index, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.common.enums import ClientStatus, PropertyType, RequestType
@@ -22,17 +22,11 @@ if TYPE_CHECKING:
 class Client(Base, IdMixin, TimestampMixin):
     __tablename__ = "clients"
     __table_args__ = (
-        CheckConstraint("rooms IS NULL OR rooms > 0", name="client_rooms_positive"),
-        CheckConstraint("budget_min IS NULL OR budget_min >= 0", name="budget_min_non_negative"),
-        CheckConstraint("budget_max IS NULL OR budget_max >= 0", name="budget_max_non_negative"),
-        CheckConstraint(
-            "budget_min IS NULL OR budget_max IS NULL OR budget_min <= budget_max",
-            name="budget_range_valid",
-        ),
+        CheckConstraint("budget IS NULL OR budget >= 0", name="budget_non_negative"),
         Index("ix_clients_manager_status", "manager_id", "status"),
         Index("ix_clients_next_contact_at", "next_contact_at"),
         Index("ix_clients_district", "district"),
-        Index("ix_clients_budget_range", "budget_min", "budget_max"),
+        Index("ix_clients_budget", "budget"),
     )
 
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -47,9 +41,8 @@ class Client(Base, IdMixin, TimestampMixin):
         nullable=False,
     )
     district: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    rooms: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
-    budget_min: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
-    budget_max: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    rooms: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    budget: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     status: Mapped[ClientStatus] = mapped_column(
         Enum(ClientStatus, name="client_status", native_enum=False),
         nullable=False,

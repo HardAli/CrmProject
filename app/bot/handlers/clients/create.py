@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from aiogram import F, Router
@@ -11,12 +12,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.bot.keyboards.clients import (
     ADD_CLIENT_TEXT,
     CANCEL_TEXT,
+    NEXT_CONTACT_QUICK_OPTIONS,
+    ROOMS_OPTIONS,
     SKIP_TEXT,
+    UNKNOWN_TEXT,
     SOURCE_OPTIONS,
-    get_cancel_keyboard,
     get_clients_menu_keyboard,
+    get_district_keyboard,
+    get_full_name_keyboard,
+    get_next_contact_keyboard,
     get_property_type_keyboard,
     get_request_type_keyboard,
+    get_rooms_keyboard,
     get_skip_cancel_keyboard,
     get_source_keyboard,
 )
@@ -76,15 +83,16 @@ async def start_client_create(message: Message, state: FSMContext, auth_service:
     await state.set_state(ClientCreateStates.full_name)
     await message.answer(
         "Введите ФИО клиента.",
-        reply_markup=get_cancel_keyboard(),
+        reply_markup=get_full_name_keyboard(),
     )
 
 
 @router.message(ClientCreateStates.full_name)
 async def process_full_name(message: Message, state: FSMContext) -> None:
-    full_name = (message.text or "").strip()
+    raw_value = (message.text or "").strip()
+    full_name = UNKNOWN_TEXT if raw_value == UNKNOWN_TEXT else raw_value
     if not full_name:
-        await message.answer("ФИО не должно быть пустым. Введите ФИО клиента.")
+        await message.answer("ФИО не должно быть пустым. Введите ФИО клиента или нажмите «Неизвестно».")
         return
 
     await state.update_data(full_name=full_name)
@@ -140,19 +148,24 @@ async def process_property_type(message: Message, state: FSMContext) -> None:
 
     await state.update_data(property_type=property_type.value)
     await state.set_state(ClientCreateStates.district)
-    await message.answer("Введите район (или нажмите «Пропустить»).", reply_markup=get_skip_cancel_keyboard())
+    await message.answer("Выберите район кнопкой или введите вручную.", reply_markup=get_district_keyboard())
 
 
 @router.message(ClientCreateStates.district)
 async def process_district(message: Message, state: FSMContext) -> None:
     value = (message.text or "").strip()
+    if not value:
+        await message.answer("Район не должен быть пустым. Выберите кнопкой или введите текстом.",
+                             reply_markup=get_district_keyboard())
+        return
+
     district = None if value == SKIP_TEXT else value
 
     await state.update_data(district=district)
     await state.set_state(ClientCreateStates.rooms)
     await message.answer(
-        "Введите количество комнат (целое число). Допустимо значение «Студия».",
-        reply_markup=get_skip_cancel_keyboard(),
+        "Выберите количество комнат кнопкой или введите вручную (1-5, Студия).",
+        reply_markup=get_rooms_keyboard(),
     )
 
 
@@ -163,58 +176,34 @@ async def process_rooms(message: Message, state: FSMContext) -> None:
     if value == SKIP_TEXT:
         await state.update_data(rooms=None)
     elif value.lower() == "студия":
-        await state.update_data(rooms=None, rooms_note="Студия")
-    elif value.isdigit() and int(value) > 0:
-        await state.update_data(rooms=int(value))
+        await state.update_data(rooms="Студия")
+    elif value in ROOMS_OPTIONS:
+        await state.update_data(rooms=value)
+    elif value.isdigit() and 0 < int(value) <= 50:
+        await state.update_data(rooms=value)
     else:
-        await message.answer("Комнаты: введите число > 0, «Студия» или «Пропустить».")
+        await message.answer("Комнаты: выберите 1-5, «Студия», «Пропустить» или введите число вручную.")
         return
 
-    await state.set_state(ClientCreateStates.budget_min)
-    await message.answer("Введите минимальный бюджет (только число).", reply_markup=get_skip_cancel_keyboard())
+    await state.set_state(ClientCreateStates.budget)
+    await message.answer("Введите цену (только число) или нажмите «Пропустить».",
+                         reply_markup=get_skip_cancel_keyboard())
 
 
-@router.message(ClientCreateStates.budget_min)
-async def process_budget_min(message: Message, state: FSMContext) -> None:
+@router.message(ClientCreateStates.budget)
+async def process_budget(message: Message, state: FSMContext) -> None:
     value = (message.text or "").strip()
 
     if value == SKIP_TEXT:
-        await state.update_data(budget_min=None)
+        await state.update_data(budget=None)
     else:
         try:
-            budget_min = parse_money(value)
+            budget = parse_money(value)
         except ValueError as error:
             await message.answer(f"{error}")
             return
-        await state.update_data(budget_min=str(budget_min))
+        await state.update_data(budget=str(budget))
 
-    await state.set_state(ClientCreateStates.budget_max)
-    await message.answer("Введите максимальный бюджет (только число).", reply_markup=get_skip_cancel_keyboard())
-
-
-@router.message(ClientCreateStates.budget_max)
-async def process_budget_max(message: Message, state: FSMContext) -> None:
-    value = (message.text or "").strip()
-    data = await state.get_data()
-
-    budget_min: Decimal | None = None
-    if data.get("budget_min") is not None:
-        budget_min = Decimal(data["budget_min"])
-
-    if value == SKIP_TEXT:
-        budget_max = None
-    else:
-        try:
-            budget_max = parse_money(value)
-        except ValueError as error:
-            await message.answer(f"{error}")
-            return
-
-    if budget_min is not None and budget_max is not None and budget_max < budget_min:
-        await message.answer("Максимальный бюджет не может быть меньше минимального.")
-        return
-
-    await state.update_data(budget_max=str(budget_max) if budget_max is not None else None)
     await state.set_state(ClientCreateStates.note)
     await message.answer("Введите заметку по клиенту (или нажмите «Пропустить»).", reply_markup=get_skip_cancel_keyboard())
 
@@ -228,8 +217,9 @@ async def process_note(message: Message, state: FSMContext) -> None:
 
     await state.set_state(ClientCreateStates.next_contact_at)
     await message.answer(
-        "Введите дату следующего контакта в формате ДД.ММ.ГГГГ или ДД.ММ.ГГГГ ЧЧ:ММ (или «Пропустить»).",
-        reply_markup=get_skip_cancel_keyboard(),
+        "Введите дату следующего контакта: кнопкой (Сегодня/Завтра/Послезавтра) "
+        "или вручную в формате ДД ММ ГГГГ (например, 03 08 2026).",
+        reply_markup=get_next_contact_keyboard(),
     )
 
 
@@ -245,11 +235,19 @@ async def process_next_contact_at(
 
     next_contact_at = None
     if value != SKIP_TEXT:
-        try:
-            next_contact_at = parse_next_contact_at(value)
-        except ValueError as error:
-            await message.answer(f"{error}")
-            return
+        if value in NEXT_CONTACT_QUICK_OPTIONS:
+            days_offset = NEXT_CONTACT_QUICK_OPTIONS.index(value)
+            target_date = (datetime.now(tz=timezone.utc) + timedelta(days=days_offset)).date()
+            next_contact_at = datetime.combine(target_date, datetime.min.time(), tzinfo=timezone.utc)
+        else:
+            try:
+                next_contact_at = parse_next_contact_at(value)
+            except ValueError as error:
+                await message.answer(
+                    f"{error}\nПопробуйте снова: «Сегодня», «Завтра», «Послезавтра» или дату в формате 03 08 2026.",
+                    reply_markup=get_next_contact_keyboard(),
+                )
+                return
 
     user = await _get_current_user(message, auth_service)
     if user is None:
@@ -257,9 +255,6 @@ async def process_next_contact_at(
         return
 
     data = await state.get_data()
-    final_note = data.get("note")
-    if data.get("rooms_note"):
-        final_note = f"{final_note}\nТип комнат: {data['rooms_note']}" if final_note else f"Тип комнат: {data['rooms_note']}"
 
     dto = CreateClientDTO(
         full_name=data["full_name"],
@@ -269,9 +264,8 @@ async def process_next_contact_at(
         property_type=PropertyType(data["property_type"]),
         district=data.get("district"),
         rooms=data.get("rooms"),
-        budget_min=Decimal(data["budget_min"]) if data.get("budget_min") else None,
-        budget_max=Decimal(data["budget_max"]) if data.get("budget_max") else None,
-        note=final_note,
+        budget=Decimal(data["budget"]) if data.get("budget") else None,
+        note=data.get("note"),
         next_contact_at=next_contact_at,
         manager_id=user.id,
     )

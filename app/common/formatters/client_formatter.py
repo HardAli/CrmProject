@@ -44,10 +44,6 @@ def _format_datetime(value: datetime | None) -> str:
     return local_dt.strftime("%d.%m.%Y %H:%M UTC")
 
 
-def _format_budget_range(client: Client) -> str:
-    return f"{_format_money(client.budget_min)} - {_format_money(client.budget_max)}"
-
-
 def format_client_created_card(client: Client, manager_name: str) -> str:
     return "✅ <b>Клиент успешно создан</b>\n\n" + format_client_card(client=client, manager_name=manager_name)
 
@@ -83,8 +79,8 @@ def format_client_card(client: Client, manager_name: str, updated: bool = False)
         f"<b>Тип запроса:</b> {request_type}\n"
         f"<b>Тип недвижимости:</b> {property_type}\n"
         f"<b>Район:</b> {client.district or '—'}\n"
-        f"<b>Комнаты:</b> {client.rooms if client.rooms is not None else '—'}\n"
-        f"<b>Бюджет:</b> {_format_budget_range(client)}\n"
+        f"<b>Комнаты:</b> {client.rooms or '—'}\n"
+        f"<b>Цена:</b> {_format_money(client.budget)}\n"
         f"<b>Статус:</b> {status}\n"
         f"<b>Последняя заметка:</b> {client.note or '—'}\n"
         f"<b>Следующий контакт:</b> {_format_datetime(client.next_contact_at)}\n"

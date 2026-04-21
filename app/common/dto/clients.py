@@ -15,9 +15,8 @@ class CreateClientDTO:
     request_type: RequestType
     property_type: PropertyType
     district: str | None
-    rooms: int | None
-    budget_min: Decimal | None
-    budget_max: Decimal | None
+    rooms: str | None
+    budget: Decimal | None
     note: str | None
     next_contact_at: datetime | None
     manager_id: int

@@ -45,6 +45,8 @@ def parse_next_contact_at(raw_value: str) -> datetime:
         raise ValueError("Дата не должна быть пустой.")
 
     formats = (
+        "%d %m %Y",
+        "%d %m %Y %H:%M",
         "%d.%m.%Y",
         "%d.%m.%Y %H:%M",
         "%Y-%m-%d",
@@ -59,4 +61,4 @@ def parse_next_contact_at(raw_value: str) -> datetime:
         except ValueError:
             continue
 
-    raise ValueError("Неверный формат даты. Пример: 25.04.2026 14:30")
+    raise ValueError("Неверный формат даты. Пример: 03 08 2026 или 25.04.2026 14:30")

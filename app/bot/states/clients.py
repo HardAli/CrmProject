@@ -11,8 +11,7 @@ class ClientCreateStates(StatesGroup):
     property_type = State()
     district = State()
     rooms = State()
-    budget_min = State()
-    budget_max = State()
+    budget = State()
     note = State()
     next_contact_at = State()
 
