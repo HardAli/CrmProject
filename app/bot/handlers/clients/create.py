@@ -270,7 +270,12 @@ async def process_next_contact_at(
         manager_id=user.id,
     )
 
-    client, linked_properties_count = await client_service.create_client(dto)
+    create_result = await client_service.create_client(dto)
+    if isinstance(create_result, tuple):
+        client, linked_properties_count = create_result
+    else:
+        client = create_result
+        linked_properties_count = 0
     await session.commit()
     await state.clear()
 

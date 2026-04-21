@@ -17,7 +17,7 @@ class ClientService:
         self._client_repository = client_repository
         self._client_log_repository = client_log_repository
 
-    async def create_client(self, data: CreateClientDTO) -> Client:
+    async def create_client(self, data: CreateClientDTO) -> tuple[Client, int]:
         client = await self._client_repository.create(data)
         await self._client_log_repository.create_log(
             client_id=client.id,
@@ -25,7 +25,8 @@ class ClientService:
             action_type=ClientActionType.CLIENT_CREATED,
             comment="Карточка клиента создана",
         )
-        return client
+        linked_properties_count = 0
+        return client, linked_properties_count
 
     async def get_my_clients(self, current_user: User, limit: int = 10) -> Sequence[Client]:
         if current_user.role in {UserRole.ADMIN, UserRole.SUPERVISOR}:
