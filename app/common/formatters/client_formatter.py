@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from app.common.enums import ClientStatus, PropertyType, RequestType
+from app.common.utils.phone_links import format_phone_for_copy
 from app.database.models.client import Client
 
 STATUS_LABELS: dict[ClientStatus, str] = {
@@ -55,7 +56,10 @@ def format_clients_list(clients: list[Client], title: str, limit: int) -> str:
     rows = [f"<b>{title}</b>", ""]
     for index, client in enumerate(clients, start=1):
         status = STATUS_LABELS.get(client.status, client.status.value)
-        rows.append(f"{index}. <b>{client.full_name}</b> · {client.phone} · {status}")
+        rows.append(
+            f"{index}. <b>{client.full_name}</b> · {status}\n"
+            f"   Телефон: {format_phone_for_copy(client.phone)}"
+        )
 
     rows.extend(["", f"Показаны первые {min(len(clients), limit)} записей."])
     return "\n".join(rows)
@@ -74,7 +78,7 @@ def format_client_card(client: Client, manager_name: str, updated: bool = False)
         f"{header}\n\n"
         f"<b>ID клиента:</b> {client.id}\n"
         f"<b>Имя:</b> {client.full_name}\n"
-        f"<b>Телефон:</b> {client.phone}\n"
+        f"<b>Телефон:</b> {format_phone_for_copy(client.phone)}\n"
         f"<b>Источник:</b> {client.source or '—'}\n"
         f"<b>Тип запроса:</b> {request_type}\n"
         f"<b>Тип недвижимости:</b> {property_type}\n"

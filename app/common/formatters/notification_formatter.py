@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from datetime import datetime, timezone
 from html import escape
 
+from app.common.utils.phone_links import format_phone_for_copy
 from app.database.models.client import Client
 from app.database.models.task import Task
 
@@ -64,6 +65,7 @@ def format_task_reminder(task: Task) -> str:
 def format_contact_reminder(client: Client) -> str:
     return (
         "📞 <b>Контакт с клиентом</b>\n\n"
-        f"{escape(client.full_name)} ({escape(client.phone)})\n"
+        f"{escape(client.full_name)}\n"
+        f"Телефон: {format_phone_for_copy(client.phone)}\n"
         f"Время контакта: {_format_dt(client.next_contact_at)}"
     )

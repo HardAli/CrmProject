@@ -5,6 +5,7 @@ from html import escape
 from typing import Sequence
 
 from app.common.enums import TaskStatus
+from app.common.utils.phone_links import format_phone_for_copy
 from app.database.models.client import Client
 from app.database.models.task import Task
 
@@ -63,7 +64,8 @@ def format_contacts_list(clients: Sequence[Client], *, title: str, limit: int) -
     rows = [f"<b>{title}</b>", ""]
     for index, client in enumerate(clients, start=1):
         rows.append(
-            f"{index}. #{client.id} {escape(client.full_name)} · {escape(client.phone)}\n"
+            f"{index}. #{client.id} {escape(client.full_name)}\n"
+            f"   Телефон: {format_phone_for_copy(client.phone)}\n"
             f"   📞 {_format_datetime(client.next_contact_at)}"
         )
     rows.extend(["", f"Показаны первые {min(len(clients), limit)} записей."])

@@ -4,7 +4,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardBu
 
 from app.bot.keyboards.clients import CANCEL_TEXT, SKIP_TEXT
 from app.common.enums import PropertyStatus, PropertyType
-from app.common.utils.phone_links import build_tel_url_or_none, build_whatsapp_url
+from app.common.utils.phone_links import build_whatsapp_url
 from app.database.models.property import Property
 
 PROPERTIES_MENU_TEXT = "🏠 Объекты"
@@ -108,20 +108,14 @@ def get_properties_list_inline_keyboard(properties: list[Property]) -> InlineKey
             ]
         )
 
-    contact_row: list[InlineKeyboardButton] = []
-    tel_url = build_tel_url_or_none(properties[-1].owner_phone)
-    if tel_url:
-        contact_row.append(InlineKeyboardButton(text="📞 Позвонить", url=tel_url))
-    contact_row.append(InlineKeyboardButton(text="💬 WhatsApp", url=build_whatsapp_url(properties[-1].owner_phone)))
-    rows.append(contact_row)
+    rows.append([InlineKeyboardButton(text="💬 WhatsApp", url=build_whatsapp_url(properties[-1].owner_phone))])
 
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def get_property_actions_inline_keyboard(property_obj: Property) -> InlineKeyboardMarkup:
-    contact_row: list[InlineKeyboardButton] = []
-    tel_url = build_tel_url_or_none(property_obj.owner_phone)
-    if tel_url:
-        contact_row.append(InlineKeyboardButton(text="📞 Позвонить", url=tel_url))
-    contact_row.append(InlineKeyboardButton(text="💬 WhatsApp", url=build_whatsapp_url(property_obj.owner_phone)))
-    return InlineKeyboardMarkup(inline_keyboard=[contact_row])
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="💬 WhatsApp", url=build_whatsapp_url(property_obj.owner_phone))]
+        ]
+    )
