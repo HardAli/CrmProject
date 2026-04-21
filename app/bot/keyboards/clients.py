@@ -8,6 +8,7 @@ from app.database.models.client_property import ClientProperty
 from app.database.models.property import Property
 
 CANCEL_TEXT = "❌ Отмена"
+DONE_TEXT = "✅ Готово"
 SKIP_TEXT = "⏭ Пропустить"
 UNKNOWN_TEXT = "Неизвестно"
 ADD_CLIENT_TEXT = "➕ Добавить клиента"
@@ -85,6 +86,17 @@ def get_cancel_keyboard() -> ReplyKeyboardMarkup:
         keyboard=[[KeyboardButton(text=CANCEL_TEXT)]],
         resize_keyboard=True,
         input_field_placeholder="Заполните поле или отмените",
+    )
+
+
+def get_client_photo_upload_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text=DONE_TEXT)],
+            [KeyboardButton(text=CANCEL_TEXT)],
+        ],
+        resize_keyboard=True,
+        input_field_placeholder="Отправьте фото, затем нажмите «Готово»",
     )
 
 

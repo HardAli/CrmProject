@@ -26,7 +26,7 @@ COMMON_ROUTERS: tuple[Router, ...] = (
     client_card_router,
     client_edit_router,
     client_logs_router,
-client_photos_router,
+    client_photos_router,
     task_create_router,
     client_properties_router,
     task_list_router,

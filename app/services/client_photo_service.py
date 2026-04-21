@@ -40,7 +40,12 @@ class ClientPhotoService:
             caption=clean_caption,
         )
 
-    async def get_client_photos(self, current_user: User, client_id: int, limit: int = 20) -> Sequence[ClientPhoto]:
+    async def get_client_photos(
+        self,
+        current_user: User,
+        client_id: int,
+        limit: int | None = None,
+    ) -> Sequence[ClientPhoto]:
         client = await self._get_client_with_view_check(current_user=current_user, client_id=client_id)
         if client is None:
             raise ValueError("Клиент не найден или недоступен")

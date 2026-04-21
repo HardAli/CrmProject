@@ -8,8 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.keyboards.clients import (
     CANCEL_TEXT,
-    get_cancel_keyboard,
+    DONE_TEXT,
     get_client_photo_delete_keyboard,
+    get_client_photo_upload_keyboard,
     get_client_photos_menu_keyboard,
 )
 from app.bot.states.clients import ClientCardStates
@@ -17,9 +18,6 @@ from app.services.auth_service import AuthService
 from app.services.client_photo_service import ClientPhotoService
 
 router = Router(name="client_photos")
-DEFAULT_PHOTOS_LIMIT = 20
-
-
 @router.callback_query(F.data.startswith("client_photos:"))
 async def open_client_photos_menu(
     callback: CallbackQuery,
@@ -95,8 +93,10 @@ async def start_add_photo(
     await state.update_data(client_id=client_id)
 
     await callback.message.answer(
-        "Отправьте одну фотографию клиента одним сообщением. Подпись к фото будет сохранена автоматически.",
-        reply_markup=get_cancel_keyboard(),
+        "Отправьте одну или несколько фотографий клиента. "
+        "Можно отправлять много сообщений подряд; каждое фото сохранится отдельно. "
+        "Когда закончите, нажмите «Готово».",
+        reply_markup=get_client_photo_upload_keyboard(),
     )
     await callback.answer()
 
@@ -106,6 +106,23 @@ async def start_add_photo(
 async def cancel_add_photo(message: Message, state: FSMContext) -> None:
     await state.clear()
     await message.answer("Добавление фото отменено.")
+
+
+@router.message(Command("done"), ClientCardStates.add_photo)
+@router.message(F.text == DONE_TEXT, ClientCardStates.add_photo)
+async def finish_add_photo(message: Message, state: FSMContext) -> None:
+    state_data = await state.get_data()
+    client_id = state_data.get("client_id")
+    await state.clear()
+
+    if isinstance(client_id, int):
+        await message.answer(
+            "Загрузка фото завершена.",
+            reply_markup=get_client_photos_menu_keyboard(client_id=client_id, can_manage=True),
+        )
+        return
+
+    await message.answer("Загрузка фото завершена.")
 
 
 @router.message(ClientCardStates.add_photo)
@@ -127,7 +144,7 @@ async def save_client_photo(
         return
 
     if not message.photo:
-        await message.answer("Нужно отправить именно фотографию. Попробуйте ещё раз или нажмите «Отмена».")
+        await message.answer("Нужно отправить именно фотографию. Можно загрузить много фото, затем нажмите «Готово».")
         return
 
     state_data = await state.get_data()
@@ -157,11 +174,11 @@ async def save_client_photo(
         return
 
     await session.commit()
-    await state.clear()
 
     await message.answer(
-        f"Фото сохранено ✅\nID фото: {photo.id}",
-        reply_markup=get_client_photos_menu_keyboard(client_id=client_id, can_manage=True),
+        f"Фото сохранено ✅\nID фото: {photo.id}\n"
+        "Отправьте следующее фото или нажмите «Готово».",
+        reply_markup=get_client_photo_upload_keyboard(),
     )
 
 
@@ -191,7 +208,6 @@ async def view_client_photos(
             await client_photo_service.get_client_photos(
                 current_user=user,
                 client_id=client_id,
-                limit=DEFAULT_PHOTOS_LIMIT,
             )
         )
     except ValueError:

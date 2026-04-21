@@ -32,13 +32,10 @@ class ClientPhotoRepository:
         await self._session.refresh(client_photo)
         return client_photo
 
-    async def get_by_client(self, client_id: int, limit: int = 20) -> Sequence[ClientPhoto]:
-        stmt = (
-            select(ClientPhoto)
-            .where(ClientPhoto.client_id == client_id)
-            .order_by(ClientPhoto.created_at.desc())
-            .limit(limit)
-        )
+    async def get_by_client(self, client_id: int, limit: int | None = None) -> Sequence[ClientPhoto]:
+        stmt = select(ClientPhoto).where(ClientPhoto.client_id == client_id).order_by(ClientPhoto.created_at.desc())
+        if limit is not None:
+            stmt = stmt.limit(limit)
         result = await self._session.execute(stmt)
         return result.scalars().all()
 
