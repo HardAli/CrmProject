@@ -11,6 +11,7 @@ from app.common.enums import ClientStatus, PropertyType, RequestType
 from app.database.base import Base, IdMixin, TimestampMixin
 
 if TYPE_CHECKING:
+    from app.database.models.client_photo import ClientPhoto
     from app.database.models.client_log import ClientLog
     from app.database.models.client_property import ClientProperty
     from app.database.models.property import Property
@@ -62,6 +63,7 @@ class Client(Base, IdMixin, TimestampMixin):
     manager: Mapped[User] = relationship(back_populates="managed_clients")
     tasks: Mapped[list[Task]] = relationship(back_populates="client", cascade="all, delete-orphan")
     logs: Mapped[list[ClientLog]] = relationship(back_populates="client", cascade="all, delete-orphan")
+    photos: Mapped[list[ClientPhoto]] = relationship(back_populates="client", cascade="all, delete-orphan")
     properties: Mapped[list[ClientProperty]] = relationship(back_populates="client", cascade="all, delete-orphan")
     related_properties: Mapped[list[Property]] = relationship(
         secondary="client_properties",

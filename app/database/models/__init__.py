@@ -1,5 +1,6 @@
 from app.database.models.client import Client
 from app.database.models.client_log import ClientLog
+from app.database.models.client_photo import ClientPhoto
 from app.database.models.client_property import ClientProperty
 from app.database.models.property import Property
 from app.database.models.showing import Showing
@@ -12,6 +13,7 @@ __all__ = [
     "Property",
     "Task",
     "ClientLog",
+    "ClientPhoto",
     "ClientProperty",
     "Showing",
 ]

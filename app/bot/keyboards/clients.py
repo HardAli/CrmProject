@@ -201,6 +201,7 @@ def get_clients_list_inline_keyboard(clients: list[Client]) -> InlineKeyboardMar
 def get_client_card_actions_keyboard(client_id: int, can_edit: bool) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
     rows.append([InlineKeyboardButton(text="🏘 Объекты клиента", callback_data=f"client_properties:{client_id}")])
+    rows.append([InlineKeyboardButton(text="🖼 Фото клиента", callback_data=f"client_photos:{client_id}")])
     if can_edit:
         rows.extend(
             [
@@ -215,6 +216,29 @@ def get_client_card_actions_keyboard(client_id: int, can_edit: bool) -> InlineKe
 
     rows.append([InlineKeyboardButton(text="📅 Задачи на сегодня", callback_data="tasks_today_dashboard")])
     rows.append([InlineKeyboardButton(text="📚 История", callback_data=f"client_history:{client_id}")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def get_client_photos_menu_keyboard(client_id: int, can_manage: bool) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = [
+        [InlineKeyboardButton(text="👀 Посмотреть фото", callback_data=f"client_photo_view:{client_id}")],
+    ]
+    if can_manage:
+        rows.append([InlineKeyboardButton(text="➕ Добавить фото", callback_data=f"client_photo_add:{client_id}")])
+        rows.append([InlineKeyboardButton(text="🗑 Удалить фото", callback_data=f"client_photo_delete_menu:{client_id}")])
+
+    rows.append([InlineKeyboardButton(text="↩️ Назад к карточке", callback_data=f"client_view:{client_id}")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def get_client_photo_delete_keyboard(client_id: int, photos: list[tuple[int, str]]) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    for photo_id, label in photos:
+        rows.append(
+            [InlineKeyboardButton(text=label, callback_data=f"client_photo_delete:{client_id}:{photo_id}")]
+        )
+
+    rows.append([InlineKeyboardButton(text="↩️ К меню фото", callback_data=f"client_photos:{client_id}")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 

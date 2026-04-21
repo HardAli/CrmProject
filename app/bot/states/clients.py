@@ -18,3 +18,4 @@ class ClientCreateStates(StatesGroup):
 
 class ClientCardStates(StatesGroup):
     add_note = State()
+    add_photo = State()
