@@ -441,10 +441,13 @@ async def property_filter_rooms(
 ) -> None:
     text = (message.text or "").strip()
     if text != SKIP_TEXT:
-        if not text.isdigit() or int(text) <= 0:
-            await message.answer("Введите целое число больше 0 или «Пропустить».")
+        if text.lower() == "студия":
+            await _save_filter(state, "rooms", "Студия")
+        elif text.isdigit() and int(text) > 0:
+            await _save_filter(state, "rooms", text)
+        else:
+            await message.answer("Введите целое число больше 0, «Студия» или «Пропустить».")
             return
-        await _save_filter(state, "rooms", int(text))
 
     user = await _get_current_user(message, auth_service)
     if user is None:

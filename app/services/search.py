@@ -79,7 +79,7 @@ class SearchService:
         status = self._enum_or_none(filters.get("status"), PropertyStatus)
         price_min = self._decimal_or_none(filters.get("price_min"), field_name="price_min")
         price_max = self._decimal_or_none(filters.get("price_max"), field_name="price_max")
-        rooms = self._int_or_none(filters.get("rooms"), field_name="rooms")
+        rooms = self._rooms_or_none(filters.get("rooms"))
 
         if price_min is not None and price_max is not None and price_min > price_max:
             raise ValueError("Минимальная цена не может быть больше максимальной.")
@@ -149,14 +149,14 @@ class SearchService:
         return parsed
 
     @staticmethod
-    def _int_or_none(value: Any, *, field_name: str) -> int | None:
+    def _rooms_or_none(value: Any) -> str | None:
         if value is None or value == "":
             return None
-        try:
-            parsed = int(value)
-        except (TypeError, ValueError) as error:
-            raise ValueError(f"Поле {field_name}: нужно целое число.") from error
-
-        if parsed <= 0:
-            raise ValueError(f"Поле {field_name}: должно быть > 0.")
-        return parsed
+        parsed = str(value).strip()
+        if not parsed:
+            return None
+        if parsed.lower() == "студия":
+            return "Студия"
+        if parsed.isdigit() and int(parsed) > 0:
+            return parsed
+        raise ValueError("Поле rooms: укажите положительное число или «Студия».")

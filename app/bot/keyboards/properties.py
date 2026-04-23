@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
 
-from app.bot.keyboards.clients import CANCEL_TEXT, SKIP_TEXT
+from app.bot.keyboards.clients import CANCEL_TEXT, DISTRICT_OPTIONS, ROOMS_OPTIONS, SKIP_TEXT, UNKNOWN_TEXT
 from app.common.enums import PropertyStatus, PropertyType
 from app.common.utils.phone_links import build_whatsapp_url
 from app.database.models.property import Property
@@ -20,6 +20,9 @@ PROPERTY_TYPE_OPTIONS: tuple[str, ...] = (
     "Коммерческая",
     "Участок",
 )
+
+DISTRICT_OPTIONS_FOR_PROPERTY: tuple[str, ...] = DISTRICT_OPTIONS
+ROOMS_OPTIONS_FOR_PROPERTY: tuple[str, ...] = ROOMS_OPTIONS
 
 STATUS_OPTIONS: tuple[str, ...] = (
     "Активен",
@@ -63,11 +66,47 @@ def get_property_cancel_keyboard() -> ReplyKeyboardMarkup:
     )
 
 
+def get_property_title_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text=UNKNOWN_TEXT)], [KeyboardButton(text=CANCEL_TEXT)]],
+        resize_keyboard=True,
+        input_field_placeholder="Введите название или выберите «Неизвестно»",
+    )
+
+
 def get_property_skip_cancel_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[[KeyboardButton(text=SKIP_TEXT), KeyboardButton(text=CANCEL_TEXT)]],
         resize_keyboard=True,
         input_field_placeholder="Введите значение или пропустите",
+    )
+
+
+def get_property_district_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text=DISTRICT_OPTIONS_FOR_PROPERTY[0]), KeyboardButton(text=DISTRICT_OPTIONS_FOR_PROPERTY[1])],
+            [KeyboardButton(text=DISTRICT_OPTIONS_FOR_PROPERTY[2]), KeyboardButton(text=DISTRICT_OPTIONS_FOR_PROPERTY[3])],
+            [KeyboardButton(text=DISTRICT_OPTIONS_FOR_PROPERTY[4]), KeyboardButton(text=DISTRICT_OPTIONS_FOR_PROPERTY[5])],
+            [KeyboardButton(text=DISTRICT_OPTIONS_FOR_PROPERTY[6]), KeyboardButton(text=DISTRICT_OPTIONS_FOR_PROPERTY[7])],
+            [KeyboardButton(text=DISTRICT_OPTIONS_FOR_PROPERTY[8]), KeyboardButton(text=DISTRICT_OPTIONS_FOR_PROPERTY[9])],
+            [KeyboardButton(text=DISTRICT_OPTIONS_FOR_PROPERTY[10]), KeyboardButton(text=DISTRICT_OPTIONS_FOR_PROPERTY[11])],
+            [KeyboardButton(text=CANCEL_TEXT)],
+        ],
+        resize_keyboard=True,
+        input_field_placeholder="Выберите район или введите вручную",
+    )
+
+
+def get_property_rooms_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text=ROOMS_OPTIONS_FOR_PROPERTY[0]), KeyboardButton(text=ROOMS_OPTIONS_FOR_PROPERTY[1]), KeyboardButton(text=ROOMS_OPTIONS_FOR_PROPERTY[2])],
+            [KeyboardButton(text=ROOMS_OPTIONS_FOR_PROPERTY[3]), KeyboardButton(text=ROOMS_OPTIONS_FOR_PROPERTY[4]), KeyboardButton(text=ROOMS_OPTIONS_FOR_PROPERTY[5])],
+            [KeyboardButton(text=CANCEL_TEXT)],
+        ],
+        resize_keyboard=True,
+        input_field_placeholder="Выберите комнаты или введите вручную",
     )
 
 

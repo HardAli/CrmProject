@@ -60,11 +60,11 @@ def format_property_card(property_obj: Property, manager_name: str, updated: boo
 
     property_type = PROPERTY_TYPE_LABELS.get(property_obj.property_type, property_obj.property_type.value)
     status = PROPERTY_STATUS_LABELS.get(property_obj.status, property_obj.status.value)
-    building_floors_row = ""
+    floor_row = f"<b>Этаж:</b> {property_obj.floor if property_obj.floor is not None else '—'}\n"
     if property_obj.property_type == PropertyType.APARTMENT:
-        building_floors_row = (
-            f"<b>Этажность здания:</b> "
-            f"{property_obj.building_floors if property_obj.building_floors is not None else '—'}\n"
+        floor_row = (
+            f"<b>Этаж:</b> {property_obj.floor if property_obj.floor is not None else '—'} "
+            f"из {property_obj.building_floors if property_obj.building_floors is not None else '—'}\n"
         )
 
     return (
@@ -78,8 +78,7 @@ def format_property_card(property_obj: Property, manager_name: str, updated: boo
         f"<b>Цена:</b> {_format_money(property_obj.price)}\n"
         f"<b>Площадь (м²):</b> {_format_decimal(property_obj.area)}\n"
         f"<b>Комнаты:</b> {property_obj.rooms if property_obj.rooms is not None else '—'}\n"
-        f"<b>Этаж:</b> {property_obj.floor if property_obj.floor is not None else '—'} из"
-        f"{building_floors_row}\n"
+        f"{floor_row}"
         f"<b>Описание:</b> {property_obj.description or '—'}\n"
         f"<b>Ссылка:</b> {property_obj.link or '—'}\n"
         f"<b>Статус:</b> {status}\n"

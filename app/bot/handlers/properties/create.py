@@ -14,10 +14,14 @@ from app.bot.keyboards.properties import (
     ADD_PROPERTY_TEXT,
     PROPERTY_STATUS_MAP,
     PROPERTY_TYPE_MAP,
+    ROOMS_OPTIONS_FOR_PROPERTY,
+    get_property_district_keyboard,
     get_properties_menu_keyboard,
     get_property_cancel_keyboard,
+    get_property_rooms_keyboard,
     get_property_skip_cancel_keyboard,
     get_property_status_keyboard,
+    get_property_title_keyboard,
     get_property_type_keyboard,
 )
 from app.bot.states.properties import PropertyCreateStates
@@ -46,13 +50,22 @@ async def _get_current_user(message: Message, auth_service: AuthService):
     return user
 
 
-def _parse_positive_int_or_skip(raw_value: str, field_name: str) -> int | None:
+def _parse_positive_int(raw_value: str, field_name: str) -> int:
     value = raw_value.strip()
-    if value == SKIP_TEXT or value in {"-", "—"}:
-        return None
     if value.isdigit() and int(value) >= 0:
         return int(value)
-    raise ValueError(f"{field_name}: введите целое число, «-» или «{SKIP_TEXT}».")
+    raise ValueError(f"{field_name}: введите целое число больше или равное 0.")
+
+
+def _parse_rooms(raw_value: str) -> str:
+    value = raw_value.strip()
+    if value.lower() == "студия":
+        return "Студия"
+    if value in ROOMS_OPTIONS_FOR_PROPERTY:
+        return value
+    if value.isdigit() and 0 < int(value) <= 50:
+        return value
+    raise ValueError("Комнаты: выберите 1-5, «Студия» или введите число вручную.")
 
 
 def _parse_url_or_skip(raw_value: str) -> str | None:
@@ -86,14 +99,14 @@ async def start_property_create(message: Message, state: FSMContext, auth_servic
 
     await state.clear()
     await state.set_state(PropertyCreateStates.title)
-    await message.answer("Введите название объекта.", reply_markup=get_property_cancel_keyboard())
+    await message.answer("Введите название объекта.", reply_markup=get_property_title_keyboard())
 
 
 @router.message(PropertyCreateStates.title)
 async def process_title(message: Message, state: FSMContext) -> None:
     title = (message.text or "").strip()
     if not title:
-        await message.answer("Название не должно быть пустым. Введите название объекта.")
+        await message.answer("Название не должно быть пустым. Введите название объекта.", reply_markup=get_property_title_keyboard())
         return
 
     await state.update_data(title=title)
@@ -111,14 +124,14 @@ async def process_property_type(message: Message, state: FSMContext) -> None:
 
     await state.update_data(property_type=property_type.value)
     await state.set_state(PropertyCreateStates.district)
-    await message.answer("Введите район.")
+    await message.answer("Выберите район кнопкой или введите вручную.", reply_markup=get_property_district_keyboard())
 
 
 @router.message(PropertyCreateStates.district)
 async def process_district(message: Message, state: FSMContext) -> None:
     district = (message.text or "").strip()
     if not district:
-        await message.answer("Район не должен быть пустым. Введите район.")
+        await message.answer("Район не должен быть пустым. Выберите кнопкой или введите вручную.", reply_markup=get_property_district_keyboard())
         return
 
     await state.update_data(district=district)
@@ -135,7 +148,7 @@ async def process_address(message: Message, state: FSMContext) -> None:
 
     await state.update_data(address=address)
     await state.set_state(PropertyCreateStates.owner_phone)
-    await message.answer("Введите номер владельца объекта.")
+    await message.answer("Введите номер владельца объекта (обязательно).", reply_markup=get_property_cancel_keyboard())
 
 
 @router.message(PropertyCreateStates.owner_phone)
@@ -148,7 +161,7 @@ async def process_owner_phone(message: Message, state: FSMContext) -> None:
 
     await state.update_data(owner_phone=owner_phone)
     await state.set_state(PropertyCreateStates.price)
-    await message.answer("Введите цену (только число).")
+    await message.answer("Цена", reply_markup=get_property_cancel_keyboard())
 
 
 @router.message(PropertyCreateStates.price)
@@ -175,15 +188,15 @@ async def process_area(message: Message, state: FSMContext) -> None:
     await state.update_data(area=str(area))
     await state.set_state(PropertyCreateStates.rooms)
     await message.answer(
-        f"Введите количество комнат (число), «-» или «{SKIP_TEXT}».",
-        reply_markup=get_property_skip_cancel_keyboard(),
+        "Выберите количество комнат кнопкой или введите вручную (1-5, Студия).",
+        reply_markup=get_property_rooms_keyboard(),
     )
 
 
 @router.message(PropertyCreateStates.rooms)
 async def process_rooms(message: Message, state: FSMContext) -> None:
     try:
-        rooms = _parse_positive_int_or_skip(message.text or "", "Комнаты")
+        rooms = _parse_rooms(message.text or "")
     except ValueError as error:
         await message.answer(f"{error}")
         return
@@ -191,15 +204,15 @@ async def process_rooms(message: Message, state: FSMContext) -> None:
     await state.update_data(rooms=rooms)
     await state.set_state(PropertyCreateStates.floor)
     await message.answer(
-        f"Введите этаж (число), «-» или «{SKIP_TEXT}».",
-        reply_markup=get_property_skip_cancel_keyboard(),
+        "Введите этаж (целое число, от 0).",
+        reply_markup=get_property_cancel_keyboard(),
     )
 
 
 @router.message(PropertyCreateStates.floor)
 async def process_floor(message: Message, state: FSMContext) -> None:
     try:
-        floor = _parse_positive_int_or_skip(message.text or "", "Этаж")
+        floor = _parse_positive_int(message.text or "", "Этаж")
     except ValueError as error:
         await message.answer(f"{error}")
         return
@@ -209,9 +222,10 @@ async def process_floor(message: Message, state: FSMContext) -> None:
     property_type = PropertyType(data["property_type"])
     if property_type == PropertyType.APARTMENT:
         await state.set_state(PropertyCreateStates.building_floors)
-        await message.answer("Введите этажность здания (положительное число).")
+        await message.answer("Введите количество этажей в здании (положительное целое число).", reply_markup=get_property_cancel_keyboard())
         return
 
+    await state.update_data(building_floors=None)
     await state.set_state(PropertyCreateStates.description)
     await message.answer("Введите описание (или «Пропустить»).", reply_markup=get_property_skip_cancel_keyboard())
 
