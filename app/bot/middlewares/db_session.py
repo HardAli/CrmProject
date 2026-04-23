@@ -20,8 +20,13 @@ from app.services.auth_service import AuthService
 from app.services.clients import ClientService
 from app.services.client_properties import ClientPropertyService
 from app.services.client_photo_service import ClientPhotoService
+from app.services.auto_link_service import AutoLinkService
 from app.services.tasks import TaskService
 from app.services.properties import PropertyService
+from app.services.property_import_service import PropertyImportService
+from app.services.property_photo_service import PropertyPhotoService
+from app.services.parsers.krisha_parser import KrishaParser
+from app.common.http.http_client import HttpClient
 from app.services.search import SearchService
 from app.services.statistics import StatisticsService
 
@@ -59,6 +64,17 @@ class DbSessionMiddleware(BaseMiddleware):
             data["task_service"] = TaskService(task_repository, client_repository, client_log_repository)
             data["property_repository"] = property_repository
             data["property_service"] = PropertyService(property_repository)
+            auto_link_service = AutoLinkService(
+                client_repository=client_repository,
+                client_property_repository=client_property_repository,
+            )
+            photo_service = PropertyPhotoService()
+            data["property_import_service"] = PropertyImportService(
+                property_service=data["property_service"],
+                photo_service=photo_service,
+                auto_link_service=auto_link_service,
+                parsers=[KrishaParser(HttpClient())],
+            )
             data["search_service"] = SearchService(client_repository, property_repository)
             data["client_property_repository"] = client_property_repository
             data["statistics_repository"] = statistics_repository

@@ -190,6 +190,15 @@ class ClientRepository:
         result = await self._session.execute(stmt.limit(limit))
         return result.scalars().all()
 
+    async def get_by_phone_candidates(self, candidates: list[str], manager_id: int | None = None) -> Sequence[Client]:
+        if not candidates:
+            return []
+        stmt = self._base_list_query().where(Client.phone.in_(candidates))
+        if manager_id is not None:
+            stmt = stmt.where(Client.manager_id == manager_id)
+        result = await self._session.execute(stmt.limit(100))
+        return result.scalars().all()
+
     @staticmethod
     def _base_list_query() -> Select[tuple[Client]]:
         return select(Client).options(joinedload(Client.manager)).order_by(Client.created_at.desc())

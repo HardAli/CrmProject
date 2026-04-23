@@ -3,6 +3,7 @@ from __future__ import annotations
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
 
 from app.bot.keyboards.clients import CANCEL_TEXT, DISTRICT_OPTIONS, ROOMS_OPTIONS, SKIP_TEXT, UNKNOWN_TEXT
+from app.bot.keyboards.properties_import import ADD_PROPERTY_BY_LINK_TEXT
 from app.common.enums import PropertyStatus, PropertyType
 from app.common.utils.phone_links import build_whatsapp_url
 from app.database.models.property import Property
@@ -49,7 +50,8 @@ PROPERTY_STATUS_MAP: dict[str, PropertyStatus] = {
 def get_properties_menu_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text=ADD_PROPERTY_TEXT), KeyboardButton(text=RECENT_PROPERTIES_TEXT)],
+            [KeyboardButton(text=ADD_PROPERTY_TEXT), KeyboardButton(text=ADD_PROPERTY_BY_LINK_TEXT)],
+            [KeyboardButton(text=RECENT_PROPERTIES_TEXT)],
             [KeyboardButton(text=MY_PROPERTIES_TEXT), KeyboardButton(text=GLOBAL_PROPERTIES_TEXT)],
             [KeyboardButton(text=BACK_TO_MAIN_MENU_TEXT)],
         ],

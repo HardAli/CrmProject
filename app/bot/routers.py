@@ -12,6 +12,7 @@ from app.bot.handlers.clients.photos import router as client_photos_router
 from app.bot.handlers.tasks.create import router as task_create_router
 from app.bot.handlers.tasks.list_today import router as task_list_router
 from app.bot.handlers.properties.create import router as property_create_router
+from app.bot.handlers.properties.import_from_link import router as property_import_router
 from app.bot.handlers.properties.list import router as property_list_router
 from app.bot.handlers.properties.card import router as property_card_router
 from app.bot.handlers.search import router as search_router
@@ -32,6 +33,7 @@ COMMON_ROUTERS: tuple[Router, ...] = (
     task_list_router,
     property_list_router,
     property_create_router,
+    property_import_router,
     property_card_router,
     search_router,
     stats_router,
