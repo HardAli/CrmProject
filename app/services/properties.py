@@ -14,7 +14,7 @@ class PropertyService:
     def __init__(self, property_repository: PropertyRepository) -> None:
         self._property_repository = property_repository
 
-    async def create_property(self, current_user: User, data: CreatePropertyDTO) -> Property:
+    async def create_property(self, current_user: User, data: CreatePropertyDTO) -> tuple[Property, int]:
         if current_user.role == UserRole.SUPERVISOR:
             raise PermissionError("Роль supervisor не может создавать объекты")
 
@@ -33,7 +33,9 @@ class PropertyService:
         if data.floor is not None and data.building_floors is not None and data.floor > data.building_floors:
             raise ValueError("Этаж объекта не может быть больше этажности здания.")
 
-        return await self._property_repository.create(data)
+        property_obj = await self._property_repository.create(data)
+        linked_clients_count = 0
+        return property_obj, linked_clients_count
 
     async def get_my_properties(self, current_user: User, limit: int = 10) -> Sequence[Property]:
         if current_user.role == UserRole.MANAGER:

@@ -311,7 +311,7 @@ async def process_status(
     )
 
     try:
-        property_obj, linked_clients_count = await property_service.create_property(current_user=user, data=dto)
+        create_result = await property_service.create_property(current_user=user, data=dto)
     except PermissionError as error:
         await message.answer(str(error), reply_markup=get_properties_menu_keyboard())
         await state.clear()
@@ -319,6 +319,12 @@ async def process_status(
     except ValueError as error:
         await message.answer(str(error))
         return
+
+    if isinstance(create_result, tuple):
+        property_obj, linked_clients_count = create_result
+    else:
+        property_obj = create_result
+        linked_clients_count = 0
 
     await session.commit()
     await state.clear()
