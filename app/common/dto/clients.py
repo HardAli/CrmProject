@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 
-from app.common.enums import PropertyType, RequestType, WallMateria
+from app.common.enums import PropertyType, RequestType, WallMaterial
 
 
 @dataclass(slots=True)
