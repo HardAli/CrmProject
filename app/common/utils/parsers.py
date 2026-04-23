@@ -62,3 +62,26 @@ def parse_next_contact_at(raw_value: str) -> datetime:
             continue
 
     raise ValueError("Неверный формат даты. Пример: 03 08 2026 или 25.04.2026 14:30")
+
+
+def parse_int_in_range(raw_value: str, *, field_name: str, minimum: int, maximum: int) -> int:
+    value = raw_value.strip()
+    if not value.isdigit():
+        raise ValueError(f"{field_name}: введите целое число от {minimum} до {maximum}.")
+
+    parsed = int(value)
+    if parsed < minimum or parsed > maximum:
+        raise ValueError(f"{field_name}: введите целое число от {minimum} до {maximum}.")
+    return parsed
+
+
+def parse_year_built(raw_value: str, *, min_year: int = 1800, max_year: int | None = None) -> int:
+    value = raw_value.strip()
+    if not value.isdigit():
+        raise ValueError("Год постройки должен быть целым числом.")
+
+    year = int(value)
+    upper_bound = max_year if max_year is not None else datetime.now(tz=timezone.utc).year + 1
+    if year < min_year or year > upper_bound:
+        raise ValueError(f"Год постройки должен быть в диапазоне {min_year}-{upper_bound}.")
+    return year

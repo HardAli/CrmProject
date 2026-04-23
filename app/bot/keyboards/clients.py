@@ -57,6 +57,7 @@ DISTRICT_OPTIONS: tuple[str, ...] = (
 
 ROOMS_OPTIONS: tuple[str, ...] = ("1", "2", "3", "4", "5", "Студия")
 NEXT_CONTACT_QUICK_OPTIONS: tuple[str, ...] = ("Сегодня", "Завтра", "Послезавтра")
+WALL_MATERIAL_OPTIONS: tuple[str, ...] = ("Кирпич", "Панель", "Монолит")
 
 STATUS_LABELS: dict[ClientStatus, str] = {
     ClientStatus.NEW: "🆕 Новый",
@@ -187,6 +188,50 @@ def get_next_contact_keyboard() -> ReplyKeyboardMarkup:
         ],
         resize_keyboard=True,
         input_field_placeholder="Выберите дату или введите вручную",
+    )
+
+
+def get_floor_keyboard() -> ReplyKeyboardMarkup:
+    floor_values = [str(value) for value in range(1, 17)]
+    rows = [floor_values[i:i + 4] for i in range(0, len(floor_values), 4)]
+    keyboard = [[KeyboardButton(text=value) for value in row] for row in rows]
+    keyboard.append([KeyboardButton(text=CANCEL_TEXT)])
+    return ReplyKeyboardMarkup(
+        keyboard=keyboard,
+        resize_keyboard=True,
+        input_field_placeholder="Выберите этаж 1-16 или введите вручную",
+    )
+
+
+def get_building_floors_keyboard() -> ReplyKeyboardMarkup:
+    floor_values = [str(value) for value in range(1, 17)]
+    rows = [floor_values[i:i + 4] for i in range(0, len(floor_values), 4)]
+    keyboard = [[KeyboardButton(text=value) for value in row] for row in rows]
+    keyboard.append([KeyboardButton(text=CANCEL_TEXT)])
+    return ReplyKeyboardMarkup(
+        keyboard=keyboard,
+        resize_keyboard=True,
+        input_field_placeholder="Выберите этажность 1-16 или введите вручную",
+    )
+
+
+def get_wall_material_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text=WALL_MATERIAL_OPTIONS[0]), KeyboardButton(text=WALL_MATERIAL_OPTIONS[1])],
+            [KeyboardButton(text=WALL_MATERIAL_OPTIONS[2])],
+            [KeyboardButton(text=CANCEL_TEXT)],
+        ],
+        resize_keyboard=True,
+        input_field_placeholder="Выберите материал стен",
+    )
+
+
+def get_year_built_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text=SKIP_TEXT), KeyboardButton(text=CANCEL_TEXT)]],
+        resize_keyboard=True,
+        input_field_placeholder="Введите год постройки или пропустите",
     )
 
 

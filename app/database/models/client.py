@@ -4,10 +4,10 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, Index, Numeric, String, Text
+from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, Index, Numeric, SmallInteger, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.common.enums import ClientStatus, PropertyType, RequestType
+from app.common.enums import ClientStatus, PropertyType, RequestType, WallMaterial
 from app.database.base import Base, IdMixin, TimestampMixin
 
 if TYPE_CHECKING:
@@ -24,6 +24,13 @@ class Client(Base, IdMixin, TimestampMixin):
     __tablename__ = "clients"
     __table_args__ = (
         CheckConstraint("budget IS NULL OR budget >= 0", name="budget_non_negative"),
+        CheckConstraint("floor IS NULL OR floor > 0", name="client_floor_positive"),
+        CheckConstraint("building_floors IS NULL OR building_floors > 0", name="client_building_floors_positive"),
+        CheckConstraint(
+            "floor IS NULL OR building_floors IS NULL OR floor <= building_floors",
+            name="client_floor_lte_building_floors",
+        ),
+        CheckConstraint("year_built IS NULL OR year_built >= 1800", name="client_year_built_reasonable"),
         Index("ix_clients_manager_status", "manager_id", "status"),
         Index("ix_clients_next_contact_at", "next_contact_at"),
         Index("ix_clients_district", "district"),
@@ -44,6 +51,13 @@ class Client(Base, IdMixin, TimestampMixin):
     district: Mapped[str | None] = mapped_column(String(120), nullable=True)
     rooms: Mapped[str | None] = mapped_column(String(32), nullable=True)
     budget: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    floor: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    building_floors: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    wall_material: Mapped[WallMaterial | None] = mapped_column(
+        Enum(WallMaterial, name="wall_material", native_enum=False),
+        nullable=True,
+    )
+    year_built: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     status: Mapped[ClientStatus] = mapped_column(
         Enum(ClientStatus, name="client_status", native_enum=False),
         nullable=False,

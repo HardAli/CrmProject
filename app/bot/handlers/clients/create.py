@@ -17,8 +17,11 @@ from app.bot.keyboards.clients import (
     SKIP_TEXT,
     UNKNOWN_TEXT,
     SOURCE_OPTIONS,
+    WALL_MATERIAL_OPTIONS,
+    get_building_floors_keyboard,
     get_clients_menu_keyboard,
     get_district_keyboard,
+    get_floor_keyboard,
     get_full_name_keyboard,
     get_next_contact_keyboard,
     get_property_type_keyboard,
@@ -26,12 +29,20 @@ from app.bot.keyboards.clients import (
     get_rooms_keyboard,
     get_skip_cancel_keyboard,
     get_source_keyboard,
+    get_wall_material_keyboard,
+    get_year_built_keyboard,
 )
 from app.bot.states.clients import ClientCreateStates
 from app.common.dto.clients import CreateClientDTO
-from app.common.enums import PropertyType, RequestType
+from app.common.enums import PropertyType, RequestType, WallMaterial
 from app.common.formatters.client_formatter import format_client_created_card
-from app.common.utils.parsers import normalize_phone, parse_money, parse_next_contact_at
+from app.common.utils.parsers import (
+    normalize_phone,
+    parse_int_in_range,
+    parse_money,
+    parse_next_contact_at,
+    parse_year_built,
+)
 from app.services.auth_service import AuthService
 from app.services.clients import ClientService
 
@@ -49,6 +60,12 @@ PROPERTY_TYPE_MAP: dict[str, PropertyType] = {
     "Дом": PropertyType.HOUSE,
     "Коммерческая": PropertyType.COMMERCIAL,
     "Участок": PropertyType.LAND,
+}
+
+WALL_MATERIAL_MAP: dict[str, WallMaterial] = {
+    "Кирпич": WallMaterial.BRICK,
+    "Панель": WallMaterial.PANEL,
+    "Монолит": WallMaterial.MONOLITH,
 }
 
 
@@ -204,6 +221,100 @@ async def process_budget(message: Message, state: FSMContext) -> None:
             return
         await state.update_data(budget=str(budget))
 
+    data = await state.get_data()
+    property_type = PropertyType(data["property_type"])
+    if property_type == PropertyType.APARTMENT:
+        await state.set_state(ClientCreateStates.floor)
+        await message.answer(
+            "Выберите этаж (1-16) кнопкой или введите вручную.",
+            reply_markup=get_floor_keyboard(),
+        )
+        return
+
+    await state.update_data(floor=None, building_floors=None, wall_material=None, year_built=None)
+    await state.set_state(ClientCreateStates.note)
+    await message.answer("Введите заметку по клиенту (или нажмите «Пропустить»).",
+                         reply_markup=get_skip_cancel_keyboard())
+
+
+@router.message(ClientCreateStates.floor)
+async def process_floor(message: Message, state: FSMContext) -> None:
+    try:
+        floor = parse_int_in_range(message.text or "", field_name="Этаж", minimum=1, maximum=16)
+    except ValueError as error:
+        await message.answer(
+            f"{error}\nВыберите этаж кнопкой 1-16 или введите вручную.",
+            reply_markup=get_floor_keyboard(),
+        )
+        return
+
+    await state.update_data(floor=floor)
+    await state.set_state(ClientCreateStates.building_floors)
+    await message.answer(
+        "Выберите этажность дома (1-16) кнопкой или введите вручную.",
+        reply_markup=get_building_floors_keyboard(),
+    )
+
+
+@router.message(ClientCreateStates.building_floors)
+async def process_building_floors(message: Message, state: FSMContext) -> None:
+    try:
+        building_floors = parse_int_in_range(message.text or "", field_name="Этажность дома", minimum=1, maximum=16)
+    except ValueError as error:
+        await message.answer(
+            f"{error}\nВыберите этажность кнопкой 1-16 или введите вручную.",
+            reply_markup=get_building_floors_keyboard(),
+        )
+        return
+
+    data = await state.get_data()
+    floor = data.get("floor")
+    if floor is not None and floor > building_floors:
+        await message.answer(
+            "Этаж не может быть больше этажности дома. Введите этажность повторно.",
+            reply_markup=get_building_floors_keyboard(),
+        )
+        return
+
+    await state.update_data(building_floors=building_floors)
+    await state.set_state(ClientCreateStates.wall_material)
+    await message.answer("Выберите материал стен:", reply_markup=get_wall_material_keyboard())
+
+
+@router.message(ClientCreateStates.wall_material)
+async def process_wall_material(message: Message, state: FSMContext) -> None:
+    value = (message.text or "").strip()
+    wall_material = WALL_MATERIAL_MAP.get(value)
+    if wall_material is None:
+        await message.answer(
+            f"Выберите материал стен кнопкой ({', '.join(WALL_MATERIAL_OPTIONS)}).",
+            reply_markup=get_wall_material_keyboard(),
+        )
+        return
+
+    await state.update_data(wall_material=wall_material.value)
+    await state.set_state(ClientCreateStates.year_built)
+    await message.answer(
+        "Введите год постройки (например, 2012) или нажмите «Пропустить».",
+        reply_markup=get_year_built_keyboard(),
+    )
+
+
+@router.message(ClientCreateStates.year_built)
+async def process_year_built(message: Message, state: FSMContext) -> None:
+    value = (message.text or "").strip()
+
+    if value == SKIP_TEXT:
+        await state.update_data(year_built=None)
+    else:
+        try:
+            year_built = parse_year_built(value)
+        except ValueError as error:
+            await message.answer(f"{error}\nВведите корректный год или нажмите «Пропустить».",
+                                 reply_markup=get_year_built_keyboard())
+            return
+        await state.update_data(year_built=year_built)
+
     await state.set_state(ClientCreateStates.note)
     await message.answer("Введите заметку по клиенту (или нажмите «Пропустить»).", reply_markup=get_skip_cancel_keyboard())
 
@@ -265,6 +376,10 @@ async def process_next_contact_at(
         district=data.get("district"),
         rooms=data.get("rooms"),
         budget=Decimal(data["budget"]) if data.get("budget") else None,
+        floor=data.get("floor"),
+        building_floors=data.get("building_floors"),
+        wall_material=WallMaterial(data["wall_material"]) if data.get("wall_material") else None,
+        year_built=data.get("year_built"),
         note=data.get("note"),
         next_contact_at=next_contact_at,
         manager_id=user.id,

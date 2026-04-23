@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from app.common.enums import ClientStatus, PropertyType, RequestType
+from app.common.enums import ClientStatus, PropertyType, RequestType, WallMaterial
 from app.common.utils.phone_links import format_phone_for_copy
 from app.database.models.client import Client
 
@@ -28,6 +28,12 @@ PROPERTY_TYPE_LABELS: dict[PropertyType, str] = {
     PropertyType.HOUSE: "Дом",
     PropertyType.COMMERCIAL: "Коммерческая",
     PropertyType.LAND: "Участок",
+}
+
+WALL_MATERIAL_LABELS: dict[WallMaterial, str] = {
+    WallMaterial.BRICK: "Кирпич",
+    WallMaterial.PANEL: "Панель",
+    WallMaterial.MONOLITH: "Монолит",
 }
 
 
@@ -70,6 +76,17 @@ def format_client_card(client: Client, manager_name: str, updated: bool = False)
     if updated:
         header = f"✅ <b>Карточка обновлена</b>\n\n{header}"
 
+    apartment_rows = ""
+    if client.floor is not None:
+        apartment_rows += f"<b>Этаж:</b> {client.floor}\n"
+    if client.building_floors is not None:
+        apartment_rows += f"<b>Этажность дома:</b> {client.building_floors}\n"
+    if client.wall_material is not None:
+        wall_material = WALL_MATERIAL_LABELS.get(client.wall_material, client.wall_material.value)
+        apartment_rows += f"<b>Материал стен:</b> {wall_material}\n"
+    if client.year_built is not None:
+        apartment_rows += f"<b>Год постройки:</b> {client.year_built}\n"
+
     return (
         f"{header}\n\n"
         f"<b>ID клиента:</b> {client.id}\n"
@@ -81,6 +98,7 @@ def format_client_card(client: Client, manager_name: str, updated: bool = False)
         f"<b>Район:</b> {client.district or '—'}\n"
         f"<b>Комнаты:</b> {client.rooms or '—'}\n"
         f"<b>Цена:</b> {_format_money(client.budget)}\n"
+        f"{apartment_rows}"
         f"<b>Статус:</b> {status}\n"
         f"<b>Последняя заметка:</b> {client.note or '—'}\n"
         f"<b>Следующий контакт:</b> {_format_datetime(client.next_contact_at)}\n"

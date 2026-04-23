@@ -29,6 +29,12 @@ class PropertyType(StrEnum):
     LAND = "land"
 
 
+class WallMaterial(StrEnum):
+    BRICK = "brick"
+    PANEL = "panel"
+    MONOLITH = "monolith"
+
+
 class ClientStatus(StrEnum):
     NEW = "new"
     IN_PROGRESS = "in_progress"

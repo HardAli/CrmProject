@@ -12,6 +12,10 @@ class ClientCreateStates(StatesGroup):
     district = State()
     rooms = State()
     budget = State()
+    floor = State()
+    building_floors = State()
+    wall_material = State()
+    year_built = State()
     note = State()
     next_contact_at = State()
 
