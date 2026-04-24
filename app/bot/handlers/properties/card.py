@@ -43,7 +43,7 @@ async def open_property_card(
         await callback.answer("Объект не найден или нет прав на просмотр", show_alert=True)
         return
 
-    an_convert = property_service.can_convert_property(current_user=user, property_obj=property_obj)
+    can_convert = property_service.can_convert_property(current_user=user, property_obj=property_obj)
     can_delete = property_service.can_delete_property(current_user=user, property_obj=property_obj)
     manager_name = property_obj.manager.full_name if property_obj.manager else "—"
     await callback.message.answer(
