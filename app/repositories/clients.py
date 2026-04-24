@@ -203,6 +203,17 @@ class ClientRepository:
         result = await self._session.execute(stmt.limit(100))
         return result.scalars().all()
 
+    async def get_by_phone_normalized(self, phone_normalized: str) -> Client | None:
+        candidates = {phone_normalized}
+        if phone_normalized.startswith("+"):
+            candidates.add(phone_normalized.replace("+", "8", 1))
+        if phone_normalized.startswith("8"):
+            candidates.add(phone_normalized.replace("8", "+", 1))
+
+        stmt = self._base_list_query().where(Client.phone.in_(candidates)).limit(1)
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
     @staticmethod
     def _base_list_query() -> Select[tuple[Client]]:
         return select(Client).options(joinedload(Client.manager)).order_by(Client.created_at.desc())

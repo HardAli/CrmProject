@@ -81,7 +81,12 @@ class DbSessionMiddleware(BaseMiddleware):
             data["task_repository"] = task_repository
             data["task_service"] = TaskService(task_repository, client_repository, client_log_repository)
             data["property_repository"] = property_repository
-            data["property_service"] = PropertyService(property_repository)
+            data["property_service"] = PropertyService(
+                property_repository=property_repository,
+                client_repository=client_repository,
+                client_property_repository=client_property_repository,
+                client_log_repository=client_log_repository,
+            )
             auto_link_service = AutoLinkService(
                 client_repository=client_repository,
                 client_property_repository=client_property_repository,

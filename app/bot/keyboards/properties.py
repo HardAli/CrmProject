@@ -155,8 +155,34 @@ def get_properties_list_inline_keyboard(properties: list[Property]) -> InlineKey
 
 
 def get_property_actions_inline_keyboard(property_obj: Property) -> InlineKeyboardMarkup:
+    return get_property_actions_inline_keyboard_with_access(
+        property_obj=property_obj,
+        can_convert=False,
+        can_delete=False,
+    )
+
+    def get_property_actions_inline_keyboard_with_access(
+            *,
+            property_obj: Property,
+            can_convert: bool,
+            can_delete: bool,
+    ) -> InlineKeyboardMarkup:
+        rows: list[list[InlineKeyboardButton]] = [
+            [InlineKeyboardButton(text="💬 WhatsApp", url=build_whatsapp_url(property_obj.owner_phone))],
+        ]
+        if can_convert:
+            rows.append([InlineKeyboardButton(text="👤 Сделать клиентом",
+                                              callback_data=f"property_make_client:{property_obj.id}")])
+        if can_delete:
+            rows.append(
+                [InlineKeyboardButton(text="🗑 Удалить", callback_data=f"property_delete_confirm:{property_obj.id}")])
+        return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def get_property_delete_confirm_keyboard(*, property_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="💬 WhatsApp", url=build_whatsapp_url(property_obj.owner_phone))]
+            [InlineKeyboardButton(text="✅ Да, удалить", callback_data=f"property_delete_yes:{property_id}")],
+            [InlineKeyboardButton(text="↩️ Отмена", callback_data=f"property_view:{property_id}")],
         ]
     )

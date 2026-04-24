@@ -44,6 +44,10 @@ class PropertyRepository:
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def delete(self, property_obj: Property) -> None:
+        await self._session.delete(property_obj)
+        await self._session.flush()
+
     async def get_by_manager(self, manager_id: int, limit: int = 10, offset: int = 0) -> Sequence[Property]:
         stmt = self._base_list_query().where(Property.manager_id == manager_id).limit(limit).offset(offset)
         result = await self._session.execute(stmt)

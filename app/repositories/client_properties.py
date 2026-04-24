@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
@@ -84,3 +84,9 @@ class ClientPropertyRepository:
         await self._session.flush()
         await self._session.refresh(link)
         return link
+
+    async def delete_by_property_id(self, property_id: int) -> int:
+        stmt = delete(ClientProperty).where(ClientProperty.property_id == property_id)
+        result = await self._session.execute(stmt)
+        await self._session.flush()
+        return result.rowcount or 0
