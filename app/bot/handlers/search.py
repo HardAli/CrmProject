@@ -5,24 +5,23 @@ from decimal import Decimal
 from aiogram import F, Router
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import Message
 
 from app.bot.keyboards.clients import CANCEL_TEXT, SKIP_TEXT, get_clients_list_inline_keyboard
 from app.bot.keyboards.main_menu import get_main_menu_keyboard
 from app.bot.keyboards.properties import get_properties_list_inline_keyboard
 from app.bot.keyboards.search import (
-    ADVANCED_SEARCH_TEXT,
-    QUICK_SEARCH_TEXT,
-    SEARCH_CLIENTS_TEXT,
+    ADVANCED_CLIENT_SEARCH_TEXT,
+    ADVANCED_PROPERTY_SEARCH_TEXT,
+    QUICK_CLIENT_SEARCH_TEXT,
+    QUICK_PROPERTY_SEARCH_TEXT,
     SEARCH_MENU_TEXT,
-    SEARCH_PROPERTIES_TEXT,
     get_client_search_request_type_keyboard,
     get_client_search_status_keyboard,
     get_property_search_status_keyboard,
     get_property_search_type_keyboard,
     get_search_cancel_keyboard,
     get_search_menu_keyboard,
-    get_search_mode_keyboard,
     get_search_skip_cancel_keyboard,
 )
 from app.bot.states.search_states import SearchStates
@@ -83,14 +82,6 @@ async def _get_current_user(message: Message, auth_service: AuthService):
     return user
 
 
-async def _get_current_user_from_callback(callback: CallbackQuery, auth_service: AuthService):
-    user = await auth_service.get_active_user_by_telegram_id(callback.from_user.id)
-    if user is None:
-        await callback.answer("У вас нет доступа к этой функции.", show_alert=True)
-        return None
-    return user
-
-
 @router.message(Command("search"))
 @router.message(F.text == SEARCH_MENU_TEXT)
 async def open_search_menu(message: Message, state: FSMContext, auth_service: AuthService) -> None:
@@ -99,8 +90,8 @@ async def open_search_menu(message: Message, state: FSMContext, auth_service: Au
         return
 
     await state.clear()
-    await state.set_state(SearchStates.choose_entity)
-    await message.answer("Раздел поиска. Выберите сущность:", reply_markup=get_search_menu_keyboard())
+    await state.set_state(SearchStates.choose_mode)
+    await message.answer("Раздел поиска. Выберите тип поиска:", reply_markup=get_search_menu_keyboard())
 
 
 @router.message(F.text == CANCEL_TEXT, StateFilter(SearchStates))
@@ -110,66 +101,19 @@ async def cancel_search(message: Message, state: FSMContext) -> None:
     await message.answer("Поиск отменён.", reply_markup=get_main_menu_keyboard())
 
 
-@router.callback_query(F.data == "search_open_clients")
-async def restart_client_search(callback: CallbackQuery, state: FSMContext, auth_service: AuthService) -> None:
-    if callback.message is None:
-        await callback.answer()
-        return
-
-    user = await _get_current_user_from_callback(callback, auth_service)
-    if user is None:
-        return
-
-    await state.clear()
+@router.message(SearchStates.choose_mode, F.text == QUICK_CLIENT_SEARCH_TEXT)
+async def choose_quick_client_search(message: Message, state: FSMContext) -> None:
     await state.update_data(entity="clients")
-    await state.set_state(SearchStates.choose_mode)
-    await callback.message.answer("Выберите режим поиска клиентов:", reply_markup=get_search_mode_keyboard())
-    await callback.answer()
+    await state.set_state(SearchStates.client_quick_query)
+    await message.answer(
+        "Введите запрос для клиентов (имя / телефон / район).",
+        reply_markup=get_search_cancel_keyboard(),
+    )
 
 
-@router.callback_query(F.data == "search_open_properties")
-async def restart_property_search(callback: CallbackQuery, state: FSMContext, auth_service: AuthService) -> None:
-    if callback.message is None:
-        await callback.answer()
-        return
-
-    user = await _get_current_user_from_callback(callback, auth_service)
-    if user is None:
-        return
-
-    await state.clear()
+@router.message(SearchStates.choose_mode, F.text == QUICK_PROPERTY_SEARCH_TEXT)
+async def choose_quick_property_search(message: Message, state: FSMContext) -> None:
     await state.update_data(entity="properties")
-    await state.set_state(SearchStates.choose_mode)
-    await callback.message.answer("Выберите режим поиска объектов:", reply_markup=get_search_mode_keyboard())
-    await callback.answer()
-
-
-@router.message(SearchStates.choose_entity, F.text == SEARCH_CLIENTS_TEXT)
-async def choose_client_search(message: Message, state: FSMContext) -> None:
-    await state.update_data(entity="clients")
-    await state.set_state(SearchStates.choose_mode)
-    await message.answer("Выберите режим поиска клиентов:", reply_markup=get_search_mode_keyboard())
-
-
-@router.message(SearchStates.choose_entity, F.text == SEARCH_PROPERTIES_TEXT)
-async def choose_property_search(message: Message, state: FSMContext) -> None:
-    await state.update_data(entity="properties")
-    await state.set_state(SearchStates.choose_mode)
-    await message.answer("Выберите режим поиска объектов:", reply_markup=get_search_mode_keyboard())
-
-
-@router.message(SearchStates.choose_mode, F.text == QUICK_SEARCH_TEXT)
-async def choose_quick_search(message: Message, state: FSMContext) -> None:
-    data = await state.get_data()
-    entity = data.get("entity")
-    if entity == "clients":
-        await state.set_state(SearchStates.client_quick_query)
-        await message.answer(
-            "Введите запрос для клиентов (имя / телефон / район).",
-            reply_markup=get_search_cancel_keyboard(),
-        )
-        return
-
     await state.set_state(SearchStates.property_quick_query)
     await message.answer(
         "Введите запрос для объектов (название / район).",
@@ -177,17 +121,16 @@ async def choose_quick_search(message: Message, state: FSMContext) -> None:
     )
 
 
-@router.message(SearchStates.choose_mode, F.text == ADVANCED_SEARCH_TEXT)
-async def choose_advanced_search(message: Message, state: FSMContext) -> None:
-    data = await state.get_data()
-    entity = data.get("entity")
-    await state.update_data(filters={})
+@router.message(SearchStates.choose_mode, F.text == ADVANCED_CLIENT_SEARCH_TEXT)
+async def choose_advanced_client_search(message: Message, state: FSMContext) -> None:
+    await state.update_data(entity="clients", filters={})
+    await state.set_state(SearchStates.client_full_name)
+    await message.answer("Имя клиента (частично) или «Пропустить»:", reply_markup=get_search_skip_cancel_keyboard())
 
-    if entity == "clients":
-        await state.set_state(SearchStates.client_full_name)
-        await message.answer("Имя клиента (частично) или «Пропустить»:", reply_markup=get_search_skip_cancel_keyboard())
-        return
 
+@router.message(SearchStates.choose_mode, F.text == ADVANCED_PROPERTY_SEARCH_TEXT)
+async def choose_advanced_property_search(message: Message, state: FSMContext) -> None:
+    await state.update_data(entity="properties", filters={})
     await state.set_state(SearchStates.property_title)
     await message.answer("Название объекта (частично) или «Пропустить»:", reply_markup=get_search_skip_cancel_keyboard())
 
@@ -331,7 +274,7 @@ async def client_filter_request_type(
     try:
         clients = await search_service.search_clients(current_user=user, filters=filters)
     except ValueError as error:
-        await message.answer(str(error), reply_markup=get_search_mode_keyboard())
+        await message.answer(str(error), reply_markup=get_search_menu_keyboard())
         await state.set_state(SearchStates.choose_mode)
         return
 
@@ -461,7 +404,7 @@ async def property_filter_rooms(
     try:
         properties = await search_service.search_properties(current_user=user, filters=filters)
     except ValueError as error:
-        await message.answer(str(error), reply_markup=get_search_mode_keyboard())
+        await message.answer(str(error), reply_markup=get_search_menu_keyboard())
         await state.set_state(SearchStates.choose_mode)
         return
 

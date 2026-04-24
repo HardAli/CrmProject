@@ -1,36 +1,26 @@
 from __future__ import annotations
 
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
+from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 
 from app.bot.keyboards.clients import CANCEL_TEXT, SKIP_TEXT
 
 SEARCH_MENU_TEXT = "🔎 Поиск"
-SEARCH_CLIENTS_TEXT = "👥 Поиск клиентов"
-SEARCH_PROPERTIES_TEXT = "🏠 Поиск объектов"
-QUICK_SEARCH_TEXT = "⚡ Быстрый поиск"
-ADVANCED_SEARCH_TEXT = "🧩 Расширенный поиск"
+QUICK_CLIENT_SEARCH_TEXT = "⚡ Быстрый Клиент"
+QUICK_PROPERTY_SEARCH_TEXT = "⚡ Быстрый Объект"
+ADVANCED_CLIENT_SEARCH_TEXT = "🧩 Расширенный Клиент"
+ADVANCED_PROPERTY_SEARCH_TEXT = "🧩 Расширенный Объект"
 RUN_SEARCH_TEXT = "🔍 Выполнить поиск"
 
 
 def get_search_menu_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text=SEARCH_CLIENTS_TEXT), KeyboardButton(text=SEARCH_PROPERTIES_TEXT)],
+            [KeyboardButton(text=QUICK_CLIENT_SEARCH_TEXT), KeyboardButton(text=QUICK_PROPERTY_SEARCH_TEXT)],
+            [KeyboardButton(text=ADVANCED_CLIENT_SEARCH_TEXT), KeyboardButton(text=ADVANCED_PROPERTY_SEARCH_TEXT)],
             [KeyboardButton(text="⬅️ Главное меню")],
         ],
         resize_keyboard=True,
-        input_field_placeholder="Что ищем?",
-    )
-
-
-def get_search_mode_keyboard() -> ReplyKeyboardMarkup:
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text=QUICK_SEARCH_TEXT), KeyboardButton(text=ADVANCED_SEARCH_TEXT)],
-            [KeyboardButton(text=CANCEL_TEXT)],
-        ],
-        resize_keyboard=True,
-        input_field_placeholder="Выберите режим поиска",
+        input_field_placeholder="Выберите формат поиска",
     )
 
 
@@ -93,9 +83,3 @@ def get_property_search_status_keyboard() -> ReplyKeyboardMarkup:
         ],
         resize_keyboard=True,
     )
-
-
-def get_search_results_hint_keyboard(entity: str) -> InlineKeyboardMarkup:
-    callback_data = "search_open_clients" if entity == "clients" else "search_open_properties"
-    text = "↩️ Новый поиск клиентов" if entity == "clients" else "↩️ Новый поиск объектов"
-    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=text, callback_data=callback_data)]])

@@ -4,7 +4,6 @@ from aiogram.fsm.state import State, StatesGroup
 
 
 class SearchStates(StatesGroup):
-    choose_entity = State()
     choose_mode = State()
 
     client_quick_query = State()

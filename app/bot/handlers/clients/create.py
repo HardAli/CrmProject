@@ -107,12 +107,16 @@ async def start_client_create(message: Message, state: FSMContext, auth_service:
 @router.message(ClientCreateStates.full_name)
 async def process_full_name(message: Message, state: FSMContext) -> None:
     raw_value = (message.text or "").strip()
-    full_name = UNKNOWN_TEXT if raw_value == UNKNOWN_TEXT else raw_value
-    if not full_name:
+    if not raw_value:
         await message.answer("ФИО не должно быть пустым. Введите ФИО клиента или нажмите «Неизвестно».")
         return
 
-    await state.update_data(full_name=full_name)
+    full_name_is_unknown = raw_value == UNKNOWN_TEXT
+    if full_name_is_unknown:
+        await state.update_data(full_name=None, full_name_is_unknown=True)
+    else:
+        await state.update_data(full_name=raw_value, full_name_is_unknown=False)
+
     await state.set_state(ClientCreateStates.phone)
     await message.answer("Введите телефон клиента (например, +79991234567).")
 
@@ -125,7 +129,12 @@ async def process_phone(message: Message, state: FSMContext) -> None:
         await message.answer(f"{error}\nВведите телефон в корректном формате.")
         return
 
-    await state.update_data(phone=phone)
+    data = await state.get_data()
+    update_data: dict[str, object] = {"phone": phone}
+    if data.get("full_name_is_unknown"):
+        update_data["full_name"] = phone
+
+    await state.update_data(**update_data)
     await state.set_state(ClientCreateStates.source)
     await message.answer("Выберите источник клиента:", reply_markup=get_source_keyboard())
 
@@ -367,8 +376,10 @@ async def process_next_contact_at(
 
     data = await state.get_data()
 
+    full_name = data["phone"] if data.get("full_name_is_unknown") else data["full_name"]
+
     dto = CreateClientDTO(
-        full_name=data["full_name"],
+        full_name=full_name,
         phone=data["phone"],
         source=data.get("source"),
         request_type=RequestType(data["request_type"]),
