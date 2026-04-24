@@ -3,6 +3,7 @@ from __future__ import annotations
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
 
 from app.common.enums import ClientPropertyRelationStatus, ClientStatus
+from app.common.formatters.property_formatter import format_object_compact
 from app.database.models.client import Client
 from app.database.models.client_property import ClientProperty
 from app.database.models.property import Property
@@ -317,6 +318,8 @@ RELATION_STATUS_LABELS: dict[ClientPropertyRelationStatus, str] = {
     ClientPropertyRelationStatus.DEAL: "✅ Сделка",
 }
 
+MAX_PROPERTY_BUTTON_TEXT_LENGTH = 64
+
 
 def get_client_properties_list_keyboard(*, client_id: int, links: list[ClientProperty],
                                         can_edit: bool) -> InlineKeyboardMarkup:
@@ -326,7 +329,7 @@ def get_client_properties_list_keyboard(*, client_id: int, links: list[ClientPro
         rows.append(
             [
                 InlineKeyboardButton(
-                    text=f"#{link.id} · {link.property.title} · {status}",
+                    text=f"{format_object_compact(link.property, max_length=MAX_PROPERTY_BUTTON_TEXT_LENGTH - len(status) - 1)}|{status}",
                     callback_data=f"client_property_view:{link.id}",
                 )
             ]
@@ -345,7 +348,7 @@ def get_property_pick_for_link_keyboard(*, client_id: int, properties: list[Prop
         rows.append(
             [
                 InlineKeyboardButton(
-                    text=f"#{property_obj.id} · {property_obj.title}",
+                    text=format_object_compact(property_obj, max_length=MAX_PROPERTY_BUTTON_TEXT_LENGTH),
                     callback_data=f"client_property_link:{client_id}:{property_obj.id}",
                 )
             ]

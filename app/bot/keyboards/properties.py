@@ -5,6 +5,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardBu
 from app.bot.keyboards.clients import CANCEL_TEXT, DISTRICT_OPTIONS, ROOMS_OPTIONS, SKIP_TEXT, UNKNOWN_TEXT
 from app.bot.keyboards.properties_import import ADD_PROPERTY_BY_LINK_TEXT
 from app.common.enums import PropertyStatus, PropertyType
+from app.common.formatters.property_formatter import format_object_compact
 from app.common.utils.phone_links import build_whatsapp_url
 from app.database.models.property import Property
 
@@ -45,6 +46,8 @@ PROPERTY_STATUS_MAP: dict[str, PropertyStatus] = {
     "Сдан": PropertyStatus.RESERVED,
     "Архив": PropertyStatus.ARCHIVED,
 }
+
+MAX_PROPERTY_BUTTON_TEXT_LENGTH = 64
 
 
 def get_properties_menu_keyboard() -> ReplyKeyboardMarkup:
@@ -143,7 +146,7 @@ def get_properties_list_inline_keyboard(properties: list[Property]) -> InlineKey
         rows.append(
             [
                 InlineKeyboardButton(
-                    text=f"#{property_obj.id} · {property_obj.title}",
+                    text=format_object_compact(property_obj, max_length=MAX_PROPERTY_BUTTON_TEXT_LENGTH),
                     callback_data=f"property_view:{property_obj.id}",
                 )
             ]

@@ -16,7 +16,7 @@ PROPERTY_TYPE_LABELS: dict[PropertyType, str] = {
 
 PROPERTY_STATUS_LABELS: dict[PropertyStatus, str] = {
     PropertyStatus.ACTIVE: "Активен",
-    PropertyStatus.RESERVED: "Сдан",
+    PropertyStatus.RESERVED: "Забронирован",
     PropertyStatus.SOLD: "Продан",
     PropertyStatus.ARCHIVED: "Архив",
 }
@@ -41,9 +41,11 @@ def _format_datetime(value: datetime | None) -> str:
     return value.astimezone(timezone.utc).strftime("%d.%m.%Y %H:%M UTC")
 
 
-def format_rooms_short(rooms: int | None, title: str | None = None) -> str:
+def format_rooms_short(rooms: int | str | None, title: str | None = None) -> str:
     if rooms is not None:
-        return f"{rooms}-х"
+        rooms_value = str(rooms).strip()
+        if rooms_value:
+            return f"{rooms_value}-х"
     if title:
         lowered = title.lower()
         for rooms_count in range(1, 6):
@@ -77,19 +79,48 @@ def format_price_mln(price: Decimal | None) -> str:
     return f"{normalized} млн"
 
 
-def format_object_list_item(index: int, prop: Property) -> str:
+def _trim_middle(value: str, max_len: int) -> str:
+    if len(value) <= max_len:
+        return value
+    if max_len <= 1:
+        return value[:max_len]
+    return f"{value[: max_len - 1]}…"
+
+
+def format_object_compact(prop: Property, with_status: bool = True, max_length: int | None = None) -> str:
     status = PROPERTY_STATUS_LABELS.get(prop.status, prop.status.value)
-    parts = [
+    prefix_parts = [
         format_rooms_short(prop.rooms, prop.title),
         format_area_short(prop.area),
         format_floor_short(prop.floor, prop.building_floors),
-        prop.address or prop.title or "—",
-        prop.district or "—",
-        format_price_mln(prop.price),
     ]
-    if prop.status != PropertyStatus.ACTIVE:
-        parts.append(status)
-    return f"{index}. {'|'.join(parts)}"
+    address = prop.address or prop.title or "—"
+    district = prop.district or "—"
+    suffix_parts = [format_price_mln(prop.price)]
+    if with_status and prop.status != PropertyStatus.ACTIVE:
+        suffix_parts.append(status)
+
+    text = "|".join([*prefix_parts, address, district, *suffix_parts])
+    if max_length is None or len(text) <= max_length:
+        return text
+
+    # Приоритетно сохраняем начало строки, цену и статус;
+    # сокращаем адрес, затем район.
+    min_len_without_address = len("|".join([*prefix_parts, "", district, *suffix_parts]))
+    address_len_limit = max(max_length - (min_len_without_address + 1), 1)
+    address = _trim_middle(address, address_len_limit)
+    text = "|".join([*prefix_parts, address, district, *suffix_parts])
+    if len(text) <= max_length:
+        return text
+
+    min_len_without_district = len("|".join([*prefix_parts, address, "", *suffix_parts]))
+    district_len_limit = max(max_length - (min_len_without_district + 1), 1)
+    district = _trim_middle(district, district_len_limit)
+    return "|".join([*prefix_parts, address, district, *suffix_parts])
+
+
+def format_object_list_item(index: int, prop: Property) -> str:
+    return f"{index}. {format_object_compact(prop)}"
 
 
 def format_properties_list(properties: list[Property], title: str, limit: int) -> str:
