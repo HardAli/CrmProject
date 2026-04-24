@@ -31,6 +31,8 @@ from app.services.property_photo_service import PropertyPhotoService
 from app.services.parsers.krisha_parser import KrishaParser
 from app.common.http.http_client import HttpClient
 from app.services.search import SearchService
+from app.services.database_export_service import DatabaseExportService
+from app.services.database_import_service import DatabaseImportService
 from app.services.statistics import StatisticsService
 from app.config.settings import get_settings
 
@@ -106,6 +108,8 @@ class DbSessionMiddleware(BaseMiddleware):
                 property_repository=property_repository,
                 client_log_repository=client_log_repository,
             )
+            data["database_export_service"] = DatabaseExportService(session)
+            data["database_import_service"] = DatabaseImportService(session)
 
             try:
                 return await handler(event, data)

@@ -19,6 +19,7 @@ from app.bot.handlers.search import router as search_router
 from app.bot.handlers.start import router as start_router
 from app.bot.handlers.stats import router as stats_router
 from app.bot.handlers.roles import router as roles_router
+from app.bot.handlers.supervisor_database import router as supervisor_database_router
 
 
 COMMON_ROUTERS: tuple[Router, ...] = (
@@ -38,6 +39,7 @@ COMMON_ROUTERS: tuple[Router, ...] = (
     property_card_router,
     search_router,
     stats_router,
+    supervisor_database_router,
     roles_router,
 )
 

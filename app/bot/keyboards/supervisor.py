@@ -4,7 +4,7 @@ from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 
 SUPERVISOR_MENU_COMMAND = "/rol"
 USERS_BUTTON_TEXT = "Пользователи"
-EXPORT_DB_BUTTON_TEXT = "Выгрузить базу"
+DATABASE_BUTTON_TEXT = "База"
 MANAGER_PASS_BUTTON_TEXT = "manager pass"
 ADMIN_PASS_BUTTON_TEXT = "admin pass"
 EXIT_TO_MENU_BUTTON_TEXT = "Выйти в меню"
@@ -13,7 +13,7 @@ EXIT_TO_MENU_BUTTON_TEXT = "Выйти в меню"
 def get_supervisor_menu_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text=USERS_BUTTON_TEXT), KeyboardButton(text=EXPORT_DB_BUTTON_TEXT)],
+            [KeyboardButton(text=USERS_BUTTON_TEXT), KeyboardButton(text=DATABASE_BUTTON_TEXT)],
             [KeyboardButton(text=MANAGER_PASS_BUTTON_TEXT), KeyboardButton(text=ADMIN_PASS_BUTTON_TEXT)],
             [KeyboardButton(text=EXIT_TO_MENU_BUTTON_TEXT)],
         ],

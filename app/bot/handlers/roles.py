@@ -11,7 +11,6 @@ from app.bot.keyboards.main_menu import get_main_menu_keyboard
 from app.bot.keyboards.supervisor import (
     ADMIN_PASS_BUTTON_TEXT,
     EXIT_TO_MENU_BUTTON_TEXT,
-    EXPORT_DB_BUTTON_TEXT,
     MANAGER_PASS_BUTTON_TEXT,
     SUPERVISOR_MENU_COMMAND,
     USERS_BUTTON_TEXT,
@@ -62,16 +61,6 @@ async def show_users(
 
     users = await user_repository.list_users(limit=50, offset=0)
     await message.answer(format_users_list(users, limit=50))
-
-
-@router.message(F.text == EXPORT_DB_BUTTON_TEXT)
-async def export_db_placeholder(message: Message, auth_service: AuthService, role_service: RoleService) -> None:
-    user = await _get_current_user(message, auth_service)
-    if not role_service.can_open_supervisor_panel(user):
-        await message.answer("Доступ запрещён.")
-        return
-
-    await message.answer("Функция выгрузки базы пока не реализована")
 
 
 @router.message(F.text == MANAGER_PASS_BUTTON_TEXT)
