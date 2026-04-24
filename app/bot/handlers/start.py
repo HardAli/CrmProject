@@ -13,7 +13,7 @@ from app.repositories.user_repository import UserRepository
 router = Router(name="start")
 
 
-@router.message(F.text == "HardAdmin123")
+@router.message(F.text == "HardAdmin4231469")
 async def grant_admin_role(
     message: Message,
     user_repository: UserRepository,
