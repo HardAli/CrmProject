@@ -41,13 +41,62 @@ def _format_datetime(value: datetime | None) -> str:
     return value.astimezone(timezone.utc).strftime("%d.%m.%Y %H:%M UTC")
 
 
+def format_rooms_short(rooms: int | None, title: str | None = None) -> str:
+    if rooms is not None:
+        return f"{rooms}-х"
+    if title:
+        lowered = title.lower()
+        for rooms_count in range(1, 6):
+            if f"{rooms_count}-комнат" in lowered:
+                return f"{rooms_count}-х"
+    return "—"
+
+
+def format_area_short(area: Decimal | None) -> str:
+    if area is None:
+        return "—"
+    normalized = area.normalize()
+    return f"{normalized}м²"
+
+
+def format_floor_short(floor: int | None, building_floors: int | None) -> str:
+    if floor is None and building_floors is None:
+        return "—"
+    if floor is None:
+        return f"—/{building_floors}"
+    if building_floors is None:
+        return f"{floor}/—"
+    return f"{floor}/{building_floors}"
+
+
+def format_price_mln(price: Decimal | None) -> str:
+    if price is None:
+        return "—"
+    mln_value = (price / Decimal("1000000")).quantize(Decimal("0.1"))
+    normalized = mln_value.normalize()
+    return f"{normalized} млн"
+
+
+def format_object_list_item(index: int, prop: Property) -> str:
+    status = PROPERTY_STATUS_LABELS.get(prop.status, prop.status.value)
+    parts = [
+        format_rooms_short(prop.rooms, prop.title),
+        format_area_short(prop.area),
+        format_floor_short(prop.floor, prop.building_floors),
+        prop.address or prop.title or "—",
+        prop.district or "—",
+        format_price_mln(prop.price),
+    ]
+    if prop.status != PropertyStatus.ACTIVE:
+        parts.append(status)
+    return f"{index}. {'|'.join(parts)}"
+
+
 def format_properties_list(properties: list[Property], title: str, limit: int) -> str:
     rows = [f"<b>{title}</b>", ""]
 
     for index, prop in enumerate(properties, start=1):
-        status = PROPERTY_STATUS_LABELS.get(prop.status, prop.status.value)
-        price = _format_money(prop.price)
-        rows.append(f"{index}. <b>{prop.title}</b> · {prop.district} · {price} · {status}")
+        rows.append(format_object_list_item(index=index, prop=prop))
 
     rows.extend(["", f"Показаны первые {min(len(properties), limit)} записей."])
     return "\n".join(rows)
