@@ -91,19 +91,11 @@ class PropertyService:
 
     @staticmethod
     def can_convert_property(*, current_user: User, property_obj: Property) -> bool:
-        if current_user.role == UserRole.ADMIN:
-            return True
-        if current_user.role == UserRole.MANAGER:
-            return property_obj.manager_id == current_user.id
-        return False
+        return current_user.role in {UserRole.ADMIN, UserRole.MANAGER, UserRole.SUPERVISOR}
 
     @staticmethod
     def can_delete_property(*, current_user: User, property_obj: Property) -> bool:
-        if current_user.role == UserRole.ADMIN:
-            return True
-        if current_user.role == UserRole.MANAGER:
-            return property_obj.manager_id == current_user.id
-        return False
+        return current_user.role in {UserRole.ADMIN, UserRole.MANAGER, UserRole.SUPERVISOR}
 
     async def convert_property_to_client(self, *, current_user: User, property_id: int) -> tuple[str, Client]:
         property_obj = await self._property_repository.get_by_id(property_id)
@@ -143,7 +135,7 @@ class PropertyService:
 
         full_name = phone_normalized
         note = f"Клиент создан из объекта ID {property_obj.id}"
-        manager_id = property_obj.manager_id if current_user.role == UserRole.ADMIN else current_user.id
+        manager_id = property_obj.manager_id or current_user.id
         dto = CreateClientDTO(
             full_name=full_name,
             phone=phone_normalized,
