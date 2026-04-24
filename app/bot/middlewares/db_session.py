@@ -15,8 +15,11 @@ from app.repositories.clients import ClientRepository
 from app.repositories.tasks import TaskRepository
 from app.repositories.properties import PropertyRepository
 from app.repositories.statistics import StatisticsRepository
+from app.repositories.role_pass_repository import RolePassRepository
 from app.repositories.user_repository import UserRepository
 from app.services.auth_service import AuthService
+from app.services.role_pass_service import RolePassService
+from app.services.role_service import RoleService
 from app.services.clients import ClientService
 from app.services.client_properties import ClientPropertyService
 from app.services.client_photo_service import ClientPhotoService
@@ -29,6 +32,7 @@ from app.services.parsers.krisha_parser import KrishaParser
 from app.common.http.http_client import HttpClient
 from app.services.search import SearchService
 from app.services.statistics import StatisticsService
+from app.config.settings import get_settings
 
 
 logger = logging.getLogger(__name__)
@@ -45,7 +49,9 @@ class DbSessionMiddleware(BaseMiddleware):
         data: dict[str, Any],
     ) -> Any:
         async with self._session_factory() as session:
+            settings = get_settings()
             user_repository = UserRepository(session)
+            role_pass_repository = RolePassRepository(session)
             client_repository = ClientRepository(session)
             client_log_repository = ClientLogRepository(session)
             task_repository = TaskRepository(session)
@@ -56,8 +62,18 @@ class DbSessionMiddleware(BaseMiddleware):
 
             data["session"] = session
             data["user_repository"] = user_repository
+            data["role_pass_repository"] = role_pass_repository
             data["client_repository"] = client_repository
             data["auth_service"] = AuthService(user_repository)
+            data["role_pass_service"] = RolePassService(
+                role_pass_repository=role_pass_repository,
+                expire_minutes=settings.role_pass_expire_minutes,
+            )
+            data["role_service"] = RoleService(
+                user_repository=user_repository,
+                role_pass_service=data["role_pass_service"],
+                supervisor_secret=settings.supervisor_secret,
+            )
             data["client_log_repository"] = client_log_repository
             data["client_service"] = ClientService(client_repository, client_log_repository)
             data["task_repository"] = task_repository

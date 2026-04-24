@@ -39,3 +39,24 @@ class UserRepository:
     async def set_role(self, user: User, role: UserRole) -> None:
         user.role = role
         await self._session.flush()
+
+    async def get_or_create_by_telegram_user(self, *, telegram_id: int, full_name: str, default_role: UserRole) -> User:
+        user = await self.get_by_telegram_id(telegram_id)
+        if user is not None:
+            return user
+        return await self.create(telegram_id=telegram_id, full_name=full_name, role=default_role)
+
+    async def update_role(self, user_id: int, role: UserRole) -> User | None:
+        stmt = select(User).where(User.id == user_id).limit(1)
+        result = await self._session.execute(stmt)
+        user = result.scalar_one_or_none()
+        if user is None:
+            return None
+        user.role = role
+        await self._session.flush()
+        return user
+
+    async def list_users(self, *, limit: int = 50, offset: int = 0) -> list[User]:
+        stmt = select(User).order_by(User.id.asc()).limit(limit).offset(offset)
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())

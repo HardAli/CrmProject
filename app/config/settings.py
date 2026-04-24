@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     reminder_daily_summary_hour_utc: int = Field(default=7, alias="REMINDER_DAILY_SUMMARY_HOUR_UTC")
     reminder_check_interval_minutes: int = Field(default=15, alias="REMINDER_CHECK_INTERVAL_MINUTES")
     reminder_task_horizon_minutes: int = Field(default=30, alias="REMINDER_TASK_HORIZON_MINUTES")
+    supervisor_secret: str = Field(default="HardAdmin31415926535", alias="SUPERVISOR_SECRET")
+    role_pass_expire_minutes: int = Field(default=60, alias="ROLE_PASS_EXPIRE_MINUTES")
 
 
 @lru_cache(maxsize=1)
