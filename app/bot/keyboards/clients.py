@@ -258,22 +258,40 @@ def get_clients_list_inline_keyboard(clients: list[Client]) -> InlineKeyboardMar
 
 def get_client_card_actions_keyboard(client_id: int, can_edit: bool) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
-    rows.append([InlineKeyboardButton(text="🏘 Объекты клиента", callback_data=f"client_properties:{client_id}")])
-    rows.append([InlineKeyboardButton(text="🖼 Фото клиента", callback_data=f"client_photos:{client_id}")])
+    first_row: list[InlineKeyboardButton] = [
+        InlineKeyboardButton(text="Объекты клиента", callback_data=f"client_properties:{client_id}")
+    ]
+    second_row: list[InlineKeyboardButton] = [
+        InlineKeyboardButton(text="Фото клиента", callback_data=f"client_photos:{client_id}")
+    ]
+
     if can_edit:
-        rows.extend(
-            [
-                [InlineKeyboardButton(text="🔗 Привязать объект",
-                                      callback_data=f"client_property_link_pick:{client_id}")],
-                [InlineKeyboardButton(text="✏️ Изменить статус", callback_data=f"client_edit_status:{client_id}")],
-                [InlineKeyboardButton(text="📝 Добавить заметку", callback_data=f"client_add_note:{client_id}")],
-                [InlineKeyboardButton(text="📆 Назначить следующий контакт", callback_data=f"client_set_next_contact:{client_id}")],
-                [InlineKeyboardButton(text="✅ Создать задачу", callback_data=f"client_task_create:{client_id}")],
-            ]
+        first_row.append(
+            InlineKeyboardButton(text="Привязать объект", callback_data=f"client_property_link_pick:{client_id}")
+        )
+        second_row.append(
+            InlineKeyboardButton(text="Изменить статус", callback_data=f"client_edit_status:{client_id}")
         )
 
-    rows.append([InlineKeyboardButton(text="📅 Задачи на сегодня", callback_data="tasks_today_dashboard")])
-    rows.append([InlineKeyboardButton(text="📚 История", callback_data=f"client_history:{client_id}")])
+    rows.append(first_row)
+    rows.append(second_row)
+
+    if can_edit:
+        rows.append(
+            [
+                InlineKeyboardButton(text="Добавить заметку", callback_data=f"client_add_note:{client_id}"),
+                InlineKeyboardButton(text="Назначить след. конт.",
+                                     callback_data=f"client_set_next_contact:{client_id}"),
+            ]
+        )
+        rows.append([InlineKeyboardButton(text="Создать задачу", callback_data=f"client_task_create:{client_id}")])
+
+    rows.append(
+        [
+            InlineKeyboardButton(text="Задачи на сегодня", callback_data="tasks_today_dashboard"),
+            InlineKeyboardButton(text="История", callback_data=f"client_history:{client_id}"),
+        ]
+    )
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
