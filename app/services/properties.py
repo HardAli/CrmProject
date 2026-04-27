@@ -71,6 +71,38 @@ class PropertyService:
             return []
         return await self._property_repository.get_recent_global(limit=limit)
 
+
+    async def get_filtered_global_properties(
+        self,
+        *,
+        current_user: User,
+        filters: dict[str, object],
+        per_page: int,
+    ) -> tuple[Sequence[Property], int, int]:
+        if current_user.role not in {UserRole.ADMIN, UserRole.MANAGER, UserRole.SUPERVISOR}:
+            return [], 0, 1
+
+        page = int(filters.get("page", 1) or 1)
+        if page < 1:
+            page = 1
+        offset = (page - 1) * per_page
+
+        total_count = await self._property_repository.count_filtered_for_user(
+            current_user=current_user,
+            filters=filters,
+        )
+        properties = await self._property_repository.get_filtered_for_user(
+            current_user=current_user,
+            filters=filters,
+            limit=per_page,
+            offset=offset,
+        )
+        total_pages = max(1, (total_count + per_page - 1) // per_page)
+        return properties, total_count, total_pages
+
+    async def get_available_object_filter_fields(self) -> set[str]:
+        return self._property_repository.get_available_filter_fields()
+
     async def get_property_for_view(self, current_user: User, property_id: int) -> Property | None:
         property_obj = await self._property_repository.get_by_id(property_id)
         if property_obj is None:
