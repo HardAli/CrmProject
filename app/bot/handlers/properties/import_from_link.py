@@ -72,7 +72,7 @@ async def parse_url(
     try:
         url = property_import_service.validate_url(message.text or "")
     except InvalidListingUrlError as error:
-        await message.answer(str(error))
+        await message.answer(str(error), parse_mode=None)
         return
 
     raw_data = await property_import_service.parse_listing(url)
@@ -81,7 +81,11 @@ async def parse_url(
     payload = property_import_service.to_state_payload(parsed)
     await state.update_data(import_payload=payload)
     await state.set_state(PropertyImportStates.preview)
-    await message.answer(preview, reply_markup=get_property_import_preview_keyboard(has_missing_fields=not parsed.is_complete_for_create))
+    await message.answer(
+        preview,
+        reply_markup=get_property_import_preview_keyboard(has_missing_fields=not parsed.is_complete_for_create),
+        parse_mode=None,
+    )
 
 
 def _read_payload(state_data: dict[str, object]) -> dict[str, object]:
@@ -215,4 +219,5 @@ async def save_import(
 
     manager_name = property_obj.manager.full_name if property_obj.manager else user.full_name
     await message.answer(format_import_success(property_id=property_obj.id, linked_clients_count=linked_clients_count, photo_count=photo_count))
-    await message.answer(format_property_created_card(property_obj=property_obj, manager_name=manager_name), reply_markup=get_properties_menu_keyboard())
+    await message.answer(format_property_created_card(property_obj=property_obj, manager_name=manager_name),
+                         reply_markup=get_properties_menu_keyboard())
