@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from html import escape
 
 from app.common.formatters.client_formatter import REQUEST_TYPE_LABELS, STATUS_LABELS
 from app.common.formatters.property_formatter import PROPERTY_STATUS_LABELS
@@ -33,8 +34,8 @@ def format_property_search_results(properties: list[Property], limit: int) -> st
     for index, property_obj in enumerate(properties, start=1):
         status = PROPERTY_STATUS_LABELS.get(property_obj.status, property_obj.status.value)
         rows.append(
-            f"{index}. <b>{property_obj.title}</b> · {property_obj.district or '—'} · "
-            f"{_format_money(property_obj.price)} · {status}"
+            f"{index}. <b>{escape(property_obj.title)}</b> · {escape(property_obj.district or '—')} · "
+            f"{escape(_format_money(property_obj.price))} · {escape(status)}"
         )
 
     rows.extend(["", f"Найдено: {len(properties)} (лимит: {limit})."])
@@ -60,13 +61,14 @@ def format_client_search_applied_filters(filters: dict[str, object]) -> str:
 def format_property_search_applied_filters(filters: dict[str, object]) -> str:
     rows: list[str] = []
     if filters.get("title"):
-        rows.append(f"• Название: {filters['title']}")
+        rows.append(f"• Название: {escape(str(filters['title']))}")
     if filters.get("district"):
-        rows.append(f"• Район: {filters['district']}")
+        rows.append(f"• Район: {escape(str(filters['district']))}")
     if filters.get("property_type"):
-        rows.append(f"• Тип: {filters['property_type']}")
+        rows.append(f"• Тип: {escape(str(filters['property_type']))}")
     if filters.get("status"):
-        rows.append(f"• Статус: {PROPERTY_STATUS_LABELS.get(filters['status'], str(filters['status']))}")
+        status = PROPERTY_STATUS_LABELS.get(filters["status"], str(filters["status"]))
+        rows.append(f"• Статус: {escape(status)}")
     if filters.get("price_min") is not None:
         rows.append(f"• Цена от: {_format_money(filters['price_min'])}")
     if filters.get("price_max") is not None:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from decimal import Decimal
+from html import escape
 
 from app.common.enums import PropertyStatus, PropertyType
 from app.common.utils.phone_links import format_owner_phone
@@ -20,6 +21,12 @@ PROPERTY_STATUS_LABELS: dict[PropertyStatus, str] = {
     PropertyStatus.SOLD: "Продан",
     PropertyStatus.ARCHIVED: "Архив",
 }
+
+
+def safe_html(value: object) -> str:
+    if value is None:
+        return "—"
+    return escape(str(value), quote=False)
 
 
 def _format_money(value: Decimal | None) -> str:
@@ -138,39 +145,40 @@ def format_properties_list(properties: list[Property], title: str, limit: int) -
 
 
 def format_property_card(property_obj: Property, manager_name: str, updated: bool = False) -> str:
-    header = f"<b>Карточка объекта #{property_obj.id}</b>"
+    header = f"<b>Карточка объекта #{safe_html(property_obj.id)}</b>"
     if updated:
         header = f"✅ <b>Карточка объекта обновлена</b>\n\n{header}"
 
-    property_type = PROPERTY_TYPE_LABELS.get(property_obj.property_type, property_obj.property_type.value)
-    status = PROPERTY_STATUS_LABELS.get(property_obj.status, property_obj.status.value)
-    floor_row = f"<b>Этаж:</b> {property_obj.floor if property_obj.floor is not None else '—'}\n"
+    property_type = safe_html(PROPERTY_TYPE_LABELS.get(property_obj.property_type, property_obj.property_type.value))
+    status = safe_html(PROPERTY_STATUS_LABELS.get(property_obj.status, property_obj.status.value))
+    floor_row = f"<b>Этаж:</b> {safe_html(property_obj.floor)}\n"
     if property_obj.property_type == PropertyType.APARTMENT:
         floor_row = (
-            f"<b>Этаж:</b> {property_obj.floor if property_obj.floor is not None else '—'} "
-            f"из {property_obj.building_floors if property_obj.building_floors is not None else '—'}\n"
+            f"<b>Этаж:</b> {safe_html(property_obj.floor)} "
+            f"из {safe_html(property_obj.building_floors)}\n"
         )
 
     return (
         f"{header}\n\n"
-        f"<b>ID объекта:</b> {property_obj.id}\n"
-        f"<b>Название:</b> {property_obj.title}\n"
+        f"<b>ID объекта:</b> {safe_html(property_obj.id)}\n"
+        f"<b>Название:</b> {safe_html(property_obj.title)}\n"
         f"<b>Тип недвижимости:</b> {property_type}\n"
-        f"<b>Район:</b> {property_obj.district or '—'}\n"
-        f"<b>Адрес:</b> {property_obj.address or '—'}\n"
+        f"<b>Район:</b> {safe_html(property_obj.district)}\n"
+        f"<b>Адрес:</b> {safe_html(property_obj.address)}\n"
         f"<b>Номер владельца:</b> {format_owner_phone(property_obj.owner_phone)}\n"
-        f"<b>Цена:</b> {_format_money(property_obj.price)}\n"
-        f"<b>Площадь (м²):</b> {_format_decimal(property_obj.area)}\n"
-        f"<b>Комнаты:</b> {property_obj.rooms if property_obj.rooms is not None else '—'}\n"
+        f"<b>Цена:</b> {safe_html(_format_money(property_obj.price))}\n"
+        f"<b>Площадь (м²):</b> {safe_html(_format_decimal(property_obj.area))}\n"
+        f"<b>Комнаты:</b> {safe_html(property_obj.rooms)}\n"
         f"{floor_row}"
-        f"<b>Описание:</b> {property_obj.description or '—'}\n"
-        f"<b>Ссылка:</b> {property_obj.link or '—'}\n"
+         f"<b>Описание:</b> {safe_html(property_obj.description)}\n"
+        f"<b>Ссылка:</b> {safe_html(property_obj.link)}\n"
         f"<b>Статус:</b> {status}\n"
-        f"<b>Ответственный менеджер:</b> {manager_name}\n"
-        f"<b>Дата создания:</b> {_format_datetime(property_obj.created_at)}\n"
-        f"<b>Дата обновления:</b> {_format_datetime(property_obj.updated_at)}"
+        f"<b>Ответственный менеджер:</b> {safe_html(manager_name)}\n"
+        f"<b>Дата создания:</b> {safe_html(_format_datetime(property_obj.created_at))}\n"
+        f"<b>Дата обновления:</b> {safe_html(_format_datetime(property_obj.updated_at))}"
     )
 
 
 def format_property_created_card(property_obj: Property, manager_name: str) -> str:
-    return "✅ <b>Объект успешно создан</b>\n\n" + format_property_card(property_obj=property_obj, manager_name=manager_name)
+    return "✅ <b>Объект успешно создан</b>\n\n" + format_property_card(property_obj=property_obj,
+                                                                       manager_name=manager_name)

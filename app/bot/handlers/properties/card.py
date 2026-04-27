@@ -138,6 +138,7 @@ async def ask_property_delete_confirmation(
     await callback.message.answer(
         f"⚠️ Вы уверены, что хотите удалить объект #{property_obj.id} «{property_obj.title}»?",
         reply_markup=get_property_delete_confirm_keyboard(property_id=property_obj.id),
+        parse_mode=None,
     )
     await callback.answer()
 
