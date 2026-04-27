@@ -21,6 +21,7 @@ class ClientPhoto(Base, IdMixin):
 
     client_id: Mapped[int] = mapped_column(ForeignKey("clients.id", ondelete="CASCADE"), nullable=False, index=True)
     telegram_file_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    telegram_file_unique_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     uploaded_by: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
     caption: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)

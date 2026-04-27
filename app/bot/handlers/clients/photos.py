@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import asyncio
+
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, InputMediaPhoto, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.keyboards.clients import (
@@ -13,11 +15,81 @@ from app.bot.keyboards.clients import (
     get_client_photo_upload_keyboard,
     get_client_photos_menu_keyboard,
 )
+from app.database.session import session_scope
+from app.repositories.client_photo_repository import ClientPhotoRepository
+from app.repositories.clients import ClientRepository
+from app.repositories.user_repository import UserRepository
 from app.bot.states.clients import ClientCardStates
 from app.services.auth_service import AuthService
 from app.services.client_photo_service import ClientPhotoService
 
 router = Router(name="client_photos")
+MEDIA_GROUP_BUFFER: dict[str, list[tuple[str, str | None]]] = {}
+MEDIA_GROUP_TASKS: dict[str, asyncio.Task[None]] = {}
+MEDIA_GROUP_DELAY_SECONDS = 1.0
+
+
+async def _save_photos_with_new_session(
+    *,
+    telegram_user_id: int,
+    client_id: int,
+    photos: list[tuple[str, str | None]],
+) -> tuple[int, int]:
+    async with session_scope() as session:
+        user_repository = UserRepository(session)
+        auth_service = AuthService(user_repository=user_repository)
+        current_user = await auth_service.get_active_user_by_telegram_id(telegram_user_id)
+        if current_user is None:
+            return 0, 0
+
+        client_photo_service = ClientPhotoService(
+            client_photo_repository=ClientPhotoRepository(session=session),
+            client_repository=ClientRepository(session=session),
+        )
+        saved_count, duplicate_count = await client_photo_service.add_client_photos_bulk(
+            current_user=current_user,
+            client_id=client_id,
+            photos=photos,
+        )
+        await session.commit()
+        return saved_count, duplicate_count
+
+
+async def _process_media_group_after_delay(
+    *,
+    key: str,
+    message: Message,
+    telegram_user_id: int,
+    client_id: int,
+) -> None:
+    await asyncio.sleep(MEDIA_GROUP_DELAY_SECONDS)
+    photos = MEDIA_GROUP_BUFFER.pop(key, [])
+    MEDIA_GROUP_TASKS.pop(key, None)
+
+    if not photos:
+        return
+
+    try:
+        saved_count, duplicate_count = await _save_photos_with_new_session(
+            telegram_user_id=telegram_user_id,
+            client_id=client_id,
+            photos=photos,
+        )
+    except (PermissionError, ValueError):
+        await message.answer("Клиент не найден.")
+        return
+    except Exception:
+        await message.answer("Не удалось сохранить фотографии. Попробуйте позже.")
+        return
+
+    if duplicate_count:
+        await message.answer(
+            f"Сохранено фото: {saved_count}. Дубликатов пропущено: {duplicate_count}."
+        )
+        return
+    await message.answer(f"Сохранено фото: {saved_count}.")
+
+
 @router.callback_query(F.data.startswith("client_photos:"))
 async def open_client_photos_menu(
     callback: CallbackQuery,
@@ -44,12 +116,13 @@ async def open_client_photos_menu(
             current_user=user,
             client_id=client_id,
         )
+        photos_count = await client_photo_service.count_client_photos(current_user=user, client_id=client_id)
     except ValueError:
         await callback.answer("Клиент не найден или нет прав", show_alert=True)
         return
 
     await callback.message.answer(
-        "Раздел фото клиента. Выберите действие:",
+        f"Раздел фото клиента.\nКоличество фото: {photos_count}.\nВыберите действие:",
         reply_markup=get_client_photos_menu_keyboard(client_id=client_id, can_manage=can_manage),
     )
     await callback.answer()
@@ -93,8 +166,7 @@ async def start_add_photo(
     await state.update_data(client_id=client_id)
 
     await callback.message.answer(
-        "Отправьте одну или несколько фотографий клиента. "
-        "Можно отправлять много сообщений подряд; каждое фото сохранится отдельно. "
+        "Отправьте одну или несколько фотографий клиента. Можно отправить альбомом до 10 фото. "
         "Когда закончите, нажмите «Готово».",
         reply_markup=get_client_photo_upload_keyboard(),
     )
@@ -144,7 +216,10 @@ async def save_client_photo(
         return
 
     if not message.photo:
-        await message.answer("Нужно отправить именно фотографию. Можно загрузить много фото, затем нажмите «Готово».")
+        await message.answer(
+            "Пожалуйста, отправьте фото клиента. "
+            "Можно отправить сразу несколько фотографий альбомом."
+        )
         return
 
     state_data = await state.get_data()
@@ -154,32 +229,60 @@ async def save_client_photo(
         await message.answer("Не удалось определить клиента. Откройте карточку заново.")
         return
 
-    file_id = message.photo[-1].file_id
-    caption = message.caption
-
     try:
-        photo = await client_photo_service.add_client_photo(
+        can_manage = await client_photo_service.can_manage_client_photos_for_client(
             current_user=user,
             client_id=client_id,
-            telegram_file_id=file_id,
-            caption=caption,
         )
     except ValueError:
         await state.clear()
-        await message.answer("Клиент не найден или недоступен.")
+        await message.answer("Клиент не найден.")
         return
-    except PermissionError:
+    if not can_manage:
         await state.clear()
         await message.answer("У вас нет прав на добавление фото.")
         return
 
+    photo = message.photo[-1]
+    file_id = photo.file_id
+    file_unique_id = photo.file_unique_id
+
+    if message.media_group_id:
+        key = f"client_photo:{client_id}:{message.media_group_id}"
+        MEDIA_GROUP_BUFFER.setdefault(key, []).append((file_id, file_unique_id))
+        if key not in MEDIA_GROUP_TASKS:
+            MEDIA_GROUP_TASKS[key] = asyncio.create_task(
+                _process_media_group_after_delay(
+                    key=key,
+                    message=message,
+                    telegram_user_id=message.from_user.id,
+                    client_id=client_id,
+                )
+            )
+        return
+
+    try:
+        saved_photo = await client_photo_service.add_client_photo(
+            current_user=user,
+            client_id=client_id,
+            telegram_file_id=file_id,
+            telegram_file_unique_id=file_unique_id,
+        )
+    except (ValueError, PermissionError):
+        await state.clear()
+        await message.answer("Клиент не найден.")
+        return
+
     await session.commit()
 
-    await message.answer(
-        f"Фото сохранено ✅\nID фото: {photo.id}\n"
-        "Отправьте следующее фото или нажмите «Готово».",
-        reply_markup=get_client_photo_upload_keyboard(),
-    )
+    if saved_photo is None:
+        await message.answer(
+            "Сохранено фото: 0. Дубликатов пропущено: 1.",
+            reply_markup=get_client_photo_upload_keyboard(),
+        )
+        return
+
+    await message.answer("Фото сохранено.", reply_markup=get_client_photo_upload_keyboard())
 
 
 @router.callback_query(F.data.startswith("client_photo_view:"))
@@ -215,13 +318,15 @@ async def view_client_photos(
         return
 
     if not photos:
-        await callback.message.answer("У этого клиента пока нет фотографий.")
+        await callback.message.answer("У клиента пока нет фотографий.")
         await callback.answer()
         return
 
-    for index, photo in enumerate(photos, start=1):
-        caption = photo.caption or f"Фото #{index} (ID: {photo.id})"
-        await callback.message.answer_photo(photo.telegram_file_id, caption=caption)
+    await callback.message.answer(f"Количество фото клиента: {len(photos)}.")
+    for offset in range(0, len(photos), 10):
+        chunk = photos[offset:offset + 10]
+        media = [InputMediaPhoto(media=photo.telegram_file_id) for photo in chunk]
+        await callback.message.answer_media_group(media=media)
 
     await callback.answer()
 

@@ -297,7 +297,7 @@ def get_client_card_actions_keyboard(client_id: int, can_edit: bool) -> InlineKe
 
 def get_client_photos_menu_keyboard(client_id: int, can_manage: bool) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = [
-        [InlineKeyboardButton(text="👀 Посмотреть фото", callback_data=f"client_photo_view:{client_id}")],
+        [InlineKeyboardButton(text="👀 Показать фото", callback_data=f"client_photo_view:{client_id}")],
     ]
     if can_manage:
         rows.append([InlineKeyboardButton(text="➕ Добавить фото", callback_data=f"client_photo_add:{client_id}")])

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
@@ -18,12 +18,14 @@ class ClientPhotoRepository:
         *,
         client_id: int,
         telegram_file_id: str,
+        telegram_file_unique_id: str | None,
         uploaded_by: int,
         caption: str | None = None,
     ) -> ClientPhoto:
         client_photo = ClientPhoto(
             client_id=client_id,
             telegram_file_id=telegram_file_id,
+            telegram_file_unique_id=telegram_file_unique_id,
             uploaded_by=uploaded_by,
             caption=caption,
         )
@@ -60,3 +62,23 @@ class ClientPhotoRepository:
         stmt = select(func.count(ClientPhoto.id)).where(ClientPhoto.client_id == client_id)
         result = await self._session.execute(stmt)
         return int(result.scalar_one())
+
+    async def exists_for_client(
+        self,
+        *,
+        client_id: int,
+        telegram_file_id: str,
+        telegram_file_unique_id: str | None,
+    ) -> bool:
+        if telegram_file_unique_id:
+            duplicate_filter = ClientPhoto.telegram_file_unique_id == telegram_file_unique_id
+        else:
+            duplicate_filter = ClientPhoto.telegram_file_id == telegram_file_id
+
+        stmt = (
+            select(ClientPhoto.id)
+            .where(and_(ClientPhoto.client_id == client_id, duplicate_filter))
+            .limit(1)
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none() is not None

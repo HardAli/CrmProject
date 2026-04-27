@@ -20,8 +20,9 @@ class ClientPhotoService:
         current_user: User,
         client_id: int,
         telegram_file_id: str,
+        telegram_file_unique_id: str | None = None,
         caption: str | None = None,
-    ) -> ClientPhoto:
+    ) -> ClientPhoto | None:
         client = await self._get_client_with_view_check(current_user=current_user, client_id=client_id)
         if client is None:
             raise ValueError("Клиент не найден или недоступен")
@@ -33,12 +34,44 @@ class ClientPhotoService:
         if clean_caption == "":
             clean_caption = None
 
+        is_duplicate = await self._client_photo_repository.exists_for_client(
+            client_id=client.id,
+            telegram_file_id=telegram_file_id,
+            telegram_file_unique_id=telegram_file_unique_id,
+        )
+        if is_duplicate:
+            return None
+
         return await self._client_photo_repository.create(
             client_id=client.id,
             telegram_file_id=telegram_file_id,
+            telegram_file_unique_id=telegram_file_unique_id,
             uploaded_by=current_user.id,
             caption=clean_caption,
         )
+
+    async def add_client_photos_bulk(
+        self,
+        current_user: User,
+        client_id: int,
+        photos: Sequence[tuple[str, str | None]],
+    ) -> tuple[int, int]:
+        saved_count = 0
+        duplicate_count = 0
+
+        for file_id, file_unique_id in photos:
+            saved_photo = await self.add_client_photo(
+                current_user=current_user,
+                client_id=client_id,
+                telegram_file_id=file_id,
+                telegram_file_unique_id=file_unique_id,
+            )
+            if saved_photo is None:
+                duplicate_count += 1
+            else:
+                saved_count += 1
+
+        return saved_count, duplicate_count
 
     async def get_client_photos(
         self,
