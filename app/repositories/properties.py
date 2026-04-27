@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from decimal import Decimal
+from typing import Any
 
-from sqlalchemy import Select, select
+from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
@@ -11,6 +12,7 @@ from app.common.dto.properties import CreatePropertyDTO
 from app.common.enums import PropertyStatus, PropertyType, UserRole
 from app.database.models.property import Property
 from app.database.models.user import User
+from app.services.object_filters import apply_object_filters
 
 
 class PropertyRepository:
@@ -138,6 +140,41 @@ class PropertyRepository:
 
         result = await self._session.execute(stmt.limit(limit))
         return result.scalars().all()
+
+    async def get_filtered_for_user(
+        self,
+        *,
+        current_user: User,
+        filters: dict[str, Any],
+        limit: int,
+        offset: int,
+    ) -> Sequence[Property]:
+        stmt = self._apply_user_scope(self._base_list_query_without_order(), current_user=current_user)
+        stmt = apply_object_filters(stmt, filters, available_fields=self.get_available_filter_fields())
+        stmt = stmt.limit(limit).offset(offset)
+        result = await self._session.execute(stmt)
+        return result.scalars().all()
+
+    async def count_filtered_for_user(self, *, current_user: User, filters: dict[str, Any]) -> int:
+        stmt = self._apply_user_scope(select(Property.id), current_user=current_user)
+        filtered_stmt = apply_object_filters(stmt, filters, available_fields=self.get_available_filter_fields())
+        count_stmt = select(func.count()).select_from(filtered_stmt.order_by(None).subquery())
+        result = await self._session.execute(count_stmt)
+        return int(result.scalar_one() or 0)
+
+    @staticmethod
+    def get_available_filter_fields() -> set[str]:
+        return set(Property.__table__.columns.keys())
+
+    @staticmethod
+    def _apply_user_scope(stmt: Select[Any], *, current_user: User) -> Select[Any]:
+        if current_user.role == UserRole.MANAGER:
+            return stmt.where(Property.manager_id == current_user.id)
+        return stmt
+
+    @staticmethod
+    def _base_list_query_without_order() -> Select[tuple[Property]]:
+        return select(Property).options(joinedload(Property.manager))
 
     @staticmethod
     def _base_list_query() -> Select[tuple[Property]]:
