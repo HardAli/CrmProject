@@ -143,16 +143,19 @@ def get_properties_list_inline_keyboard(properties: list[Property]) -> InlineKey
 
     rows: list[list[InlineKeyboardButton]] = []
     for property_obj in properties:
-        rows.append(
-            [
-                InlineKeyboardButton(
-                    text=format_object_compact(property_obj, max_length=MAX_PROPERTY_BUTTON_TEXT_LENGTH),
-                    callback_data=f"property_view:{property_obj.id}",
-                )
-            ]
+        property_button = InlineKeyboardButton(
+            text=format_object_compact(
+                property_obj,
+                with_status=False,
+                max_length=MAX_PROPERTY_BUTTON_TEXT_LENGTH,
+            ),
+            callback_data=f"property_view:{property_obj.id}",
         )
-
-    rows.append([InlineKeyboardButton(text="💬 WhatsApp", url=build_whatsapp_url(properties[-1].owner_phone))])
+    whatsapp_url = build_whatsapp_url(property_obj.owner_phone)
+    if whatsapp_url:
+        rows.append([property_button, InlineKeyboardButton(text="WhatsApp", url=whatsapp_url)])
+    else:
+        rows.append([property_button])
 
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
@@ -171,9 +174,10 @@ def get_property_actions_inline_keyboard_with_access(
         can_convert: bool,
         can_delete: bool,
 ) -> InlineKeyboardMarkup:
-    rows: list[list[InlineKeyboardButton]] = [
-        [InlineKeyboardButton(text="💬 WhatsApp", url=build_whatsapp_url(property_obj.owner_phone))],
-    ]
+    rows: list[list[InlineKeyboardButton]] = []
+    whatsapp_url = build_whatsapp_url(property_obj.owner_phone)
+    if whatsapp_url:
+        rows.append([InlineKeyboardButton(text="💬 WhatsApp", url=whatsapp_url)])
     if can_convert:
         rows.append(
             [

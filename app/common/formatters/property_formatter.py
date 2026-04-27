@@ -119,6 +119,10 @@ def format_object_compact(prop: Property, with_status: bool = True, max_length: 
     return "|".join([*prefix_parts, address, district, *suffix_parts])
 
 
+def format_object_list_line(index: int, obj: Property) -> str:
+    return f"{index}. {format_object_compact(obj, with_status=False)}"
+
+
 def format_object_list_item(index: int, prop: Property) -> str:
     return f"{index}. {format_object_compact(prop)}"
 
@@ -127,7 +131,7 @@ def format_properties_list(properties: list[Property], title: str, limit: int) -
     rows = [f"<b>{title}</b>", ""]
 
     for index, prop in enumerate(properties, start=1):
-        rows.append(format_object_list_item(index=index, prop=prop))
+        rows.append(format_object_list_line(index=index, obj=prop))
 
     rows.extend(["", f"Показаны первые {min(len(properties), limit)} записей."])
     return "\n".join(rows)
