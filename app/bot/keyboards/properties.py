@@ -151,11 +151,11 @@ def get_properties_list_inline_keyboard(properties: list[Property]) -> InlineKey
             ),
             callback_data=f"property_view:{property_obj.id}",
         )
-    whatsapp_url = build_whatsapp_url(property_obj.owner_phone)
-    if whatsapp_url:
-        rows.append([property_button, InlineKeyboardButton(text="WhatsApp", url=whatsapp_url)])
-    else:
+
         rows.append([property_button])
+        whatsapp_url = build_whatsapp_url(property_obj.owner_phone)
+        if whatsapp_url:
+            rows.append([InlineKeyboardButton(text="WhatsApp", url=whatsapp_url)])
 
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
