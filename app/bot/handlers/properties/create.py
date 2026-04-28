@@ -30,6 +30,7 @@ from app.common.enums import PropertyStatus, PropertyType
 from app.common.formatters.property_formatter import format_property_created_card
 from app.common.utils.parsers import parse_money
 from app.common.utils.phone_links import normalize_owner_phone
+from app.common.utils.value_parsers import parse_decimal_or_none, parse_int_or_none
 from app.services.auth_service import AuthService
 from app.services.properties import PropertyService
 
@@ -57,14 +58,14 @@ def _parse_positive_int(raw_value: str, field_name: str) -> int:
     raise ValueError(f"{field_name}: введите целое число больше или равное 0.")
 
 
-def _parse_rooms(raw_value: str) -> str:
+def _parse_rooms(raw_value: str) -> int | None:
     value = raw_value.strip()
     if value.lower() == "студия":
-        return "Студия"
+        return None
     if value in ROOMS_OPTIONS_FOR_PROPERTY:
-        return value
+        return parse_int_or_none(value)
     if value.isdigit() and 0 < int(value) <= 50:
-        return value
+        return int(value)
     raise ValueError("Комнаты: выберите 1-5, «Студия» или введите число вручную.")
 
 
@@ -299,11 +300,11 @@ async def process_status(
         district=data["district"],
         address=data["address"],
         owner_phone=data["owner_phone"],
-        price=Decimal(data["price"]),
-        area=Decimal(data["area"]),
-        rooms=data.get("rooms"),
-        floor=data.get("floor"),
-        building_floors=data.get("building_floors"),
+        price=parse_decimal_or_none(data.get("price")) or Decimal(0),
+        area=parse_decimal_or_none(data.get("area")) or Decimal(0),
+        rooms=parse_int_or_none(data.get("rooms")),
+        floor=parse_int_or_none(data.get("floor")),
+        building_floors=parse_int_or_none(data.get("building_floors")),
         description=data.get("description"),
         link=data.get("link"),
         status=PropertyStatus(status.value),

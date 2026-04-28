@@ -4,6 +4,7 @@ from decimal import Decimal
 from typing import Any
 
 from app.common.enums import ClientStatus, PropertyStatus, PropertyType, RequestType, UserRole
+from app.common.utils.value_parsers import parse_int_or_none
 from app.database.models.client import Client
 from app.database.models.property import Property
 from app.database.models.user import User
@@ -149,14 +150,12 @@ class SearchService:
         return parsed
 
     @staticmethod
-    def _rooms_or_none(value: Any) -> str | None:
+    def _rooms_or_none(value: Any) -> int | None:
         if value is None or value == "":
             return None
-        parsed = str(value).strip()
-        if not parsed:
+        if str(value).strip().lower() == "студия":
             return None
-        if parsed.lower() == "студия":
-            return "Студия"
-        if parsed.isdigit() and int(parsed) > 0:
+        parsed = parse_int_or_none(value)
+        if parsed is not None and parsed > 0:
             return parsed
         raise ValueError("Поле rooms: укажите положительное число или «Студия».")

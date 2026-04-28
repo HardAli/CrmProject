@@ -30,14 +30,14 @@ def _extract_decimal(value: str | None) -> Decimal | None:
         return None
 
 
-def _normalize_rooms(value: str | None) -> str | None:
+def _normalize_rooms(value: str | None) -> int | None:
     if not value:
         return None
     raw = value.strip().lower()
     if "студ" in raw or "studio" in raw:
-        return "Студия"
+        return None
     digits = re.search(r"\d+", raw)
-    return digits.group(0) if digits else None
+    return int(digits.group(0)) if digits else None
 
 
 def _normalize_property_type(title: str | None, description: str | None) -> PropertyType | None:

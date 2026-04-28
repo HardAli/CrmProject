@@ -41,7 +41,7 @@ class Property(Base, IdMixin, TimestampMixin):
     owner_phone: Mapped[str] = mapped_column(String(32), nullable=False)
     price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     area: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
-    rooms: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    rooms: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     floor: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     building_floors: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)

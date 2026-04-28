@@ -32,6 +32,7 @@ from app.common.formatters.property_formatter import format_property_created_car
 from app.common.formatters.property_import_formatter import format_import_success
 from app.common.utils.parsers import parse_money
 from app.common.utils.phone_links import normalize_owner_phone
+from app.common.utils.value_parsers import parse_decimal_or_none, parse_int_or_none
 from app.services.auth_service import AuthService
 from app.services.property_import_service import InvalidListingUrlError, PropertyImportService
 
@@ -199,11 +200,11 @@ async def save_import(
         address=str(payload.get("address")),
         owner_phone=str(payload.get("owner_phone")),
         owner_phone_normalized=str(payload.get("owner_phone_normalized")) if payload.get("owner_phone_normalized") else None,
-        price=Decimal(str(payload.get("price"))),
-        area=Decimal(str(payload.get("area"))),
-        rooms=str(payload.get("rooms")),
-        floor=int(payload.get("floor")),
-        building_floors=int(payload.get("building_floors")) if payload.get("building_floors") is not None else None,
+        price=parse_decimal_or_none(payload.get("price")) or Decimal(0),
+        area=parse_decimal_or_none(payload.get("area")) or Decimal(0),
+        rooms=parse_int_or_none(payload.get("rooms")),
+        floor=parse_int_or_none(payload.get("floor")),
+        building_floors=parse_int_or_none(payload.get("building_floors")),
         description=str(payload.get("description")) if payload.get("description") else None,
         status=PropertyStatus(str(payload.get("status", PropertyStatus.ACTIVE.value))),
         image_urls=payload.get("image_urls", []),
