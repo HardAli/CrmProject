@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 
 from aiogram import F, Router
@@ -17,6 +16,7 @@ from app.bot.keyboards.clients import (
     get_client_photo_upload_keyboard,
     get_client_photos_menu_keyboard,
 )
+from app.bot.handlers.clients.photo_media_group import buffer_media_group_photo
 from app.database.session import session_scope
 from app.repositories.client_photo_repository import ClientPhotoRepository
 from app.repositories.clients import ClientRepository
@@ -35,11 +35,6 @@ def _is_missing_photo_unique_id_column(error: ProgrammingError) -> bool:
         "client_photos.telegram_file_unique_id" in error_text
         and "does not exist" in error_text
     )
-
-
-MEDIA_GROUP_BUFFER: dict[str, list[tuple[str, str | None]]] = {}
-MEDIA_GROUP_TASKS: dict[str, asyncio.Task[None]] = {}
-MEDIA_GROUP_DELAY_SECONDS = 1.0
 
 
 async def _save_photos_with_new_session(
@@ -68,20 +63,13 @@ async def _save_photos_with_new_session(
         return saved_count, duplicate_count
 
 
-async def _process_media_group_after_delay(
+async def _process_media_group_batch(
     *,
-    key: str,
     message: Message,
     telegram_user_id: int,
     client_id: int,
+    photos: list[tuple[str, str | None]],
 ) -> None:
-    await asyncio.sleep(MEDIA_GROUP_DELAY_SECONDS)
-    photos = MEDIA_GROUP_BUFFER.pop(key, [])
-    MEDIA_GROUP_TASKS.pop(key, None)
-
-    if not photos:
-        return
-
     try:
         saved_count, duplicate_count = await _save_photos_with_new_session(
             telegram_user_id=telegram_user_id,
@@ -270,17 +258,17 @@ async def save_client_photo(
     file_unique_id = photo.file_unique_id
 
     if message.media_group_id:
-        key = f"client_photo:{client_id}:{message.media_group_id}"
-        MEDIA_GROUP_BUFFER.setdefault(key, []).append((file_id, file_unique_id))
-        if key not in MEDIA_GROUP_TASKS:
-            MEDIA_GROUP_TASKS[key] = asyncio.create_task(
-                _process_media_group_after_delay(
-                    key=key,
-                    message=message,
-                    telegram_user_id=message.from_user.id,
-                    client_id=client_id,
-                )
-            )
+        key = f"client_photo:{client_id}:{message.from_user.id}:{message.media_group_id}"
+        await buffer_media_group_photo(
+            key=key,
+            photo=(file_id, file_unique_id),
+            on_ready=lambda photos: _process_media_group_batch(
+                message=message,
+                telegram_user_id=message.from_user.id,
+                client_id=client_id,
+                photos=photos,
+            ),
+        )
         return
 
     try:
