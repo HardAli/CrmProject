@@ -21,6 +21,7 @@ class Property(Base, IdMixin, TimestampMixin):
     __table_args__ = (
         CheckConstraint("price >= 0", name="property_price_non_negative"),
         CheckConstraint("area IS NULL OR area >= 0", name="property_area_non_negative"),
+        CheckConstraint("kitchen_area IS NULL OR kitchen_area >= 0", name="property_kitchen_area_non_negative"),
         CheckConstraint("floor IS NULL OR floor >= 0", name="property_floor_non_negative"),
         CheckConstraint(
             "building_year IS NULL OR (building_year >= 1900 AND building_year <= 2100)",
@@ -45,6 +46,7 @@ class Property(Base, IdMixin, TimestampMixin):
     owner_phone: Mapped[str] = mapped_column(String(32), nullable=False)
     price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     area: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    kitchen_area: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     rooms: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     floor: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     building_floors: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)

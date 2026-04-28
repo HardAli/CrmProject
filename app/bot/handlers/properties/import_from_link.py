@@ -31,7 +31,6 @@ from app.common.enums import PropertyStatus, PropertyType
 from app.common.formatters.property_formatter import format_property_created_card
 from app.common.formatters.property_import_formatter import format_import_success
 from app.common.utils.money import parse_money_to_tenge
-from app.common.utils.parsers import parse_money
 from app.common.utils.phone_links import normalize_owner_phone
 from app.common.utils.property_fields import normalize_building_material, parse_building_year_or_none
 from app.common.utils.value_parsers import parse_decimal_or_none, parse_int_or_none
@@ -160,7 +159,11 @@ async def process_missing(message: Message, state: FSMContext) -> None:
             return
         payload[field] = str(price)
     elif field == "area":
-        payload[field] = str(parse_money(text))
+        area = parse_decimal_or_none(text)
+        if area is None or area <= 0:
+            await message.answer("Введите площадь числом больше 0.")
+            return
+        payload[field] = str(area)
     elif field == "owner_phone":
         payload[field] = normalize_owner_phone(text)
     elif field == "rooms":
@@ -210,6 +213,7 @@ async def save_import(
         owner_phone_normalized=str(payload.get("owner_phone_normalized")) if payload.get("owner_phone_normalized") else None,
         price=parse_money_to_tenge(payload.get("price")) or Decimal(0),
         area=parse_decimal_or_none(payload.get("area")) or Decimal(0),
+        kitchen_area=parse_decimal_or_none(payload.get("kitchen_area")),
         rooms=parse_int_or_none(payload.get("rooms")),
         floor=parse_int_or_none(payload.get("floor")),
         building_floors=parse_int_or_none(payload.get("building_floors")),

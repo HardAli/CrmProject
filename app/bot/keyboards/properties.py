@@ -250,6 +250,18 @@ def building_material_reply_keyboard() -> ReplyKeyboardMarkup:
     )
 
 
+def kitchen_area_reply_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text=PLAIN_SKIP_TEXT)],
+            [KeyboardButton(text=BACK_TEXT), KeyboardButton(text=CANCEL_TEXT)],
+        ],
+        resize_keyboard=True,
+        one_time_keyboard=False,
+        input_field_placeholder="Например 10.5",
+    )
+
+
 def get_properties_list_inline_keyboard(properties: list[Property]) -> InlineKeyboardMarkup:
     if not properties:
         return InlineKeyboardMarkup(inline_keyboard=[])

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from decimal import Decimal, InvalidOperation
+from app.common.utils.formatters import format_decimal_plain
 
 _CURRENCY_TOKENS = ("тенге", "тг", "kzt", "₸")
 _MILLION_TOKENS = ("млн", "миллион", "миллиона", "миллионов")
@@ -85,12 +86,12 @@ def format_price_short(value: Decimal | int | float | None) -> str:
 
     if decimal_value >= Decimal("1000000"):
         millions = decimal_value / Decimal("1000000")
-        text = f"{millions.normalize():f}".rstrip("0").rstrip(".")
+        text = format_decimal_plain(millions, max_fraction_digits=2)
         return f"{text} млн"
 
     if decimal_value >= Decimal("1000"):
         thousands = decimal_value / Decimal("1000")
-        text = f"{thousands.normalize():f}".rstrip("0").rstrip(".")
+        text = format_decimal_plain(thousands, max_fraction_digits=2)
         return f"{text} тыс"
 
     return f"{decimal_value:,.0f}".replace(",", " ")

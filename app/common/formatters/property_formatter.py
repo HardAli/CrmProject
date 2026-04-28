@@ -5,6 +5,7 @@ from decimal import Decimal
 from html import escape
 
 from app.common.enums import PropertyStatus, PropertyType
+from app.common.utils.formatters import format_area, format_area_compact, format_decimal_plain
 from app.common.utils.phone_links import format_owner_phone
 from app.database.models.property import Property
 
@@ -36,10 +37,7 @@ def _format_money(value: Decimal | None) -> str:
 
 
 def _format_decimal(value: Decimal | None) -> str:
-    if value is None:
-        return "—"
-    normalized = value.normalize()
-    return f"{normalized}"
+    return format_decimal_plain(value)
 
 
 def _format_datetime(value: datetime | None) -> str:
@@ -62,10 +60,7 @@ def format_rooms_short(rooms: int | str | None, title: str | None = None) -> str
 
 
 def format_area_short(area: Decimal | None) -> str:
-    if area is None:
-        return "—"
-    normalized = area.normalize()
-    return f"{normalized}м²"
+    return format_area_compact(area)
 
 
 def format_floor_short(floor: int | None, building_floors: int | None) -> str:
@@ -82,8 +77,7 @@ def format_price_mln(price: Decimal | None) -> str:
     if price is None:
         return "—"
     mln_value = (price / Decimal("1000000")).quantize(Decimal("0.1"))
-    normalized = mln_value.normalize()
-    return f"{normalized} млн"
+    return f"{format_decimal_plain(mln_value, max_fraction_digits=1)} млн"
 
 
 def _trim_middle(value: str, max_len: int) -> str:
@@ -167,7 +161,8 @@ def format_property_card(property_obj: Property, manager_name: str, updated: boo
         f"<b>Адрес:</b> {safe_html(property_obj.address)}\n"
         f"<b>Номер владельца:</b> {format_owner_phone(property_obj.owner_phone)}\n"
         f"<b>Цена:</b> {safe_html(_format_money(property_obj.price))}\n"
-        f"<b>Площадь (м²):</b> {safe_html(_format_decimal(property_obj.area))}\n"
+        f"<b>Площадь:</b> {safe_html(format_area(property_obj.area))}\n"
+        f"<b>Кухня:</b> {safe_html(format_area(property_obj.kitchen_area))}\n"
         f"<b>Комнаты:</b> {safe_html(property_obj.rooms)}\n"
         f"{floor_row}"
         f"<b>Год постройки:</b> {safe_html(property_obj.building_year)}\n"

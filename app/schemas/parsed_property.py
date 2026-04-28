@@ -29,6 +29,7 @@ class ParsedPropertyData:
     owner_phone_normalized: str | None = None
     price: Decimal | None = None
     area: Decimal | None = None
+    kitchen_area: Decimal | None = None
     rooms: int | None = None
     floor: int | None = None
     building_floors: int | None = None

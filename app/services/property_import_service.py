@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 
 from app.common.dto.properties import CreatePropertyDTO
 from app.common.enums import PropertyStatus
+from app.common.utils.formatters import format_area
 from app.common.utils.money import parse_money_to_tenge
 from app.common.utils.property_fields import normalize_building_material, parse_building_year_or_none
 from app.common.utils.value_parsers import parse_decimal_or_none, parse_int_or_none
@@ -97,7 +98,8 @@ class PropertyImportService:
             f"Район: {parsed_data.district or '—'}\n"
             f"Адрес: {parsed_data.address or '—'}\n"
             f"Цена: {parsed_data.price or '—'}\n"
-            f"Площадь: {parsed_data.area or '—'}\n"
+            f"Площадь: {format_area(parsed_data.area)}\n"
+            f"Кухня: {format_area(parsed_data.kitchen_area)}\n"
             f"Комнаты: {parsed_data.rooms or '—'}\n"
             f"Этаж: {parsed_data.floor if parsed_data.floor is not None else '—'}\n"
             f"Этажность: {parsed_data.building_floors if parsed_data.building_floors is not None else '—'}\n"
@@ -120,6 +122,7 @@ class PropertyImportService:
             owner_phone=parsed_data.owner_phone or "+70000000000",
             price=parse_money_to_tenge(parsed_data.price) or Decimal(0),
             area=parse_decimal_or_none(parsed_data.area) or Decimal(0),
+            kitchen_area=parse_decimal_or_none(parsed_data.kitchen_area),
             rooms=parse_int_or_none(parsed_data.rooms),
             floor=parse_int_or_none(parsed_data.floor),
             building_floors=parse_int_or_none(parsed_data.building_floors),
@@ -175,4 +178,5 @@ class PropertyImportService:
         payload["status"] = parsed_data.status.value if parsed_data.status else PropertyStatus.ACTIVE.value
         payload["price"] = str(parsed_data.price) if parsed_data.price is not None else None
         payload["area"] = str(parsed_data.area) if parsed_data.area is not None else None
+        payload["kitchen_area"] = str(parsed_data.kitchen_area) if parsed_data.kitchen_area is not None else None
         return payload
