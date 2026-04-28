@@ -15,13 +15,13 @@ class CreatePropertyDTO:
     owner_phone: str
     price: Decimal
     area: Decimal
-    kitchen_area: Decimal | None = None
-    rooms: int | None
-    floor: int | None
-    building_floors: int | None
-    building_year: int | None
-    building_material: str | None
-    description: str | None
-    link: str | None
     status: PropertyStatus
     manager_id: int
+    kitchen_area: Decimal | None = None
+    rooms: int | None = None
+    floor: int | None = None
+    building_floors: int | None = None
+    building_year: int | None = None
+    building_material: str | None = None
+    description: str | None = None
+    link: str | None = None
