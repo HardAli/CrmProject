@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 
 from app.common.dto.clients import CreateClientDTO
@@ -16,6 +17,23 @@ from app.repositories.client_logs import ClientLogRepository
 from app.repositories.client_properties import ClientPropertyRepository
 from app.repositories.clients import ClientRepository
 from app.repositories.properties import PropertyRepository
+
+logger = logging.getLogger(__name__)
+
+
+def format_rooms_for_client(value: object) -> str | None:
+    if value is None:
+        return None
+
+    try:
+        rooms_int = int(value)
+    except (TypeError, ValueError):
+        return str(value)
+
+    if rooms_int <= 0:
+        return None
+
+    return str(rooms_int)
 
 
 class PropertyService:
@@ -193,15 +211,23 @@ class PropertyService:
             request_type=RequestType.SELL,
             property_type=property_obj.property_type,
             district=property_obj.district,
-            rooms=property_obj.rooms,
+            rooms=format_rooms_for_client(property_obj.rooms),
             budget=property_obj.price,
             floor=property_obj.floor,
             building_floors=property_obj.building_floors,
             wall_material=None,
-            year_built=None,
+            year_built=property_obj.building_year,
             note=note,
             next_contact_at=None,
             manager_id=manager_id,
+        )
+        logger.debug(
+            "Converting property to client: property_id=%s rooms=%r rooms_type=%s floor=%r building_floors=%r",
+            property_obj.id,
+            dto.rooms,
+            type(dto.rooms).__name__,
+            dto.floor,
+            dto.building_floors,
         )
         created_client = await self._client_repository.create(dto)
         await self._client_log_repository.create_log(
