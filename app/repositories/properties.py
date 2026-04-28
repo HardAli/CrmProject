@@ -48,6 +48,29 @@ class PropertyRepository:
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def find_duplicate_candidates(
+        self,
+        *,
+        owner_phone: str | None,
+        property_type: PropertyType,
+        address: str | None,
+        rooms: int | None,
+        limit: int = 50,
+    ) -> Sequence[Property]:
+        stmt = select(Property).options(joinedload(Property.manager)).where(Property.property_type == property_type)
+
+        if owner_phone:
+            stmt = stmt.where(Property.owner_phone == owner_phone)
+        elif address:
+            stmt = stmt.where(Property.address.ilike(f"%{address}%"))
+
+        if rooms is not None:
+            stmt = stmt.where(Property.rooms == rooms)
+
+        stmt = stmt.order_by(Property.created_at.desc()).limit(limit)
+        result = await self._session.execute(stmt)
+        return result.scalars().all()
+
     async def delete(self, property_obj: Property) -> None:
         await self._session.delete(property_obj)
         await self._session.flush()
