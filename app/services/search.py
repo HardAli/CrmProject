@@ -42,6 +42,7 @@ class SearchService:
 
         return list(
             await self._property_repository.search_properties(
+                search_text=validated.get("search_text"),
                 title=validated.get("title"),
                 district=validated.get("district"),
                 property_type=validated.get("property_type"),
@@ -74,6 +75,7 @@ class SearchService:
         return validated
 
     def validate_property_search_filters(self, filters: dict[str, Any]) -> dict[str, Any]:
+        search_text = self._clean_text(filters.get("search_text"))
         title = self._clean_text(filters.get("title"))
         district = self._clean_text(filters.get("district"))
         property_type = self._enum_or_none(filters.get("property_type"), PropertyType)
@@ -86,6 +88,7 @@ class SearchService:
             raise ValueError("Минимальная цена не может быть больше максимальной.")
 
         validated = {
+            "search_text": search_text,
             "title": title,
             "district": district,
             "property_type": property_type,
@@ -97,7 +100,7 @@ class SearchService:
         }
         self._ensure_at_least_one_filter(
             validated,
-            keys=("title", "district", "property_type", "status", "price_min", "price_max", "rooms"),
+            keys=("search_text", "title", "district", "property_type", "status", "price_min", "price_max", "rooms"),
         )
         return validated
 

@@ -4,12 +4,13 @@ from collections.abc import Sequence
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from app.common.dto.properties import CreatePropertyDTO
 from app.common.enums import PropertyStatus, PropertyType, UserRole
+from app.common.utils.property_search import build_property_search_conditions
 from app.database.models.property import Property
 from app.database.models.user import User
 from app.services.object_filters import apply_object_filters
@@ -135,6 +136,7 @@ class PropertyRepository:
     async def search_properties(
             self,
             *,
+            search_text: str | None = None,
             title: str | None = None,
             district: str | None = None,
             property_type: PropertyType | None = None,
@@ -146,9 +148,16 @@ class PropertyRepository:
             limit: int = 10,
     ) -> Sequence[Property]:
         stmt = self._base_list_query()
+        available_fields = self.get_available_filter_fields()
 
         if manager_id is not None:
             stmt = stmt.where(Property.manager_id == manager_id)
+
+        if search_text:
+            search_conditions = build_property_search_conditions(search_text=search_text, available_fields=available_fields)
+            if search_conditions:
+                stmt = stmt.where(or_(*search_conditions))
+
         if title:
             stmt = stmt.where(Property.title.ilike(f"%{title}%"))
         if district:

@@ -3,6 +3,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from aiogram import F, Router
+from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
@@ -44,6 +45,7 @@ from app.services.object_filters import (
     update_object_filter,
 )
 from app.services.properties import PropertyService
+from app.bot.states.properties import PropertyListStates
 
 router = Router(name="property_list")
 DEFAULT_LIST_LIMIT = 10
@@ -195,8 +197,39 @@ async def noop_callback(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data == f"{OBJ_FILTER_PREFIX}:search")
-async def search_stub(callback: CallbackQuery) -> None:
-    await callback.answer("Поиск в разделе будет добавлен отдельно.", show_alert=False)
+async def open_search_input(callback: CallbackQuery, state: FSMContext) -> None:
+    await state.set_state(PropertyListStates.search_query)
+    if callback.message is not None:
+        await callback.message.answer(
+            "Введите запрос для поиска по базе объектов.\n"
+            "Например: каратал, 7775, 58.6, 19.5, 2/5, 1976.",
+        )
+    await callback.answer()
+
+
+@router.message(StateFilter(PropertyListStates.search_query))
+async def apply_search_query(
+    message: Message,
+    state: FSMContext,
+    auth_service: AuthService,
+    property_service: PropertyService,
+) -> None:
+    query = (message.text or "").strip()
+    if not query:
+        await message.answer("Введите запрос для поиска.")
+        return
+
+    user = await _get_current_user(message, auth_service)
+    if user is None:
+        await state.clear()
+        return
+
+    filters = await _get_filters(state)
+    filters = update_object_filter(filters, "search_query", query)
+    filters = update_object_filter(filters, "page", 1, reset_page=False)
+    await _save_filters(state, filters)
+    await state.clear()
+    await _render_global_objects(message, current_user=user, state=state, property_service=property_service, edit=False)
 
 
 @router.callback_query(F.data == f"{OBJ_FILTER_PREFIX}:menu")

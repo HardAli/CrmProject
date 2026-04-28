@@ -5,9 +5,10 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import Select, and_, case
+from sqlalchemy import Select, and_, case, or_
 
 from app.common.enums import PropertyStatus
+from app.common.utils.property_search import build_property_search_conditions
 from app.common.utils.value_parsers import parse_int_or_none
 from app.database.models.property import Property
 
@@ -56,6 +57,7 @@ def get_default_object_filters() -> ObjectFilters:
         "created_date_mode": None,
         "sort": "newest",
         "page": 1,
+        "search_query": None,
     }
 
 
@@ -106,6 +108,12 @@ def apply_object_filters(
 
     if "district" in available_fields and filters.get("districts"):
         query = query.where(Property.district.in_(filters["districts"]))
+
+    search_query = str(filters.get("search_query") or "").strip()
+    if search_query:
+        search_conditions = build_property_search_conditions(search_text=search_query, available_fields=available_fields)
+        if search_conditions:
+            query = query.where(or_(*search_conditions))
 
     if "area" in available_fields and filters.get("area_min") is not None:
         query = query.where(Property.area >= filters["area_min"])

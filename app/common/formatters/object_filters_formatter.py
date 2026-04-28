@@ -57,6 +57,8 @@ def _fmt_mln(value: Decimal | None) -> str:
 
 def build_object_filters_summary(filters: dict[str, Any]) -> str:
     parts: list[str] = []
+    if filters.get("search_query"):
+        parts.append(f"🔎 {filters['search_query']}")
 
     if filters.get("property_type"):
         parts.append(PROPERTY_TYPE_LABELS.get(filters["property_type"], str(filters["property_type"])))
