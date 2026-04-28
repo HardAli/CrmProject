@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InputMediaPhoto, Message
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.keyboards.clients import (
@@ -24,6 +26,17 @@ from app.services.auth_service import AuthService
 from app.services.client_photo_service import ClientPhotoService
 
 router = Router(name="client_photos")
+logger = logging.getLogger(__name__)
+
+
+def _is_missing_photo_unique_id_column(error: ProgrammingError) -> bool:
+    error_text = str(getattr(error, "orig", error)).lower()
+    return (
+        "client_photos.telegram_file_unique_id" in error_text
+        and "does not exist" in error_text
+    )
+
+
 MEDIA_GROUP_BUFFER: dict[str, list[tuple[str, str | None]]] = {}
 MEDIA_GROUP_TASKS: dict[str, asyncio.Task[None]] = {}
 MEDIA_GROUP_DELAY_SECONDS = 1.0
@@ -120,6 +133,15 @@ async def open_client_photos_menu(
     except ValueError:
         await callback.answer("Клиент не найден или нет прав", show_alert=True)
         return
+    except ProgrammingError as error:
+        if _is_missing_photo_unique_id_column(error):
+            logger.exception(
+                "Database schema is out of sync: missing client_photos.telegram_file_unique_id. "
+                "Run alembic upgrade head."
+            )
+            await callback.answer("База данных не синхронизирована. Обратитесь к администратору.", show_alert=True)
+            return
+        raise
 
     await callback.message.answer(
         f"Раздел фото клиента.\nКоличество фото: {photos_count}.\nВыберите действие:",
@@ -316,6 +338,15 @@ async def view_client_photos(
     except ValueError:
         await callback.answer("Клиент не найден или нет прав", show_alert=True)
         return
+    except ProgrammingError as error:
+        if _is_missing_photo_unique_id_column(error):
+            logger.exception(
+                "Database schema is out of sync: missing client_photos.telegram_file_unique_id. "
+                "Run alembic upgrade head."
+            )
+            await callback.answer("База данных не синхронизирована. Обратитесь к администратору.", show_alert=True)
+            return
+        raise
 
     if not photos:
         await callback.message.answer("У клиента пока нет фотографий.")
@@ -357,6 +388,15 @@ async def delete_client_photo_menu(
     except ValueError:
         await callback.answer("Клиент не найден или нет прав", show_alert=True)
         return
+    except ProgrammingError as error:
+        if _is_missing_photo_unique_id_column(error):
+            logger.exception(
+                "Database schema is out of sync: missing client_photos.telegram_file_unique_id. "
+                "Run alembic upgrade head."
+            )
+            await callback.answer("База данных не синхронизирована. Обратитесь к администратору.", show_alert=True)
+            return
+        raise
 
     if not photos:
         await callback.answer("Нет фото для удаления", show_alert=True)
