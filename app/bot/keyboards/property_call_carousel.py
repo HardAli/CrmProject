@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-from app.common.utils.phone_links import build_tel_url, build_whatsapp_url
+from app.common.utils.phone_links import build_whatsapp_url
 
 
 CALL_MODE_DEFAULT = "default"
@@ -26,18 +26,9 @@ def get_call_menu_keyboard() -> InlineKeyboardMarkup:
 
 def get_call_card_keyboard(*, property_id: int, phone: str | None) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
-    tel_url = build_tel_url(phone)
     wa_url = build_whatsapp_url(phone)
-    if tel_url:
-        rows.append([InlineKeyboardButton(text="📞 Позвонить", url=tel_url)])
-
-    second_row: list[InlineKeyboardButton] = []
     if wa_url:
-        second_row.append(InlineKeyboardButton(text="💬 WhatsApp", url=wa_url))
-    if tel_url:
-        second_row.append(InlineKeyboardButton(text="📋 Номер", callback_data=f"callcopy:{property_id}"))
-    if second_row:
-        rows.append(second_row)
+        rows.append([InlineKeyboardButton(text="💬 WhatsApp", url=wa_url)])
 
     rows.extend(
         [

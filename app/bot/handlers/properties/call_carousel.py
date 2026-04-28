@@ -19,7 +19,6 @@ from app.bot.keyboards.property_call_carousel import (
     get_sold_confirm_keyboard,
 )
 from app.common.formatters.property_formatter import format_price_compact, format_property_call_card
-from app.common.utils.phone_links import format_phone_for_copy_plain
 from app.services.auth_service import AuthService
 from app.bot.states.properties import PropertyCallCarouselStates
 from app.services.properties import PropertyService
@@ -175,30 +174,6 @@ async def start_call_mode(callback: CallbackQuery, state: FSMContext, auth_servi
         property_service=property_service,
         call_service=call_service,
     )
-
-
-@router.callback_query(F.data.startswith("callcopy:"))
-async def copy_call_phone(callback: CallbackQuery, auth_service: AuthService, property_service: PropertyService) -> None:
-    if callback.message is None:
-        await callback.answer()
-        return
-    user = await _get_user(callback, auth_service)
-    if user is None:
-        return
-
-    property_id = int(callback.data.split(":")[1])
-    property_obj = await property_service.get_property_for_view(current_user=user, property_id=property_id)
-    if property_obj is None:
-        await callback.answer("Объект не найден", show_alert=True)
-        return
-
-    phone = format_phone_for_copy_plain(property_obj.owner_phone)
-    if phone == "—":
-        await callback.answer("Номер не найден", show_alert=True)
-        return
-
-    await callback.message.answer(phone, parse_mode=None)
-    await callback.answer()
 
 
 @router.callback_query(F.data.startswith("callmore:"))
