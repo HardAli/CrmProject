@@ -9,9 +9,11 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.bot.handlers.clients.photo_media_group import buffer_media_group_photo
 from app.bot.keyboards.clients import (
     ADD_CLIENT_TEXT,
     CANCEL_TEXT,
+    DONE_TEXT,
     NEXT_CONTACT_QUICK_OPTIONS,
     ROOMS_OPTIONS,
     SKIP_TEXT,
@@ -19,6 +21,8 @@ from app.bot.keyboards.clients import (
     SOURCE_OPTIONS,
     WALL_MATERIAL_OPTIONS,
     get_building_floors_keyboard,
+    get_client_card_actions_keyboard,
+    get_client_create_photo_keyboard,
     get_clients_menu_keyboard,
     get_district_keyboard,
     get_floor_keyboard,
@@ -43,7 +47,12 @@ from app.common.utils.parsers import (
     parse_next_contact_at,
     parse_year_built,
 )
+from app.database.session import session_scope
+from app.repositories.client_photo_repository import ClientPhotoRepository
+from app.repositories.clients import ClientRepository
+from app.repositories.user_repository import UserRepository
 from app.services.auth_service import AuthService
+from app.services.client_photo_service import ClientPhotoService
 from app.services.clients import ClientService
 
 router = Router(name="client_create")
@@ -83,8 +92,96 @@ async def _get_current_user(message: Message, auth_service: AuthService):
     return user
 
 
-@router.message(Command("cancel"), StateFilter(ClientCreateStates))
-@router.message(F.text == CANCEL_TEXT, StateFilter(ClientCreateStates))
+async def _show_client_card_after_photo_step(
+    *,
+    message: Message,
+    client_id: int | None,
+    user,
+    client_service: ClientService,
+) -> None:
+    if not isinstance(client_id, int):
+        await message.answer("Клиент не найден.")
+        return
+
+    client = await client_service.get_client_for_view(current_user=user, client_id=client_id)
+    if client is None:
+        await message.answer("Клиент не найден.")
+        return
+
+    manager_name = client.manager.full_name if client.manager else "—"
+    await message.answer(
+        format_client_created_card(client=client, manager_name=manager_name),
+        reply_markup=get_client_card_actions_keyboard(
+            client_id=client.id,
+            can_edit=client_service.can_edit_client(current_user=user, client=client),
+        ),
+    )
+
+
+async def _save_client_photos_with_new_session(
+    *,
+    telegram_user_id: int,
+    client_id: int,
+    photos: list[tuple[str, str | None]],
+) -> tuple[int, int]:
+    async with session_scope() as inner_session:
+        user_repository = UserRepository(inner_session)
+        auth_service = AuthService(user_repository=user_repository)
+        current_user = await auth_service.get_active_user_by_telegram_id(telegram_user_id)
+        if current_user is None:
+            return 0, 0
+
+        client_photo_service = ClientPhotoService(
+            client_photo_repository=ClientPhotoRepository(session=inner_session),
+            client_repository=ClientRepository(session=inner_session),
+        )
+        saved_count, duplicate_count = await client_photo_service.add_client_photos_bulk(
+            current_user=current_user,
+            client_id=client_id,
+            photos=photos,
+        )
+        await inner_session.commit()
+        return saved_count, duplicate_count
+
+
+@router.message(
+    Command("cancel"),
+    StateFilter(
+        ClientCreateStates.full_name,
+        ClientCreateStates.phone,
+        ClientCreateStates.source,
+        ClientCreateStates.request_type,
+        ClientCreateStates.property_type,
+        ClientCreateStates.district,
+        ClientCreateStates.rooms,
+        ClientCreateStates.budget,
+        ClientCreateStates.floor,
+        ClientCreateStates.building_floors,
+        ClientCreateStates.wall_material,
+        ClientCreateStates.year_built,
+        ClientCreateStates.note,
+        ClientCreateStates.next_contact_at,
+    ),
+)
+@router.message(
+    F.text == CANCEL_TEXT,
+    StateFilter(
+        ClientCreateStates.full_name,
+        ClientCreateStates.phone,
+        ClientCreateStates.source,
+        ClientCreateStates.request_type,
+        ClientCreateStates.property_type,
+        ClientCreateStates.district,
+        ClientCreateStates.rooms,
+        ClientCreateStates.budget,
+        ClientCreateStates.floor,
+        ClientCreateStates.building_floors,
+        ClientCreateStates.wall_material,
+        ClientCreateStates.year_built,
+        ClientCreateStates.note,
+        ClientCreateStates.next_contact_at,
+    ),
+)
 async def cancel_client_creation(message: Message, state: FSMContext) -> None:
     await state.clear()
     await message.answer("Добавление клиента отменено.", reply_markup=get_clients_menu_keyboard())
@@ -403,17 +500,208 @@ async def process_next_contact_at(
         client = create_result
         linked_properties_count = 0
     await session.commit()
-    await state.clear()
+    await state.update_data(created_client_id=client.id)
+    await state.set_state(ClientCreateStates.waiting_for_photos_after_create)
 
     await message.answer(
-        format_client_created_card(client=client, manager_name=user.full_name),
-        reply_markup=get_clients_menu_keyboard(),
+        "Клиент создан.\n\n"
+        "Теперь отправьте фотографии клиента.\n"
+        "Можно отправить одну фотографию или сразу пачку до 10 фото.\n\n"
+        "Если фото не нужны, нажмите «Пропустить».",
+        reply_markup=get_client_create_photo_keyboard(),
     )
     if linked_properties_count > 0:
         await message.answer(
             f"🔗 Найдено {linked_properties_count} объектов по совпадающему номеру. "
             "Связи созданы автоматически.",
         )
+
+
+@router.message(F.text == SKIP_TEXT, ClientCreateStates.waiting_for_photos_after_create)
+async def skip_photos_after_create(
+    message: Message,
+    state: FSMContext,
+    auth_service: AuthService,
+    client_service: ClientService,
+) -> None:
+    state_data = await state.get_data()
+    client_id = state_data.get("created_client_id")
+    await state.clear()
+
+    user = await _get_current_user(message, auth_service)
+    if user is None:
+        return
+
+    await message.answer("Клиент создан без фотографий.")
+    await _show_client_card_after_photo_step(
+        message=message,
+        client_id=client_id,
+        user=user,
+        client_service=client_service,
+    )
+
+
+@router.message(Command("done"), ClientCreateStates.waiting_for_photos_after_create)
+@router.message(F.text == DONE_TEXT, ClientCreateStates.waiting_for_photos_after_create)
+async def done_photos_after_create(
+    message: Message,
+    state: FSMContext,
+    auth_service: AuthService,
+    client_service: ClientService,
+) -> None:
+    state_data = await state.get_data()
+    client_id = state_data.get("created_client_id")
+    await state.clear()
+
+    user = await _get_current_user(message, auth_service)
+    if user is None:
+        return
+
+    await message.answer("Клиент создан. Фото сохранены.")
+    await _show_client_card_after_photo_step(
+        message=message,
+        client_id=client_id,
+        user=user,
+        client_service=client_service,
+    )
+
+
+@router.message(Command("cancel"), ClientCreateStates.waiting_for_photos_after_create)
+@router.message(F.text == CANCEL_TEXT, ClientCreateStates.waiting_for_photos_after_create)
+async def cancel_photo_step_after_create(
+    message: Message,
+    state: FSMContext,
+    auth_service: AuthService,
+    client_service: ClientService,
+) -> None:
+    state_data = await state.get_data()
+    client_id = state_data.get("created_client_id")
+    await state.clear()
+
+    user = await _get_current_user(message, auth_service)
+    if user is None:
+        return
+
+    await message.answer("Добавление фото отменено. Клиент уже создан.")
+    await _show_client_card_after_photo_step(
+        message=message,
+        client_id=client_id,
+        user=user,
+        client_service=client_service,
+    )
+
+
+@router.message(ClientCreateStates.waiting_for_photos_after_create)
+async def save_photo_after_create(
+    message: Message,
+    state: FSMContext,
+    auth_service: AuthService,
+    client_photo_service: ClientPhotoService,
+    session: AsyncSession,
+) -> None:
+    if message.from_user is None:
+        await message.answer("Не удалось определить пользователя Telegram.")
+        return
+
+    user = await auth_service.get_active_user_by_telegram_id(message.from_user.id)
+    if user is None:
+        await state.clear()
+        await message.answer("Нет доступа")
+        return
+
+    state_data = await state.get_data()
+    client_id = state_data.get("created_client_id")
+    if not isinstance(client_id, int):
+        await state.clear()
+        await message.answer("Клиент не найден.")
+        return
+
+    try:
+        can_manage = await client_photo_service.can_manage_client_photos_for_client(
+            current_user=user,
+            client_id=client_id,
+        )
+    except ValueError:
+        await state.clear()
+        await message.answer("Клиент не найден.")
+        return
+    if not can_manage:
+        await state.clear()
+        await message.answer("У вас нет прав на добавление фото.")
+        return
+
+    if not message.photo:
+        await message.answer(
+            "Отправьте фото клиента или нажмите «Пропустить».",
+            reply_markup=get_client_create_photo_keyboard(),
+        )
+        return
+
+    photo = message.photo[-1]
+    file_id = photo.file_id
+    file_unique_id = photo.file_unique_id
+
+    if message.media_group_id:
+        async def on_media_group_ready(photos: list[tuple[str, str | None]]) -> None:
+            try:
+                saved_count, duplicate_count = await _save_client_photos_with_new_session(
+                    telegram_user_id=message.from_user.id,
+                    client_id=client_id,
+                    photos=photos,
+                )
+            except (PermissionError, ValueError):
+                await state.clear()
+                await message.answer("Клиент не найден.")
+                return
+            except Exception:
+                await message.answer("Не удалось сохранить фотографии. Попробуйте позже.")
+                return
+
+            if duplicate_count:
+                await message.answer(
+                    f"Сохранено фото: {saved_count}. Дубликатов пропущено: {duplicate_count}. "
+                    "Можете отправить ещё фото или нажать «Готово».",
+                    reply_markup=get_client_create_photo_keyboard(),
+                )
+                return
+
+            await message.answer(
+                f"Сохранено фото: {saved_count}. Можете отправить ещё фото или нажать «Готово».",
+                reply_markup=get_client_create_photo_keyboard(),
+            )
+
+        key = f"client_create_photo:{client_id}:{message.from_user.id}:{message.media_group_id}"
+        await buffer_media_group_photo(
+            key=key,
+            photo=(file_id, file_unique_id),
+            on_ready=on_media_group_ready,
+        )
+        return
+
+    try:
+        saved_photo = await client_photo_service.add_client_photo(
+            current_user=user,
+            client_id=client_id,
+            telegram_file_id=file_id,
+            telegram_file_unique_id=file_unique_id,
+        )
+    except (ValueError, PermissionError):
+        await state.clear()
+        await message.answer("Клиент не найден.")
+        return
+
+    await session.commit()
+    if saved_photo is None:
+        await message.answer(
+            "Сохранено фото: 0. Дубликатов пропущено: 1. Можете отправить ещё фото или нажать «Готово».",
+            reply_markup=get_client_create_photo_keyboard(),
+        )
+        return
+
+    await message.answer(
+        "Фото сохранено. Можете отправить ещё фото или нажать «Готово».",
+        reply_markup=get_client_create_photo_keyboard(),
+    )
 
 
 @router.message(StateFilter(ClientCreateStates))

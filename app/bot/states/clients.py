@@ -18,6 +18,7 @@ class ClientCreateStates(StatesGroup):
     year_built = State()
     note = State()
     next_contact_at = State()
+    waiting_for_photos_after_create = State()
 
 
 class ClientCardStates(StatesGroup):

@@ -102,6 +102,18 @@ def get_client_photo_upload_keyboard() -> ReplyKeyboardMarkup:
     )
 
 
+def get_client_create_photo_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text=DONE_TEXT)],
+            [KeyboardButton(text=SKIP_TEXT)],
+            [KeyboardButton(text=CANCEL_TEXT)],
+        ],
+        resize_keyboard=True,
+        input_field_placeholder="Отправьте фото или выберите действие",
+    )
+
+
 def get_full_name_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[[KeyboardButton(text=UNKNOWN_TEXT)], [KeyboardButton(text=CANCEL_TEXT)]],
