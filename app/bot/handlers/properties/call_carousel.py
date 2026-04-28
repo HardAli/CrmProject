@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from aiogram import F, Router
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
@@ -26,6 +27,28 @@ from app.services.property_call_service import PropertyCallService
 
 router = Router(name="property_call_carousel")
 
+
+
+async def safe_edit_text(message: Message, text: str, reply_markup=None, parse_mode=None) -> None:
+    try:
+        await message.edit_text(
+            text,
+            reply_markup=reply_markup,
+            parse_mode=parse_mode,
+        )
+    except TelegramBadRequest as e:
+        if "message is not modified" in str(e):
+            return
+        raise
+
+
+async def safe_edit_reply_markup(message: Message, reply_markup=None) -> None:
+    try:
+        await message.edit_reply_markup(reply_markup=reply_markup)
+    except TelegramBadRequest as e:
+        if "message is not modified" in str(e):
+            return
+        raise
 
 
 async def _get_user(callback: CallbackQuery, auth_service: AuthService):
@@ -67,7 +90,12 @@ async def _render_current_card(
     text = format_property_call_card(property_obj=property_obj, position=position, total=total, today_stats=stats)
 
     if callback.message is not None:
-        await callback.message.edit_text(text, reply_markup=get_call_card_keyboard(property_id=property_obj.id, phone=property_obj.owner_phone), parse_mode=None)
+        await safe_edit_text(
+            callback.message,
+            text,
+            reply_markup=get_call_card_keyboard(property_id=property_obj.id, phone=property_obj.owner_phone),
+            parse_mode=None,
+        )
 
 
 async def _show_next_property(
@@ -88,6 +116,9 @@ async def _show_next_property(
 
     property_obj = await call_service.get_next_property_for_call(current_user=user, mode=mode, exclude_ids=shown_ids)
     if property_obj is None:
+        if shown_ids:
+            await callback.answer("Объектов для прозвона пока нет", show_alert=False)
+            return
         stats = await call_service.get_call_menu_stats(current_user=user)
         text = (
             "📞 Прозвон завершён.\n\n"
@@ -98,7 +129,12 @@ async def _show_next_property(
             f"🏁 Продано: {stats.get('SOLD', 0)}"
         )
         if callback.message is not None:
-            await callback.message.edit_text(text, reply_markup=get_call_finished_keyboard(), parse_mode=None)
+            await safe_edit_text(
+                callback.message,
+                text,
+                reply_markup=get_call_finished_keyboard(),
+                parse_mode=None,
+            )
         await callback.answer()
         return
 
@@ -116,7 +152,8 @@ async def _show_next_property(
     text = format_property_call_card(property_obj=property_obj, position=position, total=position + queue_count, today_stats=stats)
 
     if callback.message is not None:
-        await callback.message.edit_text(
+        await safe_edit_text(
+            callback.message,
             text,
             reply_markup=get_call_card_keyboard(property_id=property_obj.id, phone=property_obj.owner_phone),
             parse_mode=None,
@@ -159,7 +196,7 @@ async def open_call_menu_callback(callback: CallbackQuery, auth_service: AuthSer
         f"⏭ Пропущено: {stats.get('SKIPPED', 0)}"
     )
     if callback.message is not None:
-        await callback.message.edit_text(text, reply_markup=get_call_menu_keyboard(), parse_mode=None)
+        await safe_edit_text(callback.message, text, reply_markup=get_call_menu_keyboard(), parse_mode=None)
     await callback.answer()
 
 
@@ -180,7 +217,7 @@ async def start_call_mode(callback: CallbackQuery, state: FSMContext, auth_servi
 async def open_more_menu(callback: CallbackQuery) -> None:
     property_id = int(callback.data.split(":")[1])
     if callback.message is not None:
-        await callback.message.edit_reply_markup(reply_markup=get_call_more_keyboard(property_id))
+        await safe_edit_reply_markup(callback.message, reply_markup=get_call_more_keyboard(property_id))
     await callback.answer()
 
 
@@ -204,11 +241,10 @@ async def handle_call_result(callback: CallbackQuery) -> None:
         await callback.answer()
         return
     if result == "no_answer":
-        await callback.message.edit_reply_markup(reply_markup=get_no_answer_keyboard(property_id))
+        await safe_edit_reply_markup(callback.message, reply_markup=get_no_answer_keyboard(property_id))
     elif result == "rejected":
-        await callback.message.edit_reply_markup(reply_markup=get_reject_reason_keyboard(property_id))
-    else:
-        await callback.answer()
+        await safe_edit_reply_markup(callback.message, reply_markup=get_reject_reason_keyboard(property_id))
+    await callback.answer()
 
 
 @router.callback_query(F.data.startswith("callnoans:"))
@@ -281,7 +317,12 @@ async def save_agreed(callback: CallbackQuery, auth_service: AuthService, call_s
 async def ask_sold_confirm(callback: CallbackQuery) -> None:
     property_id = int(callback.data.split(":")[1])
     if callback.message is not None:
-        await callback.message.edit_text("Точно отметить объект как проданный?", reply_markup=get_sold_confirm_keyboard(property_id), parse_mode=None)
+        await safe_edit_text(
+            callback.message,
+            "Точно отметить объект как проданный?",
+            reply_markup=get_sold_confirm_keyboard(property_id),
+            parse_mode=None,
+        )
     await callback.answer()
 
 
@@ -404,7 +445,7 @@ async def show_call_stats(callback: CallbackQuery, auth_service: AuthService, ca
         f"⏭ Пропущено: {stats.get('SKIPPED', 0)}"
     )
     if callback.message is not None:
-        await callback.message.edit_text(text, reply_markup=get_call_menu_keyboard(), parse_mode=None)
+        await safe_edit_text(callback.message, text, reply_markup=get_call_menu_keyboard(), parse_mode=None)
     await callback.answer()
 
 
