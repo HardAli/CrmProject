@@ -23,6 +23,10 @@ class Property(Base, IdMixin, TimestampMixin):
         CheckConstraint("area IS NULL OR area >= 0", name="property_area_non_negative"),
         CheckConstraint("floor IS NULL OR floor >= 0", name="property_floor_non_negative"),
         CheckConstraint(
+            "building_year IS NULL OR (building_year >= 1900 AND building_year <= 2100)",
+            name="property_building_year_valid",
+        ),
+        CheckConstraint(
             "building_floors IS NULL OR building_floors > 0",
             name="property_building_floors_positive",
         ),
@@ -44,6 +48,8 @@ class Property(Base, IdMixin, TimestampMixin):
     rooms: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     floor: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     building_floors: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    building_year: Mapped[int | None] = mapped_column(SmallInteger, nullable=True, index=True)
+    building_material: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     link: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     status: Mapped[PropertyStatus] = mapped_column(

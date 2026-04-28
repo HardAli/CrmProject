@@ -32,6 +32,7 @@ from app.common.formatters.property_formatter import format_property_created_car
 from app.common.formatters.property_import_formatter import format_import_success
 from app.common.utils.parsers import parse_money
 from app.common.utils.phone_links import normalize_owner_phone
+from app.common.utils.property_fields import normalize_building_material, parse_building_year_or_none
 from app.common.utils.value_parsers import parse_decimal_or_none, parse_int_or_none
 from app.services.auth_service import AuthService
 from app.services.property_import_service import InvalidListingUrlError, PropertyImportService
@@ -205,6 +206,8 @@ async def save_import(
         rooms=parse_int_or_none(payload.get("rooms")),
         floor=parse_int_or_none(payload.get("floor")),
         building_floors=parse_int_or_none(payload.get("building_floors")),
+        building_year=parse_building_year_or_none(payload.get("building_year")),
+        building_material=normalize_building_material(payload.get("building_material")),
         description=str(payload.get("description")) if payload.get("description") else None,
         status=PropertyStatus(str(payload.get("status", PropertyStatus.ACTIVE.value))),
         image_urls=payload.get("image_urls", []),

@@ -6,6 +6,7 @@ from decimal import Decimal, InvalidOperation
 from app.bot.keyboards.properties import DISTRICT_OPTIONS_FOR_PROPERTY
 from app.common.enums import PropertyStatus, PropertyType
 from app.common.utils.phone_links import normalize_owner_phone
+from app.common.utils.property_fields import extract_building_material, extract_building_year
 from app.schemas.parsed_property import ParsedPropertyData, RawParsedPropertyData
 
 DISTRICT_CANONICAL = {item.lower(): item for item in DISTRICT_OPTIONS_FOR_PROPERTY}
@@ -65,6 +66,16 @@ def _extract_floor_pair(value: str | None) -> tuple[int | None, int | None]:
     return None, None
 
 
+def _iter_dict_items(data: object):
+    if isinstance(data, dict):
+        for key, value in data.items():
+            yield str(key), value
+            yield from _iter_dict_items(value)
+    elif isinstance(data, list):
+        for item in data:
+            yield from _iter_dict_items(item)
+
+
 def normalize_parsed_data(raw_data: RawParsedPropertyData) -> ParsedPropertyData:
     regex_data = raw_data.payload.get("regex", {}) if isinstance(raw_data.payload, dict) else {}
     if not isinstance(regex_data, dict):
@@ -84,6 +95,35 @@ def normalize_parsed_data(raw_data: RawParsedPropertyData) -> ParsedPropertyData
     rooms = _normalize_rooms(str(regex_data.get("rooms", "")))
 
     floor, building_floors = _extract_floor_pair(str(regex_data.get("floor_pair", "")))
+    characteristics = regex_data.get("characteristics")
+    characteristics_text = str(characteristics) if characteristics else ""
+    year_from_characteristics = None
+    material_from_characteristics = None
+    if isinstance(raw_data.payload, dict):
+        for key, value in _iter_dict_items(raw_data.payload):
+            lowered_key = key.lower()
+            value_text = str(value)
+            if any(token in lowered_key for token in ("год", "постро", "г.п")) and year_from_characteristics is None:
+                year_from_characteristics = extract_building_year(value_text)
+            if any(token in lowered_key for token in ("тип дома", "материал", "стен", "тип строения", "дом")) and material_from_characteristics is None:
+                material_from_characteristics = extract_building_material(value_text)
+
+    combined_text = " ".join(
+        item
+        for item in (
+            title or "",
+            description or "",
+            str(raw_data.html_text or ""),
+            characteristics_text,
+        )
+        if item
+    )
+    building_year = year_from_characteristics or extract_building_year(combined_text)
+    building_material = (
+        material_from_characteristics
+        or extract_building_material(characteristics_text)
+        or extract_building_material(combined_text)
+    )
 
     owner_phone = _normalize_text(str(regex_data.get("owner_phone", "")))
     owner_phone_normalized = None
@@ -119,6 +159,8 @@ def normalize_parsed_data(raw_data: RawParsedPropertyData) -> ParsedPropertyData
         rooms=rooms,
         floor=floor,
         building_floors=building_floors,
+        building_year=building_year,
+        building_material=building_material,
         description=description,
         status=PropertyStatus.ACTIVE,
         image_urls=image_urls,

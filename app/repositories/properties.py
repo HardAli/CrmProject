@@ -31,6 +31,8 @@ class PropertyRepository:
             rooms=data.rooms,
             floor=data.floor,
             building_floors=data.building_floors,
+            building_year=data.building_year,
+            building_material=data.building_material,
             description=data.description,
             link=data.link,
             status=data.status,

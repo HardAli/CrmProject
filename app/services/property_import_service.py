@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 
 from app.common.dto.properties import CreatePropertyDTO
 from app.common.enums import PropertyStatus
+from app.common.utils.property_fields import normalize_building_material, parse_building_year_or_none
 from app.common.utils.value_parsers import parse_decimal_or_none, parse_int_or_none
 from app.database.models.property import Property
 from app.database.models.user import User
@@ -99,6 +100,8 @@ class PropertyImportService:
             f"Комнаты: {parsed_data.rooms or '—'}\n"
             f"Этаж: {parsed_data.floor if parsed_data.floor is not None else '—'}\n"
             f"Этажность: {parsed_data.building_floors if parsed_data.building_floors is not None else '—'}\n"
+            f"Год постройки: {parsed_data.building_year if parsed_data.building_year is not None else '—'}\n"
+            f"Материал дома: {parsed_data.building_material or '—'}\n"
             f"Телефон: {parsed_data.owner_phone or '—'}\n"
             f"Описание: {(parsed_data.description or '—')[:300]}\n"
             f"Ссылка: {parsed_data.source_url}\n"
@@ -119,6 +122,8 @@ class PropertyImportService:
             rooms=parse_int_or_none(parsed_data.rooms),
             floor=parse_int_or_none(parsed_data.floor),
             building_floors=parse_int_or_none(parsed_data.building_floors),
+            building_year=parse_building_year_or_none(parsed_data.building_year),
+            building_material=normalize_building_material(parsed_data.building_material),
             description=parsed_data.description,
             link=parsed_data.source_url,
             status=parsed_data.status or PropertyStatus.ACTIVE,
