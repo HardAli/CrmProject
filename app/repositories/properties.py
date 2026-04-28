@@ -28,6 +28,7 @@ class PropertyRepository:
             owner_phone=data.owner_phone,
             price=data.price,
             area=data.area,
+            kitchen_area=data.kitchen_area,
             rooms=data.rooms,
             floor=data.floor,
             building_floors=data.building_floors,

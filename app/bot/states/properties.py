@@ -11,6 +11,7 @@ class PropertyCreateStates(StatesGroup):
     owner_phone = State()
     price = State()
     area = State()
+    kitchen_area = State()
     rooms = State()
     floor = State()
     building_floors = State()

@@ -21,6 +21,7 @@ class ClientCreateStates(StatesGroup):
     seller_property_address = State()
     seller_property_price = State()
     seller_property_area = State()
+    seller_property_kitchen_area = State()
     seller_property_rooms = State()
     seller_property_floor = State()
     seller_property_building_floors = State()

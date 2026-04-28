@@ -49,6 +49,10 @@ def extract_by_regex_map(html: str) -> dict[str, str]:
         "description": [r'"description"\s*:\s*"(.*?)"', r"Описание</[^>]+>\s*<[^>]+>(.*?)</"],
         "rooms": [r'"rooms"\s*:\s*"?(\w+)"?', r"(\d+)\s*-?\s*комн"],
         "area": [r'"area"\s*:\s*"?([0-9\.,]+)"?', r"([0-9]+(?:[\.,][0-9]+)?)\s*м²"],
+        "kitchen_area": [
+            r"(?:кухня|площадь кухни)\D{0,20}(\d+(?:[.,]\d+)?)",
+            r'"kitchen"\s*:\s*"?([0-9\.,]+)"?',
+        ],
         "floor_pair": [r'"floor"\s*:\s*"?(\d+\s*/\s*\d+)"?', r"(\d+\s*/\s*\d+)\s*этаж"],
         "owner_phone": [r'"phone"\s*:\s*"(\+?[0-9\s\-\(\)]{10,20})"'],
         "image_urls": [r'"image"\s*:\s*\[(.*?)\]'],

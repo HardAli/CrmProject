@@ -11,12 +11,17 @@ def parse_decimal_or_none(value: object) -> Decimal | None:
     if isinstance(value, Decimal):
         return value
 
-    text = str(value).strip()
+    text = str(value).strip().lower()
     if not text:
         return None
 
-    text = text.replace(" ", "").replace(",", ".")
-    match = re.search(r"\d+(\.\d+)?", text)
+    text = text.replace(",", ".")
+    text = text.replace("м²", " ")
+    text = text.replace("м2", " ")
+    text = text.replace("кв.м", " ")
+    text = text.replace("кв м", " ")
+    text = text.replace(" ", "")
+    match = re.search(r"\d+(?:\.\d+)?", text)
     if not match:
         return None
 

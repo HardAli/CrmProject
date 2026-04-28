@@ -41,6 +41,7 @@ class PropertyService:
         data.owner_phone = normalize_owner_phone(data.owner_phone)
         data.price = parse_decimal_or_none(data.price) or data.price
         data.area = parse_decimal_or_none(data.area)
+        data.kitchen_area = parse_decimal_or_none(data.kitchen_area)
         data.rooms = parse_int_or_none(data.rooms)
         data.floor = parse_int_or_none(data.floor)
         data.building_floors = parse_int_or_none(data.building_floors)
@@ -49,6 +50,12 @@ class PropertyService:
 
         if data.floor is not None and data.floor < 0:
             raise ValueError("Этаж должен быть числом больше или равным 0.")
+        if data.area is not None and data.area <= 0:
+            raise ValueError("Площадь должна быть больше 0.")
+        if data.kitchen_area is not None and data.kitchen_area <= 0:
+            raise ValueError("Площадь кухни должна быть больше 0.")
+        if data.area is not None and data.kitchen_area is not None and data.kitchen_area > data.area:
+            raise ValueError("Площадь кухни не может быть больше общей площади. Введите заново.")
 
         if data.property_type == PropertyType.APARTMENT and data.building_floors is None:
             raise ValueError("Для квартиры необходимо указать этажность здания.")

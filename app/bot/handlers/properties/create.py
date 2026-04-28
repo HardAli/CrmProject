@@ -30,13 +30,13 @@ from app.bot.keyboards.properties import (
     get_property_status_keyboard,
     get_property_title_keyboard,
     get_property_type_keyboard,
+    kitchen_area_reply_keyboard,
 )
 from app.bot.states.properties import PropertyCreateStates
 from app.common.dto.properties import CreatePropertyDTO
 from app.common.enums import PropertyStatus, PropertyType
 from app.common.formatters.property_formatter import format_property_created_card
 from app.common.utils.money import format_price_short, parse_money_to_tenge
-from app.common.utils.parsers import parse_money
 from app.common.utils.phone_links import normalize_owner_phone
 from app.common.utils.property_fields import normalize_building_material, parse_building_year_or_none
 from app.common.utils.value_parsers import parse_decimal_or_none, parse_int_or_none
@@ -217,18 +217,51 @@ async def process_price(message: Message, state: FSMContext) -> None:
 
 @router.message(PropertyCreateStates.area)
 async def process_area(message: Message, state: FSMContext) -> None:
-    try:
-        area = parse_money(message.text or "")
-    except ValueError as error:
-        await message.answer(f"{error}")
+    value = (message.text or "").strip()
+    area = parse_decimal_or_none(value)
+    if area is None or area <= 0:
+        await message.answer("Введите площадь числом больше 0, например 130 или 58.6.")
         return
 
     await state.update_data(area=str(area))
+    data = await state.get_data()
+    property_type = PropertyType(data["property_type"])
+    if property_type in {PropertyType.APARTMENT, PropertyType.HOUSE}:
+        await state.set_state(PropertyCreateStates.kitchen_area)
+        await message.answer(
+            "Введите площадь кухни в м², например 10.5, или напишите «пропустить»:",
+            reply_markup=kitchen_area_reply_keyboard(),
+        )
+        return
+
+    await state.update_data(kitchen_area=None)
     await state.set_state(PropertyCreateStates.rooms)
-    await message.answer(
-        "Выберите количество комнат кнопкой или введите вручную (1-5, Студия).",
-        reply_markup=get_property_rooms_keyboard(),
-    )
+    await message.answer("Выберите количество комнат кнопкой или введите вручную (1-5, Студия).", reply_markup=get_property_rooms_keyboard())
+
+
+@router.message(PropertyCreateStates.kitchen_area)
+async def process_kitchen_area(message: Message, state: FSMContext) -> None:
+    value = (message.text or "").strip()
+    if value == BACK_TEXT:
+        await state.set_state(PropertyCreateStates.area)
+        await message.answer("Введите площадь в м² (только число).", reply_markup=get_property_cancel_keyboard())
+        return
+    if _is_skip(value):
+        await state.update_data(kitchen_area=None)
+    else:
+        kitchen_area = parse_decimal_or_none(value)
+        if kitchen_area is None or kitchen_area <= 0:
+            await message.answer("Введите площадь кухни числом больше 0 или нажмите «Пропустить».", reply_markup=kitchen_area_reply_keyboard())
+            return
+        data = await state.get_data()
+        area = parse_decimal_or_none(data.get("area"))
+        if area is not None and kitchen_area > area:
+            await message.answer("Площадь кухни не может быть больше общей площади. Введите заново.", reply_markup=kitchen_area_reply_keyboard())
+            return
+        await state.update_data(kitchen_area=str(kitchen_area))
+
+    await state.set_state(PropertyCreateStates.rooms)
+    await message.answer("Выберите количество комнат кнопкой или введите вручную (1-5, Студия).", reply_markup=get_property_rooms_keyboard())
 
 
 @router.message(PropertyCreateStates.rooms)
@@ -428,6 +461,7 @@ async def process_status(
         owner_phone=data["owner_phone"],
         price=parse_decimal_or_none(data.get("price")) or Decimal(0),
         area=parse_decimal_or_none(data.get("area")) or Decimal(0),
+        kitchen_area=parse_decimal_or_none(data.get("kitchen_area")),
         rooms=parse_int_or_none(data.get("rooms")),
         floor=parse_int_or_none(data.get("floor")),
         building_floors=parse_int_or_none(data.get("building_floors")),

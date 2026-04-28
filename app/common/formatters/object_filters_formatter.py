@@ -5,6 +5,7 @@ from typing import Any
 
 from app.common.enums import PropertyType
 from app.common.formatters.property_formatter import format_object_compact
+from app.common.utils.formatters import format_decimal_plain
 from app.database.models.property import Property
 
 SORT_LABELS: dict[str, str] = {
@@ -50,8 +51,8 @@ STATUS_LABELS: dict[str, str] = {
 def _fmt_mln(value: Decimal | None) -> str:
     if value is None:
         return ""
-    mln = (value / Decimal("1000000")).quantize(Decimal("0.1")).normalize()
-    return f"{mln}"
+    mln = (value / Decimal("1000000")).quantize(Decimal("0.1"))
+    return format_decimal_plain(mln, max_fraction_digits=1)
 
 
 def build_object_filters_summary(filters: dict[str, Any]) -> str:

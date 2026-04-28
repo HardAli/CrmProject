@@ -215,7 +215,8 @@ async def _finalize_client_creation(
                 address=address,
                 owner_phone=data["phone"],
                 price=Decimal(price_raw),
-                area=Decimal(data["seller_property_area"]) if data.get("seller_property_area") else Decimal("0"),
+                area=parse_decimal_or_none(data.get("seller_property_area")) or Decimal("0"),
+                kitchen_area=parse_decimal_or_none(data.get("seller_property_kitchen_area")),
                 rooms=parse_int_or_none(rooms_value),
                 floor=data.get("seller_property_floor"),
                 building_floors=data.get("seller_property_building_floors"),
@@ -272,6 +273,7 @@ async def _finalize_client_creation(
         ClientCreateStates.seller_property_address,
         ClientCreateStates.seller_property_price,
         ClientCreateStates.seller_property_area,
+        ClientCreateStates.seller_property_kitchen_area,
         ClientCreateStates.seller_property_rooms,
         ClientCreateStates.seller_property_floor,
         ClientCreateStates.seller_property_building_floors,
@@ -300,6 +302,7 @@ async def _finalize_client_creation(
         ClientCreateStates.seller_property_address,
         ClientCreateStates.seller_property_price,
         ClientCreateStates.seller_property_area,
+        ClientCreateStates.seller_property_kitchen_area,
         ClientCreateStates.seller_property_rooms,
         ClientCreateStates.seller_property_floor,
         ClientCreateStates.seller_property_building_floors,
@@ -652,10 +655,46 @@ async def process_seller_property_area(message: Message, state: FSMContext) -> N
         await state.update_data(seller_property_area=None)
     else:
         parsed = parse_decimal_or_none(value)
-        if parsed is None:
-            await message.answer("Введите площадь числом или нажмите «Пропустить».")
+        if parsed is None or parsed <= 0:
+            await message.answer("Введите площадь числом больше 0 или нажмите «Пропустить».")
             return
         await state.update_data(seller_property_area=str(parsed))
+
+    data = await state.get_data()
+    property_type = PropertyType(data["property_type"])
+    if property_type in {PropertyType.APARTMENT, PropertyType.HOUSE}:
+        await state.set_state(ClientCreateStates.seller_property_kitchen_area)
+        await message.answer(
+            "Введите площадь кухни в м², например 10.5, или напишите «пропустить»:",
+            reply_markup=get_property_skip_cancel_keyboard(),
+        )
+        return
+
+    await state.update_data(seller_property_kitchen_area=None)
+    await state.set_state(ClientCreateStates.seller_property_rooms)
+    await message.answer(
+        "Выберите количество комнат (1-5, Студия) или нажмите «Пропустить».",
+        reply_markup=get_rooms_keyboard(),
+    )
+
+
+@router.message(ClientCreateStates.seller_property_kitchen_area)
+async def process_seller_property_kitchen_area(message: Message, state: FSMContext) -> None:
+    value = (message.text or "").strip()
+    if value == SKIP_TEXT:
+        await state.update_data(seller_property_kitchen_area=None)
+    else:
+        kitchen_area = parse_decimal_or_none(value)
+        if kitchen_area is None or kitchen_area <= 0:
+            await message.answer("Введите площадь кухни числом больше 0 или нажмите «Пропустить».")
+            return
+        data = await state.get_data()
+        area = parse_decimal_or_none(data.get("seller_property_area"))
+        if area is not None and kitchen_area > area:
+            await message.answer("Площадь кухни не может быть больше общей площади. Введите заново.")
+            return
+        await state.update_data(seller_property_kitchen_area=str(kitchen_area))
+
     await state.set_state(ClientCreateStates.seller_property_rooms)
     await message.answer(
         "Выберите количество комнат (1-5, Студия) или нажмите «Пропустить».",

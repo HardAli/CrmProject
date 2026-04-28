@@ -15,6 +15,7 @@ class CreatePropertyDTO:
     owner_phone: str
     price: Decimal
     area: Decimal
+    kitchen_area: Decimal | None = None
     rooms: int | None
     floor: int | None
     building_floors: int | None

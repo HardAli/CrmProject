@@ -66,6 +66,15 @@ def _extract_floor_pair(value: str | None) -> tuple[int | None, int | None]:
     return None, None
 
 
+def _extract_kitchen_area(text: str | None) -> Decimal | None:
+    if not text:
+        return None
+    match = re.search(r"(?:кухня|площадь кухни)\D{0,20}(\d+(?:[.,]\d+)?)", text.lower())
+    if not match:
+        return None
+    return _extract_decimal(match.group(1))
+
+
 def _iter_dict_items(data: object):
     if isinstance(data, dict):
         for key, value in data.items():
@@ -92,6 +101,7 @@ def normalize_parsed_data(raw_data: RawParsedPropertyData) -> ParsedPropertyData
     address = _normalize_text(str(regex_data.get("address", "")))
     price = _extract_decimal(str(regex_data.get("price", "")))
     area = _extract_decimal(str(regex_data.get("area", "")))
+    kitchen_area = _extract_decimal(str(regex_data.get("kitchen_area", "")))
     rooms = _normalize_rooms(str(regex_data.get("rooms", "")))
 
     floor, building_floors = _extract_floor_pair(str(regex_data.get("floor_pair", "")))
@@ -107,6 +117,10 @@ def normalize_parsed_data(raw_data: RawParsedPropertyData) -> ParsedPropertyData
                 year_from_characteristics = extract_building_year(value_text)
             if any(token in lowered_key for token in ("тип дома", "материал", "стен", "тип строения", "дом")) and material_from_characteristics is None:
                 material_from_characteristics = extract_building_material(value_text)
+            if any(token in lowered_key for token in ("кухн", "площадь кухни")):
+                kitchen_area = _extract_decimal(value_text)
+                if kitchen_area is not None:
+                    break
 
     combined_text = " ".join(
         item
@@ -119,6 +133,8 @@ def normalize_parsed_data(raw_data: RawParsedPropertyData) -> ParsedPropertyData
         if item
     )
     building_year = year_from_characteristics or extract_building_year(combined_text)
+    if kitchen_area is None:
+        kitchen_area = _extract_kitchen_area(combined_text)
     building_material = (
         material_from_characteristics
         or extract_building_material(characteristics_text)
@@ -156,6 +172,7 @@ def normalize_parsed_data(raw_data: RawParsedPropertyData) -> ParsedPropertyData
         owner_phone_normalized=owner_phone_normalized,
         price=price,
         area=area,
+        kitchen_area=kitchen_area,
         rooms=rooms,
         floor=floor,
         building_floors=building_floors,
