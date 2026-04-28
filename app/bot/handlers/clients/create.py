@@ -49,10 +49,10 @@ from app.common.dto.clients import CreateClientDTO
 from app.common.dto.properties import CreatePropertyDTO
 from app.common.enums import PropertyStatus, PropertyType, RequestType, WallMaterial
 from app.common.formatters.client_formatter import format_client_created_card
+from app.common.utils.money import format_price_short, parse_money_range_to_tenge, parse_money_to_tenge
 from app.common.utils.parsers import (
     normalize_phone,
     parse_int_in_range,
-    parse_money,
     parse_next_contact_at,
     parse_year_built,
 )
@@ -446,12 +446,13 @@ async def process_budget(message: Message, state: FSMContext) -> None:
     if value == SKIP_TEXT:
         await state.update_data(budget=None)
     else:
-        try:
-            budget = parse_money(value)
-        except ValueError as error:
-            await message.answer(f"{error}")
+        budget_min, budget_max = parse_money_range_to_tenge(value)
+        if budget_min is None and budget_max is None:
+            await message.answer("Введите бюджет, например 25, 15-25, от 20 или до 30.")
             return
-        await state.update_data(budget=str(budget))
+
+        budget_value = budget_max if budget_max is not None else budget_min
+        await state.update_data(budget=int(budget_value))
 
     data = await state.get_data()
     property_type = PropertyType(data["property_type"])
@@ -631,14 +632,17 @@ async def process_seller_property_address(message: Message, state: FSMContext) -
 
 @router.message(ClientCreateStates.seller_property_price)
 async def process_seller_property_price(message: Message, state: FSMContext) -> None:
-    try:
-        price = parse_money(message.text or "")
-    except ValueError as error:
-        await message.answer(f"{error}")
+    price = parse_money_to_tenge(message.text)
+    if price is None:
+        await message.answer("Введите цену, например 19.5 или 19 500 000.")
         return
-    await state.update_data(seller_property_price=str(price))
+
+    await state.update_data(seller_property_price=int(price))
     await state.set_state(ClientCreateStates.seller_property_area)
-    await message.answer("Введите площадь (м²) или нажмите «Пропустить».", reply_markup=get_property_skip_cancel_keyboard())
+    await message.answer(
+        f"Цена: {format_price_short(price)}\n\nВведите площадь (м²) или нажмите «Пропустить».",
+        reply_markup=get_property_skip_cancel_keyboard(),
+    )
 
 
 @router.message(ClientCreateStates.seller_property_area)

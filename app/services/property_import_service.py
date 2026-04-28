@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 
 from app.common.dto.properties import CreatePropertyDTO
 from app.common.enums import PropertyStatus
+from app.common.utils.money import parse_money_to_tenge
 from app.common.utils.property_fields import normalize_building_material, parse_building_year_or_none
 from app.common.utils.value_parsers import parse_decimal_or_none, parse_int_or_none
 from app.database.models.property import Property
@@ -117,7 +118,7 @@ class PropertyImportService:
             district=parsed_data.district or "Не указан",
             address=parsed_data.address or "Не указан",
             owner_phone=parsed_data.owner_phone or "+70000000000",
-            price=parse_decimal_or_none(parsed_data.price) or Decimal(0),
+            price=parse_money_to_tenge(parsed_data.price) or Decimal(0),
             area=parse_decimal_or_none(parsed_data.area) or Decimal(0),
             rooms=parse_int_or_none(parsed_data.rooms),
             floor=parse_int_or_none(parsed_data.floor),

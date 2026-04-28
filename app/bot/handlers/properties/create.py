@@ -35,6 +35,7 @@ from app.bot.states.properties import PropertyCreateStates
 from app.common.dto.properties import CreatePropertyDTO
 from app.common.enums import PropertyStatus, PropertyType
 from app.common.formatters.property_formatter import format_property_created_card
+from app.common.utils.money import format_price_short, parse_money_to_tenge
 from app.common.utils.parsers import parse_money
 from app.common.utils.phone_links import normalize_owner_phone
 from app.common.utils.property_fields import normalize_building_material, parse_building_year_or_none
@@ -204,15 +205,14 @@ async def process_owner_phone(message: Message, state: FSMContext) -> None:
 
 @router.message(PropertyCreateStates.price)
 async def process_price(message: Message, state: FSMContext) -> None:
-    try:
-        price = parse_money(message.text or "")
-    except ValueError as error:
-        await message.answer(f"{error}")
+    price = parse_money_to_tenge(message.text)
+    if price is None:
+        await message.answer("Введите цену, например 19.5 или 19 500 000.")
         return
 
-    await state.update_data(price=str(price))
+    await state.update_data(price=int(price))
     await state.set_state(PropertyCreateStates.area)
-    await message.answer("Введите площадь в м² (только число).")
+    await message.answer(f"Цена: {format_price_short(price)}\n\nВведите площадь в м² (только число).")
 
 
 @router.message(PropertyCreateStates.area)
