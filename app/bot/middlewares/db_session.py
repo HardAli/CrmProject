@@ -124,6 +124,7 @@ class DbSessionMiddleware(BaseMiddleware):
             data["database_import_service"] = DatabaseImportService(session)
             data["property_call_repository"] = PropertyCallRepository(session)
             data["property_call_service"] = PropertyCallService(data["property_call_repository"])
+            data["call_service"] = data["property_call_service"]
 
             try:
                 return await handler(event, data)
