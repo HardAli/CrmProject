@@ -49,6 +49,9 @@ PROPERTY_STATUS_MAP: dict[str, PropertyStatus] = {
 
 MAX_PROPERTY_BUTTON_TEXT_LENGTH = 64
 PROPERTY_CREATE_CALLBACK_PREFIX = "prop_create"
+MANUAL_INPUT_TEXT = "Ввести вручную"
+BACK_TEXT = "⬅️ Назад"
+PLAIN_SKIP_TEXT = "Пропустить"
 
 
 def get_properties_menu_keyboard() -> ReplyKeyboardMarkup:
@@ -188,6 +191,62 @@ def get_building_material_inline_keyboard() -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text="Пропустить", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:skip_building_material")],
             [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:back"), InlineKeyboardButton(text="❌ Отмена", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:cancel")],
         ]
+    )
+
+
+def floor_reply_keyboard() -> ReplyKeyboardMarkup:
+    floor_values = [str(value) for value in range(1, 17)]
+    rows = [floor_values[i:i + 4] for i in range(0, len(floor_values), 4)]
+    keyboard = [[KeyboardButton(text=value) for value in row] for row in rows]
+    keyboard.append([KeyboardButton(text=MANUAL_INPUT_TEXT), KeyboardButton(text=PLAIN_SKIP_TEXT)])
+    keyboard.append([KeyboardButton(text=BACK_TEXT), KeyboardButton(text=CANCEL_TEXT)])
+    return ReplyKeyboardMarkup(
+        keyboard=keyboard,
+        resize_keyboard=True,
+        one_time_keyboard=False,
+        input_field_placeholder="Выберите этаж",
+    )
+
+
+def building_floors_reply_keyboard() -> ReplyKeyboardMarkup:
+    floor_values = [str(value) for value in range(1, 17)]
+    rows = [floor_values[i:i + 4] for i in range(0, len(floor_values), 4)]
+    keyboard = [[KeyboardButton(text=value) for value in row] for row in rows]
+    keyboard.append([KeyboardButton(text=MANUAL_INPUT_TEXT), KeyboardButton(text=PLAIN_SKIP_TEXT)])
+    keyboard.append([KeyboardButton(text=BACK_TEXT), KeyboardButton(text=CANCEL_TEXT)])
+    return ReplyKeyboardMarkup(
+        keyboard=keyboard,
+        resize_keyboard=True,
+        one_time_keyboard=False,
+        input_field_placeholder="Выберите этажность",
+    )
+
+
+def building_year_reply_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text=PLAIN_SKIP_TEXT)],
+            [KeyboardButton(text=BACK_TEXT), KeyboardButton(text=CANCEL_TEXT)],
+        ],
+        resize_keyboard=True,
+        one_time_keyboard=False,
+        input_field_placeholder="Например 1986",
+    )
+
+
+def building_material_reply_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="Кирпич"), KeyboardButton(text="Панель")],
+            [KeyboardButton(text="Монолит"), KeyboardButton(text="Пеноблок")],
+            [KeyboardButton(text="Газоблок"), KeyboardButton(text="Саман")],
+            [KeyboardButton(text="Дерево"), KeyboardButton(text="Другое")],
+            [KeyboardButton(text=PLAIN_SKIP_TEXT)],
+            [KeyboardButton(text=BACK_TEXT), KeyboardButton(text=CANCEL_TEXT)],
+        ],
+        resize_keyboard=True,
+        one_time_keyboard=False,
+        input_field_placeholder="Тип строения",
     )
 
 
