@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from typing import Any
 
 from app.common.enums import ClientStatus, PropertyType, RequestType, WallMaterial
@@ -79,11 +79,41 @@ def _format_budget_short(value: Decimal | None) -> str:
     return f"до {numeric}"
 
 
+def format_client_budget_compact(value: object) -> str:
+    """
+    19500000 -> "19.5"
+    19000000 -> "19"
+    25000000 -> "25"
+    None -> "—"
+    """
+    if value is None:
+        return "—"
+
+    try:
+        amount = Decimal(str(value).replace(" ", ""))
+    except (InvalidOperation, TypeError, ValueError):
+        return str(value)
+
+    if amount >= Decimal("1000000"):
+        amount = amount / Decimal("1000000")
+    elif amount >= Decimal("1000"):
+        thousands = amount / Decimal("1000")
+        thousands_text = format(thousands.quantize(Decimal("0.1"), rounding=ROUND_HALF_UP), "f")
+        if thousands_text.endswith(".0"):
+            thousands_text = thousands_text[:-2]
+        return f"{thousands_text}к"
+
+    text = format(amount.quantize(Decimal("0.1"), rounding=ROUND_HALF_UP), "f")
+    if text.endswith(".0"):
+        text = text[:-2]
+    return text
+
+
 def format_client_compact(client: Client) -> str:
     name = (client.full_name or "").strip() or client.phone
     deal_type = REQUEST_TYPE_LABELS.get(client.request_type, client.request_type.value)
     need = client.rooms or "—"
-    budget = _format_budget_short(client.budget)
+    budget = format_client_budget_compact(client.budget)
     district = client.district or "—"
     status = STATUS_LABELS.get(client.status, client.status.value)
     return f"{name}|{deal_type}|{need}|{budget}|{district}|{status}"
