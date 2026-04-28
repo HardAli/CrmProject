@@ -24,3 +24,7 @@ class ClientCreateStates(StatesGroup):
 class ClientCardStates(StatesGroup):
     add_note = State()
     add_photo = State()
+
+
+class ClientListStates(StatesGroup):
+    search_query = State()

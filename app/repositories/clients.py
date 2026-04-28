@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 
-from sqlalchemy import Select, or_, select
+from sqlalchemy import Select, and_, case, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from app.common.dto.clients import CreateClientDTO
-from app.common.enums import ClientStatus, RequestType
+from app.common.enums import ClientStatus, RequestType, TaskStatus
 from app.database.models.client import Client
+from app.database.models.client_property import ClientProperty
+from app.database.models.task import Task
 
 
 class ClientRepository:
@@ -213,6 +215,157 @@ class ClientRepository:
         stmt = self._base_list_query().where(Client.phone.in_(candidates)).limit(1)
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
+
+    async def get_filtered(
+        self,
+        *,
+        filters: dict,
+        manager_id: int | None,
+        page: int,
+        per_page: int,
+    ) -> tuple[list[Client], int]:
+        stmt = select(Client).options(joinedload(Client.manager))
+        stmt = self.apply_client_filters(stmt=stmt, filters=filters, manager_id=manager_id)
+        count_stmt = select(func.count()).select_from(stmt.order_by(None).subquery())
+        total_count = int((await self._session.execute(count_stmt)).scalar_one())
+        stmt = self.apply_client_sorting(stmt=stmt, filters=filters)
+        stmt = stmt.limit(per_page).offset((page - 1) * per_page)
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all()), total_count
+
+    def apply_client_filters(
+        self,
+        *,
+        stmt: Select[tuple[Client]],
+        filters: dict,
+        manager_id: int | None,
+    ) -> Select[tuple[Client]]:
+        if manager_id is not None:
+            stmt = stmt.where(Client.manager_id == manager_id)
+
+        statuses = filters.get("statuses") or []
+        if statuses:
+            stmt = stmt.where(Client.status.in_([ClientStatus(value) for value in statuses]))
+
+        deal_types = filters.get("deal_types") or []
+        if deal_types:
+            stmt = stmt.where(Client.request_type.in_([RequestType(value) for value in deal_types]))
+
+        rooms = filters.get("rooms") or []
+        if rooms:
+            stmt = stmt.where(or_(*[Client.rooms.ilike(f"%{room}%") for room in rooms]))
+
+        budget_min = filters.get("budget_min")
+        budget_max = filters.get("budget_max")
+        if budget_min is not None:
+            stmt = stmt.where(Client.budget.is_not(None), Client.budget >= budget_min)
+        if budget_max is not None:
+            stmt = stmt.where(Client.budget.is_not(None), Client.budget <= budget_max)
+
+        districts = filters.get("districts") or []
+        if districts:
+            stmt = stmt.where(or_(*[Client.district.ilike(f"%{district}%") for district in districts]))
+
+        now_utc = datetime.now(timezone.utc)
+        today_start = datetime.combine(now_utc.date(), time.min, tzinfo=timezone.utc)
+        tomorrow_start = today_start + timedelta(days=1)
+        day_after_tomorrow_start = tomorrow_start + timedelta(days=1)
+        week_end = today_start + timedelta(days=7)
+        next_contact_mode = filters.get("next_contact_mode")
+        if next_contact_mode == "today":
+            stmt = stmt.where(Client.next_contact_at >= today_start, Client.next_contact_at < tomorrow_start)
+        elif next_contact_mode == "tomorrow":
+            stmt = stmt.where(Client.next_contact_at >= tomorrow_start, Client.next_contact_at < day_after_tomorrow_start)
+        elif next_contact_mode == "overdue":
+            stmt = stmt.where(Client.next_contact_at.is_not(None), Client.next_contact_at < now_utc)
+        elif next_contact_mode == "week":
+            stmt = stmt.where(Client.next_contact_at >= today_start, Client.next_contact_at <= week_end)
+        elif next_contact_mode == "none":
+            stmt = stmt.where(Client.next_contact_at.is_(None))
+
+        active_task_exists = exists(
+            select(Task.id).where(Task.client_id == Client.id, Task.status.in_((TaskStatus.OPEN, TaskStatus.IN_PROGRESS)))
+        )
+        done_task_exists = exists(select(Task.id).where(Task.client_id == Client.id, Task.status == TaskStatus.DONE))
+        overdue_task_exists = exists(
+            select(Task.id).where(
+                Task.client_id == Client.id,
+                Task.status.in_((TaskStatus.OPEN, TaskStatus.IN_PROGRESS)),
+                Task.due_at.is_not(None),
+                Task.due_at < today_start,
+            )
+        )
+        today_task_exists = exists(
+            select(Task.id).where(
+                Task.client_id == Client.id,
+                Task.status.in_((TaskStatus.OPEN, TaskStatus.IN_PROGRESS)),
+                Task.due_at.is_not(None),
+                Task.due_at >= today_start,
+                Task.due_at < tomorrow_start,
+            )
+        )
+        task_mode = filters.get("task_mode")
+        if task_mode == "today":
+            stmt = stmt.where(today_task_exists)
+        elif task_mode == "overdue":
+            stmt = stmt.where(overdue_task_exists)
+        elif task_mode == "active":
+            stmt = stmt.where(active_task_exists)
+        elif task_mode == "none":
+            stmt = stmt.where(~active_task_exists)
+        elif task_mode == "done":
+            stmt = stmt.where(done_task_exists)
+
+        property_exists = exists(select(ClientProperty.id).where(ClientProperty.client_id == Client.id))
+        object_mode = filters.get("object_mode")
+        if object_mode == "has":
+            stmt = stmt.where(property_exists)
+        elif object_mode == "none":
+            stmt = stmt.where(~property_exists)
+        elif object_mode == "waiting_selection":
+            stmt = stmt.where(
+                Client.status.in_((ClientStatus.NEW, ClientStatus.IN_PROGRESS, ClientStatus.WAITING, ClientStatus.SHOWING)),
+                ~property_exists,
+            )
+
+        sources = filters.get("sources") or []
+        if sources:
+            stmt = stmt.where(Client.source.in_(sources))
+
+        search_query = (filters.get("search_query") or "").strip()
+        if search_query:
+            stmt = stmt.where(
+                or_(
+                    Client.full_name.ilike(f"%{search_query}%"),
+                    Client.phone.ilike(f"%{search_query}%"),
+                    Client.district.ilike(f"%{search_query}%"),
+                    Client.source.ilike(f"%{search_query}%"),
+                    Client.note.ilike(f"%{search_query}%"),
+                )
+            )
+        return stmt
+
+    def apply_client_sorting(self, *, stmt: Select[tuple[Client]], filters: dict) -> Select[tuple[Client]]:
+        sort_mode = filters.get("sort") or "newest"
+        now_utc = datetime.now(timezone.utc)
+        if sort_mode == "oldest":
+            return stmt.order_by(Client.created_at.asc())
+        if sort_mode == "hot_first":
+            return stmt.order_by(case((Client.status == ClientStatus.WAITING, 0), else_=1), Client.created_at.desc())
+        if sort_mode == "next_contact":
+            return stmt.order_by(Client.next_contact_at.asc().nullslast(), Client.created_at.desc())
+        if sort_mode == "overdue_first":
+            return stmt.order_by(
+                case((and_(Client.next_contact_at.is_not(None), Client.next_contact_at < now_utc), 0), else_=1),
+                Client.next_contact_at.asc().nullslast(),
+            )
+        if sort_mode == "budget_asc":
+            return stmt.order_by(Client.budget.asc().nullslast(), Client.created_at.desc())
+        if sort_mode == "budget_desc":
+            return stmt.order_by(Client.budget.desc().nullslast(), Client.created_at.desc())
+        if sort_mode == "name":
+            return stmt.order_by(Client.full_name.asc(), Client.created_at.desc())
+        return stmt.order_by(Client.created_at.desc())
 
     @staticmethod
     def _base_list_query() -> Select[tuple[Client]]:

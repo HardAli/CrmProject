@@ -3,6 +3,7 @@ from __future__ import annotations
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
 
 from app.common.enums import ClientPropertyRelationStatus, ClientStatus
+from app.common.formatters.client_formatter import format_client_compact
 from app.common.formatters.property_formatter import format_object_compact
 from app.database.models.client import Client
 from app.database.models.client_property import ClientProperty
@@ -317,6 +318,237 @@ def get_client_photos_menu_keyboard(client_id: int, can_manage: bool) -> InlineK
 
     rows.append([InlineKeyboardButton(text="↩️ Назад к карточке", callback_data=f"client_view:{client_id}")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def build_clients_list_keyboard(
+    clients: list[Client],
+    filters: dict,
+    page: int,
+    total_pages: int,
+) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    for client in clients:
+        compact = format_client_compact(client)
+        if len(compact) > 60:
+            compact = f"{compact[:57]}..."
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=compact,
+                    callback_data=f"client_view:{client.id}",
+                )
+            ]
+        )
+
+    rows.extend(
+        [
+            [
+                InlineKeyboardButton(text="🔎 Поиск", callback_data="clients_search_open"),
+                InlineKeyboardButton(text="⚙️ Фильтры", callback_data="clients_filters_open"),
+            ],
+            [
+                InlineKeyboardButton(text="⚡ Быстрые", callback_data="clients_quick_open"),
+                InlineKeyboardButton(text="↕️ Сортировка", callback_data="clients_sort_open"),
+            ],
+            [InlineKeyboardButton(text="🧹 Сброс", callback_data="clients_filters_reset")],
+            [
+                InlineKeyboardButton(text="⬅️", callback_data="clients_page_prev"),
+                InlineKeyboardButton(text=f"{page}/{max(total_pages, 1)}", callback_data="clients_page_info"),
+                InlineKeyboardButton(text="➡️", callback_data="clients_page_next"),
+            ],
+        ]
+    )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def build_client_filters_menu_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="Статус", callback_data="clients_filters_status"),
+                InlineKeyboardButton(text="Сделка", callback_data="clients_filters_deal"),
+            ],
+            [
+                InlineKeyboardButton(text="Комнаты", callback_data="clients_filters_rooms"),
+                InlineKeyboardButton(text="Бюджет", callback_data="clients_filters_budget"),
+            ],
+            [
+                InlineKeyboardButton(text="Район", callback_data="clients_filters_district"),
+                InlineKeyboardButton(text="Контакт", callback_data="clients_filters_contact"),
+            ],
+            [
+                InlineKeyboardButton(text="Задачи", callback_data="clients_filters_tasks"),
+                InlineKeyboardButton(text="Источник", callback_data="clients_filters_source"),
+            ],
+            [
+                InlineKeyboardButton(text="Объекты", callback_data="clients_filters_objects"),
+                InlineKeyboardButton(text="Дополнительно", callback_data="clients_filters_extra"),
+            ],
+            [InlineKeyboardButton(text="✅ Показать клиентов", callback_data="clients_list_open")],
+            [
+                InlineKeyboardButton(text="🧹 Сбросить", callback_data="clients_filters_reset"),
+                InlineKeyboardButton(text="⬅️ Назад", callback_data="clients_list_open"),
+            ],
+        ]
+    )
+
+
+def build_status_filter_keyboard(selected: set[str]) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    all_statuses = list(ClientStatus)
+    for idx in range(0, len(all_statuses), 2):
+        row: list[InlineKeyboardButton] = []
+        for status in all_statuses[idx:idx + 2]:
+            mark = "✅ " if status.value in selected else ""
+            row.append(
+                InlineKeyboardButton(
+                    text=f"{mark}{STATUS_LABELS.get(status, status.value)}",
+                    callback_data=f"clients_filter_status_toggle:{status.value}",
+                )
+            )
+        rows.append(row)
+    rows.append([InlineKeyboardButton(text="Активные", callback_data="clients_filter_status_active")])
+    rows.append([InlineKeyboardButton(text="Все", callback_data="clients_filter_status_all")])
+    rows.append([InlineKeyboardButton(text="Готово", callback_data="clients_filters_open")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def build_deal_filter_keyboard(selected: set[str]) -> InlineKeyboardMarkup:
+    options = [
+        ("Покупка", "buy"),
+        ("Продажа", "sell"),
+        ("Аренда", "rent"),
+        ("Сдать в аренду", "rent_out"),
+    ]
+    rows = [
+        [
+            InlineKeyboardButton(
+                text=f"{'✅ ' if value in selected else ''}{label}",
+                callback_data=f"clients_filter_deal_toggle:{value}",
+            )
+        ]
+        for label, value in options
+    ]
+    rows.append([InlineKeyboardButton(text="Любой", callback_data="clients_filter_deal_any")])
+    rows.append([InlineKeyboardButton(text="Готово", callback_data="clients_filters_open")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def build_rooms_filter_keyboard(selected: set[str]) -> InlineKeyboardMarkup:
+    options = ("1", "2", "3", "4", "5+", "Студия")
+    rows: list[list[InlineKeyboardButton]] = []
+    for idx in range(0, len(options), 3):
+        row: list[InlineKeyboardButton] = []
+        for value in options[idx:idx + 3]:
+            row.append(
+                InlineKeyboardButton(
+                    text=f"{'✅ ' if value in selected else ''}{value}",
+                    callback_data=f"clients_filter_rooms_toggle:{value}",
+                )
+            )
+        rows.append(row)
+    rows.append([InlineKeyboardButton(text="Любая", callback_data="clients_filter_rooms_any")])
+    rows.append([InlineKeyboardButton(text="Готово", callback_data="clients_filters_open")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def build_budget_filter_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="До 15", callback_data="clients_filter_budget_max:15000000"),
+                InlineKeyboardButton(text="До 20", callback_data="clients_filter_budget_max:20000000"),
+                InlineKeyboardButton(text="До 25", callback_data="clients_filter_budget_max:25000000"),
+            ],
+            [
+                InlineKeyboardButton(text="До 30", callback_data="clients_filter_budget_max:30000000"),
+                InlineKeyboardButton(text="До 40", callback_data="clients_filter_budget_max:40000000"),
+                InlineKeyboardButton(text="До 50", callback_data="clients_filter_budget_max:50000000"),
+            ],
+            [InlineKeyboardButton(text="50+", callback_data="clients_filter_budget_min:50000000")],
+            [InlineKeyboardButton(text="Любой", callback_data="clients_filter_budget_any")],
+            [InlineKeyboardButton(text="Готово", callback_data="clients_filters_open")],
+        ]
+    )
+
+
+def build_district_filter_keyboard(selected: set[str]) -> InlineKeyboardMarkup:
+    options = ("Самал", "Каратал", "6 мкр", "Гарышкер", "Центр", "Жастар", "Мушелтой", "Другие")
+    rows: list[list[InlineKeyboardButton]] = []
+    for idx in range(0, len(options), 2):
+        row: list[InlineKeyboardButton] = []
+        for value in options[idx:idx + 2]:
+            row.append(
+                InlineKeyboardButton(
+                    text=f"{'✅ ' if value in selected else ''}{value}",
+                    callback_data=f"clients_filter_district_toggle:{value}",
+                )
+            )
+        rows.append(row)
+    rows.append([InlineKeyboardButton(text="Любой", callback_data="clients_filter_district_any")])
+    rows.append([InlineKeyboardButton(text="Готово", callback_data="clients_filters_open")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def build_contact_filter_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Сегодня", callback_data="clients_filter_contact:today")],
+            [InlineKeyboardButton(text="Завтра", callback_data="clients_filter_contact:tomorrow")],
+            [InlineKeyboardButton(text="Просроченные", callback_data="clients_filter_contact:overdue")],
+            [InlineKeyboardButton(text="На неделе", callback_data="clients_filter_contact:week")],
+            [InlineKeyboardButton(text="Без даты", callback_data="clients_filter_contact:none")],
+            [InlineKeyboardButton(text="Все", callback_data="clients_filter_contact:any")],
+            [InlineKeyboardButton(text="Готово", callback_data="clients_filters_open")],
+        ]
+    )
+
+
+def build_task_filter_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="На сегодня", callback_data="clients_filter_tasks:today")],
+            [InlineKeyboardButton(text="Просроченные", callback_data="clients_filter_tasks:overdue")],
+            [InlineKeyboardButton(text="Есть активные", callback_data="clients_filter_tasks:active")],
+            [InlineKeyboardButton(text="Без задач", callback_data="clients_filter_tasks:none")],
+            [InlineKeyboardButton(text="Выполненные", callback_data="clients_filter_tasks:done")],
+            [InlineKeyboardButton(text="Любые", callback_data="clients_filter_tasks:any")],
+            [InlineKeyboardButton(text="Готово", callback_data="clients_filters_open")],
+        ]
+    )
+
+
+def build_quick_filters_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Сегодня связаться", callback_data="clients_quick:today_contact")],
+            [InlineKeyboardButton(text="Просроченные контакты", callback_data="clients_quick:overdue_contact")],
+            [InlineKeyboardButton(text="Горячие клиенты", callback_data="clients_quick:hot")],
+            [InlineKeyboardButton(text="Новые клиенты", callback_data="clients_quick:new")],
+            [InlineKeyboardButton(text="Ждут подборку", callback_data="clients_quick:waiting_selection")],
+            [InlineKeyboardButton(text="Без след. контакта", callback_data="clients_quick:no_next_contact")],
+            [InlineKeyboardButton(text="Без задач", callback_data="clients_quick:no_tasks")],
+            [InlineKeyboardButton(text="Отказы", callback_data="clients_quick:failed")],
+            [InlineKeyboardButton(text="Закрытые", callback_data="clients_quick:closed")],
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data="clients_list_open")],
+        ]
+    )
+
+
+def build_sort_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Сначала новые", callback_data="clients_sort:newest")],
+            [InlineKeyboardButton(text="Сначала старые", callback_data="clients_sort:oldest")],
+            [InlineKeyboardButton(text="Сначала горячие", callback_data="clients_sort:hot_first")],
+            [InlineKeyboardButton(text="Ближайший контакт", callback_data="clients_sort:next_contact")],
+            [InlineKeyboardButton(text="Просроченные сверху", callback_data="clients_sort:overdue_first")],
+            [InlineKeyboardButton(text="По бюджету ↑", callback_data="clients_sort:budget_asc")],
+            [InlineKeyboardButton(text="По бюджету ↓", callback_data="clients_sort:budget_desc")],
+            [InlineKeyboardButton(text="По имени", callback_data="clients_sort:name")],
+            [InlineKeyboardButton(text="Готово", callback_data="clients_list_open")],
+        ]
+    )
 
 
 def get_client_photo_delete_keyboard(client_id: int, photos: list[tuple[int, str]]) -> InlineKeyboardMarkup:
