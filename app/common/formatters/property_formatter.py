@@ -103,6 +103,7 @@ def format_property_call_card(
     today_stats: dict[str, int] | None = None,
 ) -> str:
     today_stats = today_stats or {}
+    phone_text = format_phone_for_display(property_obj.owner_phone)
     progress = ""
     if position is not None and total is not None:
         progress = f"{position}/{total}"
@@ -147,7 +148,7 @@ def format_property_call_card(
         f"🍳 Кухня: {safe_html(format_area_compact(property_obj.kitchen_area))}\n"
         f"🏢 {safe_html(building_row)}\n"
         f"📍 {safe_html(property_obj.address)}\n"
-        f"☎️ {safe_html(format_phone_for_display(property_obj.owner_phone))}\n\n"
+        f"☎️ {safe_html(phone_text)}\n\n"
         f"Попыток: {safe_html(getattr(property_obj, 'call_attempts', 0) or 0)}\n"
         f"{safe_html(last_line)}{safe_html(next_line)}"
     )
