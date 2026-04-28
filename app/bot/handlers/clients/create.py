@@ -36,9 +36,18 @@ from app.bot.keyboards.clients import (
     get_wall_material_keyboard,
     get_year_built_keyboard,
 )
+from app.bot.keyboards.properties import (
+    ROOMS_OPTIONS_FOR_PROPERTY,
+    building_floors_reply_keyboard,
+    building_material_reply_keyboard,
+    building_year_reply_keyboard,
+    floor_reply_keyboard,
+    get_property_skip_cancel_keyboard,
+)
 from app.bot.states.clients import ClientCreateStates
 from app.common.dto.clients import CreateClientDTO
-from app.common.enums import PropertyType, RequestType, WallMaterial
+from app.common.dto.properties import CreatePropertyDTO
+from app.common.enums import PropertyStatus, PropertyType, RequestType, WallMaterial
 from app.common.formatters.client_formatter import format_client_created_card
 from app.common.utils.parsers import (
     normalize_phone,
@@ -47,6 +56,8 @@ from app.common.utils.parsers import (
     parse_next_contact_at,
     parse_year_built,
 )
+from app.common.utils.property_fields import normalize_building_material, parse_building_year_or_none
+from app.common.utils.value_parsers import parse_decimal_or_none, parse_int_or_none
 from app.database.session import session_scope
 from app.repositories.client_photo_repository import ClientPhotoRepository
 from app.repositories.clients import ClientRepository
@@ -76,6 +87,21 @@ WALL_MATERIAL_MAP: dict[str, WallMaterial] = {
     "Панель": WallMaterial.PANEL,
     "Монолит": WallMaterial.MONOLITH,
 }
+
+
+def _is_seller_request(request_type: RequestType) -> bool:
+    return request_type in {RequestType.SELL, RequestType.RENT_OUT}
+
+
+def _parse_rooms_for_property(raw_value: str) -> int | None:
+    value = raw_value.strip()
+    if value.lower() == "студия":
+        return None
+    if value in ROOMS_OPTIONS_FOR_PROPERTY:
+        return parse_int_or_none(value)
+    if value.isdigit() and 0 < int(value) <= 50:
+        return int(value)
+    raise ValueError("Комнаты: выберите 1-5, «Студия», «Пропустить» или введите число вручную.")
 
 
 async def _get_current_user(message: Message, auth_service: AuthService):
@@ -144,6 +170,88 @@ async def _save_client_photos_with_new_session(
         return saved_count, duplicate_count
 
 
+async def _finalize_client_creation(
+    *,
+    message: Message,
+    state: FSMContext,
+    client_service: ClientService,
+    user,
+    next_contact_at: datetime | None,
+    session: AsyncSession,
+) -> None:
+    data = await state.get_data()
+    full_name = data["phone"] if data.get("full_name_is_unknown") else data["full_name"]
+    request_type = RequestType(data["request_type"])
+    property_type = PropertyType(data["property_type"])
+
+    dto = CreateClientDTO(
+        full_name=full_name,
+        phone=data["phone"],
+        source=data.get("source"),
+        request_type=request_type,
+        property_type=property_type,
+        district=data.get("district"),
+        rooms=data.get("rooms"),
+        budget=Decimal(data["budget"]) if data.get("budget") else None,
+        floor=data.get("floor"),
+        building_floors=data.get("building_floors"),
+        wall_material=WallMaterial(data["wall_material"]) if data.get("wall_material") else None,
+        year_built=data.get("year_built"),
+        note=data.get("note"),
+        next_contact_at=next_contact_at,
+        manager_id=user.id,
+    )
+
+    seller_property_dto: CreatePropertyDTO | None = None
+    if _is_seller_request(request_type):
+        address = data.get("seller_property_address")
+        price_raw = data.get("seller_property_price")
+        if address and price_raw:
+            rooms_value = data.get("seller_property_rooms")
+            seller_property_dto = CreatePropertyDTO(
+                title=f"{property_type.value.upper()} {address}",
+                property_type=property_type,
+                district=data.get("district") or "—",
+                address=address,
+                owner_phone=data["phone"],
+                price=Decimal(price_raw),
+                area=Decimal(data["seller_property_area"]) if data.get("seller_property_area") else Decimal("0"),
+                rooms=parse_int_or_none(rooms_value),
+                floor=data.get("seller_property_floor"),
+                building_floors=data.get("seller_property_building_floors"),
+                building_year=data.get("seller_property_building_year"),
+                building_material=data.get("seller_property_building_material"),
+                description=data.get("seller_property_description"),
+                link=None,
+                status=PropertyStatus.ACTIVE,
+                manager_id=user.id,
+            )
+
+    client, property_obj, property_was_created = await client_service.create_client_with_optional_property(
+        current_user_id=user.id,
+        client_data=dto,
+        seller_property_data=seller_property_dto,
+    )
+    await session.commit()
+    await state.update_data(created_client_id=client.id)
+    await state.set_state(ClientCreateStates.waiting_for_photos_after_create)
+
+    if property_obj is None:
+        text = "Клиент создан."
+    elif property_was_created:
+        text = "Клиент создан. Объект добавлен в базу и привязан к клиенту."
+    else:
+        text = "Клиент создан. Найден существующий объект, он привязан к клиенту."
+
+    await message.answer(
+        f"{text}\n\n"
+        "Теперь отправьте фотографии клиента.\n"
+        "Можно отправить одну фотографию или сразу пачку до 10 фото.\n\n"
+        "Если фото не нужны, нажмите «Пропустить».",
+        reply_markup=get_client_create_photo_keyboard(),
+    )
+
+
 @router.message(
     Command("cancel"),
     StateFilter(
@@ -161,6 +269,15 @@ async def _save_client_photos_with_new_session(
         ClientCreateStates.year_built,
         ClientCreateStates.note,
         ClientCreateStates.next_contact_at,
+        ClientCreateStates.seller_property_address,
+        ClientCreateStates.seller_property_price,
+        ClientCreateStates.seller_property_area,
+        ClientCreateStates.seller_property_rooms,
+        ClientCreateStates.seller_property_floor,
+        ClientCreateStates.seller_property_building_floors,
+        ClientCreateStates.seller_property_building_year,
+        ClientCreateStates.seller_property_building_material,
+        ClientCreateStates.seller_property_description,
     ),
 )
 @router.message(
@@ -180,6 +297,15 @@ async def _save_client_photos_with_new_session(
         ClientCreateStates.year_built,
         ClientCreateStates.note,
         ClientCreateStates.next_contact_at,
+        ClientCreateStates.seller_property_address,
+        ClientCreateStates.seller_property_price,
+        ClientCreateStates.seller_property_area,
+        ClientCreateStates.seller_property_rooms,
+        ClientCreateStates.seller_property_floor,
+        ClientCreateStates.seller_property_building_floors,
+        ClientCreateStates.seller_property_building_year,
+        ClientCreateStates.seller_property_building_material,
+        ClientCreateStates.seller_property_description,
     ),
 )
 async def cancel_client_creation(message: Message, state: FSMContext) -> None:
@@ -472,49 +598,168 @@ async def process_next_contact_at(
         return
 
     data = await state.get_data()
-
-    full_name = data["phone"] if data.get("full_name_is_unknown") else data["full_name"]
-
-    dto = CreateClientDTO(
-        full_name=full_name,
-        phone=data["phone"],
-        source=data.get("source"),
-        request_type=RequestType(data["request_type"]),
-        property_type=PropertyType(data["property_type"]),
-        district=data.get("district"),
-        rooms=data.get("rooms"),
-        budget=Decimal(data["budget"]) if data.get("budget") else None,
-        floor=data.get("floor"),
-        building_floors=data.get("building_floors"),
-        wall_material=WallMaterial(data["wall_material"]) if data.get("wall_material") else None,
-        year_built=data.get("year_built"),
-        note=data.get("note"),
-        next_contact_at=next_contact_at,
-        manager_id=user.id,
-    )
-
-    create_result = await client_service.create_client(dto)
-    if isinstance(create_result, tuple):
-        client, linked_properties_count = create_result
-    else:
-        client = create_result
-        linked_properties_count = 0
-    await session.commit()
-    await state.update_data(created_client_id=client.id)
-    await state.set_state(ClientCreateStates.waiting_for_photos_after_create)
-
-    await message.answer(
-        "Клиент создан.\n\n"
-        "Теперь отправьте фотографии клиента.\n"
-        "Можно отправить одну фотографию или сразу пачку до 10 фото.\n\n"
-        "Если фото не нужны, нажмите «Пропустить».",
-        reply_markup=get_client_create_photo_keyboard(),
-    )
-    if linked_properties_count > 0:
+    request_type = RequestType(data["request_type"])
+    await state.update_data(next_contact_at_iso=next_contact_at.isoformat() if next_contact_at else None)
+    if _is_seller_request(request_type):
+        await state.set_state(ClientCreateStates.seller_property_address)
         await message.answer(
-            f"🔗 Найдено {linked_properties_count} объектов по совпадающему номеру. "
-            "Связи созданы автоматически.",
+            "Клиент продаёт/сдаёт объект. Добавим его в базу объектов.\n\nВведите адрес/ЖК объекта.",
+            reply_markup=get_property_skip_cancel_keyboard(),
         )
+        return
+
+    await _finalize_client_creation(
+        message=message,
+        state=state,
+        client_service=client_service,
+        user=user,
+        next_contact_at=next_contact_at,
+        session=session,
+    )
+
+
+@router.message(ClientCreateStates.seller_property_address)
+async def process_seller_property_address(message: Message, state: FSMContext) -> None:
+    value = (message.text or "").strip()
+    if not value or value == SKIP_TEXT:
+        await message.answer("Введите адрес/ЖК объекта.")
+        return
+    await state.update_data(seller_property_address=value)
+    await state.set_state(ClientCreateStates.seller_property_price)
+    await message.answer("Введите цену объекта (только число).", reply_markup=get_property_skip_cancel_keyboard())
+
+
+@router.message(ClientCreateStates.seller_property_price)
+async def process_seller_property_price(message: Message, state: FSMContext) -> None:
+    try:
+        price = parse_money(message.text or "")
+    except ValueError as error:
+        await message.answer(f"{error}")
+        return
+    await state.update_data(seller_property_price=str(price))
+    await state.set_state(ClientCreateStates.seller_property_area)
+    await message.answer("Введите площадь (м²) или нажмите «Пропустить».", reply_markup=get_property_skip_cancel_keyboard())
+
+
+@router.message(ClientCreateStates.seller_property_area)
+async def process_seller_property_area(message: Message, state: FSMContext) -> None:
+    value = (message.text or "").strip()
+    if value == SKIP_TEXT:
+        await state.update_data(seller_property_area=None)
+    else:
+        parsed = parse_decimal_or_none(value)
+        if parsed is None:
+            await message.answer("Введите площадь числом или нажмите «Пропустить».")
+            return
+        await state.update_data(seller_property_area=str(parsed))
+    await state.set_state(ClientCreateStates.seller_property_rooms)
+    await message.answer(
+        "Выберите количество комнат (1-5, Студия) или нажмите «Пропустить».",
+        reply_markup=get_rooms_keyboard(),
+    )
+
+
+@router.message(ClientCreateStates.seller_property_rooms)
+async def process_seller_property_rooms(message: Message, state: FSMContext) -> None:
+    value = (message.text or "").strip()
+    if value == SKIP_TEXT:
+        await state.update_data(seller_property_rooms=None)
+    else:
+        try:
+            rooms = _parse_rooms_for_property(value)
+        except ValueError as error:
+            await message.answer(str(error))
+            return
+        await state.update_data(seller_property_rooms=rooms)
+
+    await state.set_state(ClientCreateStates.seller_property_floor)
+    await message.answer("Выберите этаж или нажмите «Пропустить».", reply_markup=floor_reply_keyboard())
+
+
+@router.message(ClientCreateStates.seller_property_floor)
+async def process_seller_property_floor(message: Message, state: FSMContext) -> None:
+    value = (message.text or "").strip()
+    if value in {SKIP_TEXT, "Пропустить"}:
+        await state.update_data(seller_property_floor=None)
+    else:
+        floor = parse_int_or_none(value)
+        if floor is None or floor < 0:
+            await message.answer("Введите этаж числом (>= 0) или нажмите «Пропустить».")
+            return
+        await state.update_data(seller_property_floor=floor)
+    await state.set_state(ClientCreateStates.seller_property_building_floors)
+    await message.answer("Введите этажность дома или нажмите «Пропустить».", reply_markup=building_floors_reply_keyboard())
+
+
+@router.message(ClientCreateStates.seller_property_building_floors)
+async def process_seller_property_building_floors(message: Message, state: FSMContext) -> None:
+    value = (message.text or "").strip()
+    if value in {SKIP_TEXT, "Пропустить"}:
+        await state.update_data(seller_property_building_floors=None)
+    else:
+        building_floors = parse_int_or_none(value)
+        if building_floors is None or building_floors <= 0:
+            await message.answer("Введите этажность числом (> 0) или нажмите «Пропустить».")
+            return
+        await state.update_data(seller_property_building_floors=building_floors)
+    await state.set_state(ClientCreateStates.seller_property_building_year)
+    await message.answer("Введите год постройки или нажмите «Пропустить».", reply_markup=building_year_reply_keyboard())
+
+
+@router.message(ClientCreateStates.seller_property_building_year)
+async def process_seller_property_building_year(message: Message, state: FSMContext) -> None:
+    value = (message.text or "").strip()
+    if value in {SKIP_TEXT, "Пропустить"}:
+        await state.update_data(seller_property_building_year=None)
+    else:
+        year = parse_building_year_or_none(value)
+        if year is None:
+            await message.answer("Введите корректный год постройки или нажмите «Пропустить».")
+            return
+        await state.update_data(seller_property_building_year=year)
+    await state.set_state(ClientCreateStates.seller_property_building_material)
+    await message.answer("Введите материал дома или нажмите «Пропустить».", reply_markup=building_material_reply_keyboard())
+
+
+@router.message(ClientCreateStates.seller_property_building_material)
+async def process_seller_property_building_material(message: Message, state: FSMContext) -> None:
+    value = (message.text or "").strip()
+    if value in {SKIP_TEXT, "Пропустить"}:
+        await state.update_data(seller_property_building_material=None)
+    else:
+        await state.update_data(seller_property_building_material=normalize_building_material(value))
+    await state.set_state(ClientCreateStates.seller_property_description)
+    await message.answer("Введите описание объекта или нажмите «Пропустить».", reply_markup=get_property_skip_cancel_keyboard())
+
+
+@router.message(ClientCreateStates.seller_property_description)
+async def process_seller_property_description(
+    message: Message,
+    state: FSMContext,
+    client_service: ClientService,
+    auth_service: AuthService,
+    session: AsyncSession,
+) -> None:
+    value = (message.text or "").strip()
+    await state.update_data(seller_property_description=None if value == SKIP_TEXT else value)
+
+    user = await _get_current_user(message, auth_service)
+    if user is None:
+        await state.clear()
+        return
+
+    data = await state.get_data()
+    next_contact_at_raw = data.get("next_contact_at_iso")
+    next_contact_at = datetime.fromisoformat(next_contact_at_raw) if next_contact_at_raw else None
+
+    await _finalize_client_creation(
+        message=message,
+        state=state,
+        client_service=client_service,
+        user=user,
+        next_contact_at=next_contact_at,
+        session=session,
+    )
 
 
 @router.message(F.text == SKIP_TEXT, ClientCreateStates.waiting_for_photos_after_create)

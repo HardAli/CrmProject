@@ -77,7 +77,12 @@ class DbSessionMiddleware(BaseMiddleware):
                 supervisor_secret=settings.supervisor_secret,
             )
             data["client_log_repository"] = client_log_repository
-            data["client_service"] = ClientService(client_repository, client_log_repository)
+            data["client_service"] = ClientService(
+                client_repository,
+                client_log_repository,
+                property_repository,
+                client_property_repository,
+            )
             data["task_repository"] = task_repository
             data["task_service"] = TaskService(task_repository, client_repository, client_log_repository)
             data["property_repository"] = property_repository

@@ -21,7 +21,13 @@ def format_phone_for_copy(phone: str) -> str:
 def normalize_phone_for_whatsapp(phone: str | None) -> str | None:
     if phone is None:
         return None
-    digits = re.sub(r"\D", "", phone)
+    return normalize_phone_digits(phone)
+
+
+def normalize_phone_digits(phone: str | None) -> str | None:
+    if phone is None:
+        return None
+    digits = re.sub(r"\D", "", str(phone))
     if not digits:
         return None
     return digits

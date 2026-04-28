@@ -2,32 +2,143 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import datetime, timezone
+from decimal import Decimal
 
 from app.common.client_filters import normalize_filters
 from app.common.dto.clients import CreateClientDTO
-from app.common.enums import ClientActionType, ClientStatus, UserRole
+from app.common.dto.properties import CreatePropertyDTO
+from app.common.enums import ClientActionType, ClientPropertyRelationStatus, ClientStatus, PropertyType, UserRole
+from app.common.utils.phone_links import normalize_phone_digits
 from app.database.models.client import Client
 from app.database.models.client_log import ClientLog
+from app.database.models.property import Property
 from app.database.models.user import User
 from app.repositories.client_logs import ClientLogRepository
+from app.repositories.client_properties import ClientPropertyRepository
 from app.repositories.clients import ClientRepository
+from app.repositories.properties import PropertyRepository
 
 
 class ClientService:
-    def __init__(self, client_repository: ClientRepository, client_log_repository: ClientLogRepository) -> None:
+    def __init__(
+        self,
+        client_repository: ClientRepository,
+        client_log_repository: ClientLogRepository,
+        property_repository: PropertyRepository,
+        client_property_repository: ClientPropertyRepository,
+    ) -> None:
         self._client_repository = client_repository
         self._client_log_repository = client_log_repository
+        self._property_repository = property_repository
+        self._client_property_repository = client_property_repository
 
     async def create_client(self, data: CreateClientDTO) -> tuple[Client, int]:
-        client = await self._client_repository.create(data)
+        client, _, _ = await self.create_client_with_optional_property(
+            current_user_id=data.manager_id,
+            client_data=data,
+            seller_property_data=None,
+        )
+        return client, 0
+
+    async def create_client_with_optional_property(
+        self,
+        *,
+        current_user_id: int,
+        client_data: CreateClientDTO,
+        seller_property_data: CreatePropertyDTO | None = None,
+    ) -> tuple[Client, Property | None, bool]:
+        client = await self._client_repository.create(client_data)
         await self._client_log_repository.create_log(
             client_id=client.id,
-            user_id=data.manager_id,
+            user_id=current_user_id,
             action_type=ClientActionType.CLIENT_CREATED,
             comment="Карточка клиента создана",
         )
-        linked_properties_count = 0
-        return client, linked_properties_count
+        if seller_property_data is None:
+            return client, None, False
+
+        existing_property = await self.find_existing_property_for_seller(
+            owner_phone=seller_property_data.owner_phone,
+            address=seller_property_data.address,
+            property_type=seller_property_data.property_type,
+            rooms=seller_property_data.rooms,
+            area=seller_property_data.area,
+            floor=seller_property_data.floor,
+        )
+
+        property_was_created = False
+        property_obj = existing_property
+        if property_obj is None:
+            property_obj = await self._property_repository.create(seller_property_data)
+            property_was_created = True
+
+        await self._link_property_to_client(
+            client_id=client.id,
+            property_id=property_obj.id,
+            user_id=current_user_id,
+            property_title=property_obj.title,
+        )
+        return client, property_obj, property_was_created
+
+    async def find_existing_property_for_seller(
+        self,
+        *,
+        owner_phone: str | None,
+        address: str | None,
+        property_type: PropertyType,
+        rooms: int | None,
+        area: Decimal | None,
+        floor: int | None,
+    ) -> Property | None:
+        candidates = await self._property_repository.find_duplicate_candidates(
+            owner_phone=owner_phone,
+            property_type=property_type,
+            address=address,
+            rooms=rooms,
+        )
+        target_phone = normalize_phone_digits(owner_phone)
+        target_address = self._normalize_address(address)
+        target_area = Decimal(area) if area is not None else None
+
+        for candidate in candidates:
+            if target_phone and normalize_phone_digits(candidate.owner_phone) != target_phone:
+                continue
+            if target_address:
+                candidate_address = self._normalize_address(candidate.address)
+                if candidate_address and candidate_address != target_address:
+                    continue
+            if rooms is not None and candidate.rooms is not None and candidate.rooms != rooms:
+                continue
+            if floor is not None and candidate.floor is not None and candidate.floor != floor:
+                continue
+            if target_area is not None and candidate.area is not None:
+                if abs(Decimal(candidate.area) - target_area) > Decimal("1"):
+                    continue
+            return candidate
+        return None
+
+    async def _link_property_to_client(
+        self,
+        *,
+        client_id: int,
+        property_id: int,
+        user_id: int,
+        property_title: str,
+    ) -> None:
+        existing_link = await self._client_property_repository.get_existing(client_id=client_id, property_id=property_id)
+        if existing_link is not None:
+            return
+        await self._client_property_repository.create(
+            client_id=client_id,
+            property_id=property_id,
+            relation_status=ClientPropertyRelationStatus.SENT,
+        )
+        await self._client_log_repository.create_log(
+            client_id=client_id,
+            user_id=user_id,
+            action_type=ClientActionType.PROPERTY_LINKED,
+            comment=f'Объект #{property_id} "{property_title}" привязан к клиенту автоматически',
+        )
 
     async def get_my_clients(self, current_user: User, limit: int = 10) -> Sequence[Client]:
         if current_user.role in {UserRole.ADMIN, UserRole.SUPERVISOR}:
@@ -201,3 +312,10 @@ class ClientService:
         if value is None:
             return "—"
         return value.astimezone(timezone.utc).strftime("%d.%m.%Y %H:%M UTC")
+
+    @staticmethod
+    def _normalize_address(value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = "".join(ch.lower() for ch in value.strip() if ch.isalnum())
+        return normalized or None
