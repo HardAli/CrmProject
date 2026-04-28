@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import datetime, timezone
 
+from app.common.client_filters import normalize_filters
 from app.common.dto.clients import CreateClientDTO
 from app.common.enums import ClientActionType, ClientStatus, UserRole
 from app.database.models.client import Client
@@ -147,6 +148,25 @@ class ClientService:
             now_dt=datetime.now(tz=timezone.utc),
             limit=limit,
         )
+
+    async def get_clients_filtered(
+        self,
+        *,
+        current_user: User,
+        filters: dict,
+        per_page: int,
+    ) -> tuple[list[Client], int, int]:
+        manager_id = None if self._can_view_all(current_user) else current_user.id
+        normalized = normalize_filters(filters)
+        page = int(normalized.get("page") or 1)
+        clients, total_count = await self._client_repository.get_filtered(
+            filters=normalized,
+            manager_id=manager_id,
+            page=page,
+            per_page=per_page,
+        )
+        total_pages = max(1, (total_count + per_page - 1) // per_page)
+        return clients, total_count, total_pages
 
     def can_edit_client(self, current_user: User, client: Client) -> bool:
         if current_user.role == UserRole.ADMIN:
