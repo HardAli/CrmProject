@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from decimal import Decimal
-
 from aiogram import F, Router
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
@@ -26,6 +24,7 @@ from app.bot.keyboards.search import (
 )
 from app.bot.states.search_states import SearchStates
 from app.common.enums import ClientStatus, PropertyStatus, PropertyType, RequestType
+from app.common.utils.money import parse_money_range_to_tenge
 from app.common.formatters.search_formatter import (
     format_client_search_applied_filters,
     format_client_search_results,
@@ -343,15 +342,20 @@ async def property_filter_status(message: Message, state: FSMContext) -> None:
 async def property_filter_price_min(message: Message, state: FSMContext) -> None:
     text = (message.text or "").strip()
     if text != SKIP_TEXT:
-        try:
-            value = Decimal(text.replace(" ", "").replace(",", "."))
-        except Exception:
-            await message.answer("Введите корректное число или «Пропустить».")
+        value_min, value_max = parse_money_range_to_tenge(text)
+        if value_min is None and value_max is None:
+            await message.answer("Введите цену, например 19.5, от 20, до 25 или 15-25.")
             return
-        if value < 0:
-            await message.answer("Цена не может быть отрицательной.")
+
+        if value_min is not None:
+            await _save_filter(state, "price_min", value_min)
+        if value_max is not None:
+            await _save_filter(state, "price_max", value_max)
+
+        if value_max is not None:
+            await state.set_state(SearchStates.property_rooms)
+            await message.answer("Количество комнат или «Пропустить»:", reply_markup=get_search_skip_cancel_keyboard())
             return
-        await _save_filter(state, "price_min", value)
 
     await state.set_state(SearchStates.property_price_max)
     await message.answer("Максимальная цена или «Пропустить»:", reply_markup=get_search_skip_cancel_keyboard())
@@ -361,15 +365,11 @@ async def property_filter_price_min(message: Message, state: FSMContext) -> None
 async def property_filter_price_max(message: Message, state: FSMContext) -> None:
     text = (message.text or "").strip()
     if text != SKIP_TEXT:
-        try:
-            value = Decimal(text.replace(" ", "").replace(",", "."))
-        except Exception:
-            await message.answer("Введите корректное число или «Пропустить».")
+        _, value_max = parse_money_range_to_tenge(f"до {text}" if "до" not in text.lower() else text)
+        if value_max is None:
+            await message.answer("Введите цену, например 25 или 19.5 млн, либо «Пропустить».")
             return
-        if value < 0:
-            await message.answer("Цена не может быть отрицательной.")
-            return
-        await _save_filter(state, "price_max", value)
+        await _save_filter(state, "price_max", value_max)
 
     await state.set_state(SearchStates.property_rooms)
     await message.answer("Количество комнат или «Пропустить»:", reply_markup=get_search_skip_cancel_keyboard())
