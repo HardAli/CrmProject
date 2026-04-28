@@ -10,6 +10,7 @@ from app.database.models.client import Client
 from app.database.models.property import Property
 from app.database.models.user import User
 from app.common.utils.phone_links import normalize_owner_phone
+from app.common.utils.property_fields import is_valid_building_year, normalize_building_material
 from app.common.utils.value_parsers import parse_decimal_or_none, parse_int_or_none
 from app.repositories.client_logs import ClientLogRepository
 from app.repositories.client_properties import ClientPropertyRepository
@@ -43,6 +44,8 @@ class PropertyService:
         data.rooms = parse_int_or_none(data.rooms)
         data.floor = parse_int_or_none(data.floor)
         data.building_floors = parse_int_or_none(data.building_floors)
+        data.building_year = parse_int_or_none(data.building_year)
+        data.building_material = normalize_building_material(data.building_material)
 
         if data.floor is not None and data.floor < 0:
             raise ValueError("Этаж должен быть числом больше или равным 0.")
@@ -53,6 +56,8 @@ class PropertyService:
             raise ValueError("Этажность здания должна быть положительным числом.")
         if data.floor is not None and data.building_floors is not None and data.floor > data.building_floors:
             raise ValueError("Этаж объекта не может быть больше этажности здания.")
+        if data.building_year is not None and not is_valid_building_year(data.building_year):
+            raise ValueError("Год постройки должен быть в диапазоне 1900 до следующего года.")
 
         property_obj = await self._property_repository.create(data)
         linked_clients_count = 0

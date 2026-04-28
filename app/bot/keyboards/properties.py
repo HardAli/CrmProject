@@ -48,6 +48,7 @@ PROPERTY_STATUS_MAP: dict[str, PropertyStatus] = {
 }
 
 MAX_PROPERTY_BUTTON_TEXT_LENGTH = 64
+PROPERTY_CREATE_CALLBACK_PREFIX = "prop_create"
 
 
 def get_properties_menu_keyboard() -> ReplyKeyboardMarkup:
@@ -134,6 +135,59 @@ def get_property_status_keyboard() -> ReplyKeyboardMarkup:
             [KeyboardButton(text=CANCEL_TEXT)],
         ],
         resize_keyboard=True,
+    )
+
+
+def get_floor_inline_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="1", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:floor:1"), InlineKeyboardButton(text="2", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:floor:2"), InlineKeyboardButton(text="3", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:floor:3")],
+            [InlineKeyboardButton(text="4", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:floor:4"), InlineKeyboardButton(text="5", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:floor:5"), InlineKeyboardButton(text="6", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:floor:6")],
+            [InlineKeyboardButton(text="7", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:floor:7"), InlineKeyboardButton(text="8", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:floor:8"), InlineKeyboardButton(text="9", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:floor:9")],
+            [InlineKeyboardButton(text="10+", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:floor:10plus"), InlineKeyboardButton(text="Пропустить", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:skip_floor")],
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:back"), InlineKeyboardButton(text="❌ Отмена", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:cancel")],
+        ]
+    )
+
+
+def get_building_floors_inline_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="1", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:building_floors:1"), InlineKeyboardButton(text="2", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:building_floors:2"), InlineKeyboardButton(text="3", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:building_floors:3")],
+            [InlineKeyboardButton(text="4", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:building_floors:4"), InlineKeyboardButton(text="5", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:building_floors:5"), InlineKeyboardButton(text="6", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:building_floors:6")],
+            [InlineKeyboardButton(text="7", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:building_floors:7"), InlineKeyboardButton(text="8", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:building_floors:8"), InlineKeyboardButton(text="9", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:building_floors:9")],
+            [InlineKeyboardButton(text="10", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:building_floors:10"), InlineKeyboardButton(text="12", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:building_floors:12"), InlineKeyboardButton(text="16", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:building_floors:16")],
+            [InlineKeyboardButton(text="20+", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:building_floors:20plus"), InlineKeyboardButton(text="Пропустить", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:skip_building_floors")],
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:back"), InlineKeyboardButton(text="❌ Отмена", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:cancel")],
+        ]
+    )
+
+
+def get_building_year_inline_keyboard() -> InlineKeyboardMarkup:
+    years = ("2024", "2023", "2022", "2021", "2020", "2019", "2018", "2017", "2016")
+    rows: list[list[InlineKeyboardButton]] = []
+    for i in range(0, len(years), 3):
+        rows.append([InlineKeyboardButton(text=year, callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:building_year:{year}") for year in years[i : i + 3]])
+    rows.extend(
+        [
+            [InlineKeyboardButton(text="Ввести вручную", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:building_year:manual")],
+            [InlineKeyboardButton(text="Пропустить", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:skip_building_year")],
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:back"), InlineKeyboardButton(text="❌ Отмена", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:cancel")],
+        ]
+    )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def get_building_material_inline_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Кирпич", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:building_material:Кирпич"), InlineKeyboardButton(text="Панель", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:building_material:Панель")],
+            [InlineKeyboardButton(text="Монолит", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:building_material:Монолит"), InlineKeyboardButton(text="Пеноблок", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:building_material:Пеноблок")],
+            [InlineKeyboardButton(text="Газоблок", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:building_material:Газоблок"), InlineKeyboardButton(text="Саман", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:building_material:Саман")],
+            [InlineKeyboardButton(text="Дерево", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:building_material:Дерево"), InlineKeyboardButton(text="Другое", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:building_material:Другое")],
+            [InlineKeyboardButton(text="Пропустить", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:skip_building_material")],
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:back"), InlineKeyboardButton(text="❌ Отмена", callback_data=f"{PROPERTY_CREATE_CALLBACK_PREFIX}:cancel")],
+        ]
     )
 
 

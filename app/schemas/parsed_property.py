@@ -32,6 +32,8 @@ class ParsedPropertyData:
     rooms: int | None = None
     floor: int | None = None
     building_floors: int | None = None
+    building_year: int | None = None
+    building_material: str | None = None
     description: str | None = None
     status: PropertyStatus = PropertyStatus.ACTIVE
     image_urls: list[str] = field(default_factory=list)

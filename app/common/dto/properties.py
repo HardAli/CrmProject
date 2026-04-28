@@ -18,6 +18,8 @@ class CreatePropertyDTO:
     rooms: int | None
     floor: int | None
     building_floors: int | None
+    building_year: int | None
+    building_material: str | None
     description: str | None
     link: str | None
     status: PropertyStatus

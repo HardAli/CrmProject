@@ -170,6 +170,8 @@ def format_property_card(property_obj: Property, manager_name: str, updated: boo
         f"<b>Площадь (м²):</b> {safe_html(_format_decimal(property_obj.area))}\n"
         f"<b>Комнаты:</b> {safe_html(property_obj.rooms)}\n"
         f"{floor_row}"
+        f"<b>Год постройки:</b> {safe_html(property_obj.building_year)}\n"
+        f"<b>Материал дома:</b> {safe_html(property_obj.building_material)}\n"
          f"<b>Описание:</b> {safe_html(property_obj.description)}\n"
         f"<b>Ссылка:</b> {safe_html(property_obj.link)}\n"
         f"<b>Статус:</b> {status}\n"

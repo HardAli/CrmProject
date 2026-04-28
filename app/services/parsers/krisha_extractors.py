@@ -52,6 +52,7 @@ def extract_by_regex_map(html: str) -> dict[str, str]:
         "floor_pair": [r'"floor"\s*:\s*"?(\d+\s*/\s*\d+)"?', r"(\d+\s*/\s*\d+)\s*этаж"],
         "owner_phone": [r'"phone"\s*:\s*"(\+?[0-9\s\-\(\)]{10,20})"'],
         "image_urls": [r'"image"\s*:\s*\[(.*?)\]'],
+        "characteristics": [r"Характеристики</[^>]+>\s*<[^>]+>(.*?)</", r'"details"\s*:\s*"(.*?)"'],
     }
 
     extracted: dict[str, str] = {}

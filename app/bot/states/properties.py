@@ -14,6 +14,8 @@ class PropertyCreateStates(StatesGroup):
     rooms = State()
     floor = State()
     building_floors = State()
+    building_year = State()
+    building_material = State()
     description = State()
     link = State()
     status = State()
