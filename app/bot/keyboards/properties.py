@@ -14,6 +14,7 @@ ADD_PROPERTY_TEXT = "➕ Добавить объект"
 MY_PROPERTIES_TEXT = "👤 Мои объекты"
 GLOBAL_PROPERTIES_TEXT = "🌐 База объектов"
 RECENT_PROPERTIES_TEXT = "🕒 Последние добавленные"
+CALL_CAROUSEL_TEXT = "📞 Прозвон"
 BACK_TO_MAIN_MENU_TEXT = "Главное меню"
 
 PROPERTY_TYPE_OPTIONS: tuple[str, ...] = (
@@ -59,6 +60,7 @@ def get_properties_menu_keyboard() -> ReplyKeyboardMarkup:
         keyboard=[
             [KeyboardButton(text=ADD_PROPERTY_TEXT), KeyboardButton(text=ADD_PROPERTY_BY_LINK_TEXT)],
             [KeyboardButton(text=RECENT_PROPERTIES_TEXT)],
+            [KeyboardButton(text=CALL_CAROUSEL_TEXT)],
             [KeyboardButton(text=MY_PROPERTIES_TEXT), KeyboardButton(text=GLOBAL_PROPERTIES_TEXT)],
             [KeyboardButton(text=BACK_TO_MAIN_MENU_TEXT)],
         ],

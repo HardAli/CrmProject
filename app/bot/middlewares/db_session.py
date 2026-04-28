@@ -17,6 +17,7 @@ from app.repositories.properties import PropertyRepository
 from app.repositories.statistics import StatisticsRepository
 from app.repositories.role_pass_repository import RolePassRepository
 from app.repositories.user_repository import UserRepository
+from app.repositories.property_call_repository import PropertyCallRepository
 from app.services.auth_service import AuthService
 from app.services.role_pass_service import RolePassService
 from app.services.role_service import RoleService
@@ -34,6 +35,7 @@ from app.services.search import SearchService
 from app.services.database_export_service import DatabaseExportService
 from app.services.database_import_service import DatabaseImportService
 from app.services.statistics import StatisticsService
+from app.services.property_call_service import PropertyCallService
 from app.config.settings import get_settings
 
 
@@ -120,6 +122,8 @@ class DbSessionMiddleware(BaseMiddleware):
             )
             data["database_export_service"] = DatabaseExportService(session)
             data["database_import_service"] = DatabaseImportService(session)
+            data["property_call_repository"] = PropertyCallRepository(session)
+            data["property_call_service"] = PropertyCallService(data["property_call_repository"])
 
             try:
                 return await handler(event, data)

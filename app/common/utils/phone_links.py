@@ -30,7 +30,27 @@ def normalize_phone_digits(phone: str | None) -> str | None:
     digits = re.sub(r"\D", "", str(phone))
     if not digits:
         return None
+    if len(digits) == 11 and digits.startswith("8"):
+        digits = f"7{digits[1:]}"
     return digits
+
+
+def format_phone_for_display(phone: str | None) -> str:
+    digits = normalize_phone_digits(phone)
+    if digits is None:
+        return "—"
+    return f"+{digits}"
+
+
+def build_tel_url(phone: str | None) -> str | None:
+    display_phone = format_phone_for_display(phone)
+    if display_phone == "—":
+        return None
+    return f"tel:{display_phone}"
+
+
+def format_phone_for_copy_plain(phone: str | None) -> str:
+    return format_phone_for_display(phone)
 
 
 def build_whatsapp_url(phone: str | None) -> str | None:

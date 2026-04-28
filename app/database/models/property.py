@@ -3,7 +3,9 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, Enum, ForeignKey, Index, Numeric, SmallInteger, String, Text
+from datetime import datetime
+
+from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, Index, Numeric, SmallInteger, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.common.enums import PropertyStatus, PropertyType
@@ -13,6 +15,7 @@ if TYPE_CHECKING:
     from app.database.models.client import Client
     from app.database.models.client_property import ClientProperty
     from app.database.models.showing import Showing
+    from app.database.models.property_call_log import PropertyCallLog
     from app.database.models.user import User
 
 
@@ -61,6 +64,10 @@ class Property(Base, IdMixin, TimestampMixin):
         server_default=PropertyStatus.ACTIVE.value,
         index=True,
     )
+    last_call_status: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    last_call_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    next_call_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    call_attempts: Mapped[int] = mapped_column(nullable=False, server_default="0", default=0)
 
     manager_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="RESTRICT"),
@@ -77,3 +84,4 @@ class Property(Base, IdMixin, TimestampMixin):
         viewonly=True,
     )
     showings: Mapped[list[Showing]] = relationship(back_populates="property", cascade="all, delete-orphan")
+    call_logs: Mapped[list[PropertyCallLog]] = relationship(back_populates="property", cascade="all, delete-orphan")

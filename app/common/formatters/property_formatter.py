@@ -6,7 +6,7 @@ from html import escape
 
 from app.common.enums import PropertyStatus, PropertyType
 from app.common.utils.formatters import format_area, format_area_compact, format_decimal_plain
-from app.common.utils.phone_links import format_owner_phone
+from app.common.utils.phone_links import format_owner_phone, format_phone_for_display
 from app.database.models.property import Property
 
 PROPERTY_TYPE_LABELS: dict[PropertyType, str] = {
@@ -78,6 +78,79 @@ def format_price_mln(price: Decimal | None) -> str:
         return "—"
     mln_value = (price / Decimal("1000000")).quantize(Decimal("0.1"))
     return f"{format_decimal_plain(mln_value, max_fraction_digits=1)} млн"
+
+
+def format_price_compact(price: Decimal | None) -> str:
+    if price is None:
+        return "—"
+    millions = price / Decimal("1000000")
+    return format_decimal_plain(millions, max_fraction_digits=1)
+
+
+CALL_RESULT_LABELS: dict[str, str] = {
+    "AGREED": "Договорился",
+    "NO_ANSWER": "Недозвон",
+    "REJECTED": "Отказ",
+    "SOLD": "Продано",
+    "SKIPPED": "Пропуск",
+}
+
+
+def format_property_call_card(
+    property_obj: Property,
+    position: int | None = None,
+    total: int | None = None,
+    today_stats: dict[str, int] | None = None,
+) -> str:
+    today_stats = today_stats or {}
+    progress = ""
+    if position is not None and total is not None:
+        progress = f"{position}/{total}"
+    elif position is not None:
+        progress = str(position)
+
+    short_row = "|".join(
+        [
+            format_rooms_short(property_obj.rooms, property_obj.title),
+            format_area_compact(property_obj.area),
+            format_floor_short(property_obj.floor, property_obj.building_floors),
+            property_obj.district or "—",
+            format_price_compact(property_obj.price),
+        ]
+    )
+
+    building_row = "|".join(
+        [
+            property_obj.building_material or "—",
+            safe_html(property_obj.building_year),
+        ]
+    )
+
+    last_call_at = getattr(property_obj, "last_call_at", None)
+    last_call_status = getattr(property_obj, "last_call_status", None)
+    if last_call_at is None:
+        last_line = "Последний: —"
+    else:
+        status_label = CALL_RESULT_LABELS.get(str(last_call_status), str(last_call_status or "—"))
+        last_line = f"Последний: {last_call_at.strftime('%d.%m %H:%M')} — {status_label}"
+
+    next_call_at = getattr(property_obj, "next_call_at", None)
+    next_line = ""
+    if next_call_at is not None:
+        next_line = f"\nСледующий: {next_call_at.strftime('%d.%m %H:%M')}"
+
+    prefix = f"{progress} | " if progress else ""
+    return (
+        "📞 Прозвон объектов\n\n"
+        f"{prefix}Сегодня: ✅{today_stats.get('AGREED', 0)} 📵{today_stats.get('NO_ANSWER', 0)} ❌{today_stats.get('REJECTED', 0)}\n\n"
+        f"🏠 {safe_html(short_row)}\n"
+        f"🍳 Кухня: {safe_html(format_area_compact(property_obj.kitchen_area))}\n"
+        f"🏢 {safe_html(building_row)}\n"
+        f"📍 {safe_html(property_obj.address)}\n"
+        f"☎️ {safe_html(format_phone_for_display(property_obj.owner_phone))}\n\n"
+        f"Попыток: {safe_html(getattr(property_obj, 'call_attempts', 0) or 0)}\n"
+        f"{safe_html(last_line)}{safe_html(next_line)}"
+    )
 
 
 def _trim_middle(value: str, max_len: int) -> str:
