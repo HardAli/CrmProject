@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 
 from app.common.dto.properties import CreatePropertyDTO
 from app.common.enums import PropertyStatus
+from app.common.utils.value_parsers import parse_decimal_or_none, parse_int_or_none
 from app.database.models.property import Property
 from app.database.models.user import User
 from app.services.auto_link_service import AutoLinkService
@@ -113,15 +114,23 @@ class PropertyImportService:
             district=parsed_data.district or "Не указан",
             address=parsed_data.address or "Не указан",
             owner_phone=parsed_data.owner_phone or "+70000000000",
-            price=parsed_data.price or Decimal(0),
-            area=parsed_data.area or Decimal(0),
-            rooms=parsed_data.rooms,
-            floor=parsed_data.floor,
-            building_floors=parsed_data.building_floors,
+            price=parse_decimal_or_none(parsed_data.price) or Decimal(0),
+            area=parse_decimal_or_none(parsed_data.area) or Decimal(0),
+            rooms=parse_int_or_none(parsed_data.rooms),
+            floor=parse_int_or_none(parsed_data.floor),
+            building_floors=parse_int_or_none(parsed_data.building_floors),
             description=parsed_data.description,
             link=parsed_data.source_url,
             status=parsed_data.status or PropertyStatus.ACTIVE,
             manager_id=current_user.id,
+        )
+        logger.debug(
+            "Creating property from parsed data: rooms=%r floor=%r building_floors=%r area=%r price=%r",
+            dto.rooms,
+            dto.floor,
+            dto.building_floors,
+            dto.area,
+            dto.price,
         )
         property_obj, _ = await self._property_service.create_property(current_user=current_user, data=dto)
 

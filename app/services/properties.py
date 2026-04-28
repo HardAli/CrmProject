@@ -10,6 +10,7 @@ from app.database.models.client import Client
 from app.database.models.property import Property
 from app.database.models.user import User
 from app.common.utils.phone_links import normalize_owner_phone
+from app.common.utils.value_parsers import parse_decimal_or_none, parse_int_or_none
 from app.repositories.client_logs import ClientLogRepository
 from app.repositories.client_properties import ClientPropertyRepository
 from app.repositories.clients import ClientRepository
@@ -37,6 +38,11 @@ class PropertyService:
             raise PermissionError("Менеджер может создавать только свои объекты")
 
         data.owner_phone = normalize_owner_phone(data.owner_phone)
+        data.price = parse_decimal_or_none(data.price) or data.price
+        data.area = parse_decimal_or_none(data.area)
+        data.rooms = parse_int_or_none(data.rooms)
+        data.floor = parse_int_or_none(data.floor)
+        data.building_floors = parse_int_or_none(data.building_floors)
 
         if data.floor is not None and data.floor < 0:
             raise ValueError("Этаж должен быть числом больше или равным 0.")

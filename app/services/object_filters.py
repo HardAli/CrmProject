@@ -8,6 +8,7 @@ from typing import Any
 from sqlalchemy import Select, and_, case
 
 from app.common.enums import PropertyStatus
+from app.common.utils.value_parsers import parse_int_or_none
 from app.database.models.property import Property
 
 ObjectFilters = dict[str, Any]
@@ -95,7 +96,7 @@ def apply_object_filters(
         query = query.where(Property.property_type == filters["property_type"])
 
     if "rooms" in available_fields and filters.get("rooms"):
-        room_values = [str(value) for value in filters["rooms"]]
+        room_values = [value for value in (parse_int_or_none(raw) for raw in filters["rooms"]) if value is not None]
         query = query.where(Property.rooms.in_(room_values))
 
     if "price" in available_fields and filters.get("price_min") is not None:

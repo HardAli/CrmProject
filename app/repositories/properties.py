@@ -115,7 +115,7 @@ class PropertyRepository:
             status: PropertyStatus | None = None,
             price_min: Decimal | None = None,
             price_max: Decimal | None = None,
-            rooms: str | None = None,
+            rooms: int | None = None,
             manager_id: int | None = None,
             limit: int = 10,
     ) -> Sequence[Property]:
