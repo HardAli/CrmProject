@@ -24,3 +24,8 @@ class PropertyCreateStates(StatesGroup):
 
 class PropertyListStates(StatesGroup):
     search_query = State()
+
+
+class PropertyCallCarouselStates(StatesGroup):
+    waiting_for_note = State()
+    waiting_for_price = State()
