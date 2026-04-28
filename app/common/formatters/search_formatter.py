@@ -60,6 +60,8 @@ def format_client_search_applied_filters(filters: dict[str, object]) -> str:
 
 def format_property_search_applied_filters(filters: dict[str, object]) -> str:
     rows: list[str] = []
+    if filters.get("search_text"):
+        rows.append(f"• Запрос: {escape(str(filters['search_text']))}")
     if filters.get("title"):
         rows.append(f"• Название: {escape(str(filters['title']))}")
     if filters.get("district"):

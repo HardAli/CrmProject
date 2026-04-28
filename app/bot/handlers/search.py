@@ -115,7 +115,7 @@ async def choose_quick_property_search(message: Message, state: FSMContext) -> N
     await state.update_data(entity="properties")
     await state.set_state(SearchStates.property_quick_query)
     await message.answer(
-        "Введите запрос для объектов (название / район).",
+        "Введите запрос для объектов (район / адрес / телефон / цена / площадь / этаж / материал / id).",
         reply_markup=get_search_cancel_keyboard(),
     )
 
@@ -186,7 +186,7 @@ async def run_quick_property_search(
         await state.clear()
         return
 
-    filters = {"title": query, "district": query, "limit": SearchService.DEFAULT_LIMIT}
+    filters = {"search_text": query, "limit": SearchService.DEFAULT_LIMIT}
     try:
         properties = await search_service.search_properties(current_user=user, filters=filters)
     except ValueError as error:
@@ -195,7 +195,16 @@ async def run_quick_property_search(
 
     await state.clear()
     if not properties:
-        await message.answer("По вашему запросу объекты не найдены.", reply_markup=get_search_menu_keyboard())
+        await message.answer(
+            f"По запросу «{query}» ничего не найдено.\n\n"
+            "Попробуйте:\n"
+            "• часть района: Самал, Каратал\n"
+            "• часть телефона: 7775\n"
+            "• площадь: 58.6\n"
+            "• цена: 19.5\n"
+            "• этаж: 2/5",
+            reply_markup=get_search_menu_keyboard(),
+        )
         return
 
     applied = format_property_search_applied_filters(filters)

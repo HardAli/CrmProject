@@ -20,3 +20,7 @@ class PropertyCreateStates(StatesGroup):
     description = State()
     link = State()
     status = State()
+
+
+class PropertyListStates(StatesGroup):
+    search_query = State()
