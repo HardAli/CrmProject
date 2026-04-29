@@ -127,7 +127,6 @@ def normalize_parsed_data(raw_data: RawParsedPropertyData) -> ParsedPropertyData
         for item in (
             title or "",
             description or "",
-            str(raw_data.html_text or ""),
             characteristics_text,
         )
         if item
@@ -135,11 +134,7 @@ def normalize_parsed_data(raw_data: RawParsedPropertyData) -> ParsedPropertyData
     building_year = year_from_characteristics or extract_building_year(combined_text)
     if kitchen_area is None:
         kitchen_area = _extract_kitchen_area(combined_text)
-    building_material = (
-        material_from_characteristics
-        or extract_building_material(characteristics_text)
-        or extract_building_material(combined_text)
-    )
+    building_material = material_from_characteristics or extract_building_material(characteristics_text) or extract_building_material(combined_text)
 
     owner_phone = _normalize_text(str(regex_data.get("owner_phone", "")))
     owner_phone_normalized = None

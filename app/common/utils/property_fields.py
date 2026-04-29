@@ -4,15 +4,21 @@ import re
 from datetime import datetime, timezone
 
 
-def normalize_building_material(value: object) -> str | None:
-    if value is None:
+ALLOWED_BUILDING_MATERIALS = {"Кирпич", "Панель", "Монолит"}
+
+
+def normalize_building_material(raw_value: object) -> str | None:
+    if raw_value is None:
         return None
 
-    text = str(value).strip()
-    if not text:
+    text = str(raw_value).strip()
+    if not text or len(text) > 50:
         return None
 
     lowered = text.lower()
+    if "<" in text or ">" in text or "</" in lowered or "http" in lowered:
+        return None
+
     mapping = {
         "кирпич": "Кирпич",
         "кирпичный": "Кирпич",
@@ -24,19 +30,13 @@ def normalize_building_material(value: object) -> str | None:
         "монолит": "Монолит",
         "монолитный": "Монолит",
         "монолитная": "Монолит",
-        "пеноблок": "Пеноблок",
-        "газоблок": "Газоблок",
-        "саман": "Саман",
-        "саманный": "Саман",
-        "дерево": "Дерево",
-        "деревянный": "Дерево",
     }
 
     for key, normalized in mapping.items():
         if key in lowered:
             return normalized
 
-    return text
+    return text if text in ALLOWED_BUILDING_MATERIALS else None
 
 
 def parse_building_year_or_none(value: object) -> int | None:
@@ -79,4 +79,18 @@ def extract_building_year(text: str | None) -> int | None:
 def extract_building_material(text: str | None) -> str | None:
     if not text:
         return None
-    return normalize_building_material(text)
+
+    source = str(text)
+    patterns = [
+        r"(?:материал\s*стен|тип\s*дома|тип\s*строения)\D{0,20}(кирпич(?:ный|ная)?|панел(?:ь|ьный|ьная|ька)?|монолит(?:ный|ная)?)",
+        r"\b(кирпич(?:ный|ная)?|панел(?:ь|ьный|ьная|ька)?|монолит(?:ный|ная)?)\b",
+    ]
+
+    for pattern in patterns:
+        matches = re.findall(pattern, source, flags=re.IGNORECASE)
+        for match in matches:
+            normalized = normalize_building_material(match)
+            if normalized is not None:
+                return normalized
+
+    return None

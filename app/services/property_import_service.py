@@ -24,6 +24,13 @@ from app.common.formatters.property_import_preview_formatter import format_prope
 logger = logging.getLogger(__name__)
 
 
+def _sanitize_building_material(value: str | None) -> str | None:
+    normalized = normalize_building_material(value)
+    if normalized is None:
+        return None
+    return normalized
+
+
 class InvalidListingUrlError(ValueError):
     pass
 
@@ -104,7 +111,7 @@ class PropertyImportService:
             floor=parse_int_or_none(parsed_data.floor),
             building_floors=parse_int_or_none(parsed_data.building_floors),
             building_year=parse_building_year_or_none(parsed_data.building_year),
-            building_material=normalize_building_material(parsed_data.building_material),
+            building_material=_sanitize_building_material(parsed_data.building_material),
             description=parsed_data.description,
             link=parsed_data.source_url,
             status=parsed_data.status or PropertyStatus.ACTIVE,
