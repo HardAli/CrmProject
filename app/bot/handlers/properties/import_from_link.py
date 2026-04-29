@@ -27,6 +27,7 @@ from app.bot.keyboards.properties_import import (
     get_property_import_url_keyboard,
 )
 from app.bot.states.property_import_states import PropertyImportStates
+from app.bot.utils.message_sender import safe_answer
 from app.common.enums import PropertyStatus, PropertyType
 from app.common.formatters.property_formatter import format_property_created_card
 from app.common.formatters.property_import_formatter import format_import_success
@@ -83,7 +84,8 @@ async def parse_url(
     payload = property_import_service.to_state_payload(parsed)
     await state.update_data(import_payload=payload)
     await state.set_state(PropertyImportStates.preview)
-    await message.answer(
+    await safe_answer(
+        message,
         preview,
         reply_markup=get_property_import_preview_keyboard(has_missing_fields=not parsed.is_complete_for_create),
         parse_mode=None,
