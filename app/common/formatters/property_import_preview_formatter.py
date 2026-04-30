@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from app.common.formatters.property_address_formatter import format_property_address_for_display
 from app.common.utils.formatters import format_area
 from app.common.utils.telegram_text import truncate_text
 from app.schemas.parsed_property import ParsedPropertyData
@@ -36,7 +37,7 @@ def format_property_import_preview(parsed_data: ParsedPropertyData) -> str:
         f"Название: {line_value(parsed_data.title)}",
         f"Тип: {line_value(parsed_data.property_type.value if parsed_data.property_type else None)}",
         f"Район: {line_value(parsed_data.district)}",
-        f"Адрес: {line_value(parsed_data.address)}",
+        f"Адрес: {line_value(format_property_address_for_display(parsed_data.district, parsed_data.address))}",
         f"Цена: {line_value(parsed_data.price)}",
         f"Площадь: {line_value(format_area(parsed_data.area))}",
         f"Комнаты: {line_value(parsed_data.rooms)}",

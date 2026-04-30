@@ -5,6 +5,7 @@ from decimal import Decimal
 from html import escape
 
 from app.common.enums import PropertyStatus, PropertyType
+from app.common.formatters.property_address_formatter import format_property_address_for_display
 from app.common.utils.formatters import format_area, format_area_compact, format_decimal_plain
 from app.common.utils.phone_links import format_owner_phone, format_phone_for_display
 from app.database.models.property import Property
@@ -148,7 +149,7 @@ def format_property_call_card(
         f"🏠 {safe_html(short_row)}\n"
         f"🍳 Кухня: {safe_html(format_area_compact(property_obj.kitchen_area))}\n"
         f"🏢 {safe_html(building_row)}\n"
-        f"📍 {safe_html(property_obj.address)}\n"
+        f"📍 {safe_html(format_property_address_for_display(property_obj.district, property_obj.address))}\n"
         f"☎️ {safe_html(phone_text)}\n\n"
         f"Попыток: {safe_html(getattr(property_obj, 'call_attempts', 0) or 0)}\n"
         f"{safe_html(last_line)}{safe_html(next_line)}"
@@ -170,7 +171,7 @@ def format_object_compact(prop: Property, with_status: bool = True, max_length: 
         format_area_short(prop.area),
         format_floor_short(prop.floor, prop.building_floors),
     ]
-    address = prop.address or prop.title or "—"
+    address = format_property_address_for_display(prop.district, prop.address) if prop.address else (prop.title or "—")
     district = prop.district or "—"
     suffix_parts = [format_price_mln(prop.price)]
     if with_status and prop.status != PropertyStatus.ACTIVE:
@@ -233,7 +234,7 @@ def format_property_card(property_obj: Property, manager_name: str, updated: boo
         f"<b>Название:</b> {safe_html(property_obj.title)}\n"
         f"<b>Тип недвижимости:</b> {property_type}\n"
         f"<b>Район:</b> {safe_html(property_obj.district)}\n"
-        f"<b>Адрес:</b> {safe_html(property_obj.address)}\n"
+        f"<b>Адрес:</b> {safe_html(format_property_address_for_display(property_obj.district, property_obj.address))}\n"
         f"<b>Номер владельца:</b> {format_owner_phone(property_obj.owner_phone)}\n"
         f"<b>Цена:</b> {safe_html(_format_money(property_obj.price))}\n"
         f"<b>Площадь:</b> {safe_html(format_area(property_obj.area))}\n"
@@ -271,7 +272,7 @@ def format_duplicate_property_card(property_obj: Property, matched_fields: list[
         f"⚠️ Похоже, такой объект уже есть в базе.\n\n"
         f"ID: {property_obj.id}\n"
         f"Район: {property_obj.district or '—'}\n"
-        f"Адрес: {property_obj.address or '—'}\n"
+        f"Адрес: {format_property_address_for_display(property_obj.district, property_obj.address)}\n"
         f"Телефон: {format_owner_phone(property_obj.owner_phone)}\n"
         f"Цена: {_format_money(property_obj.price)}\n"
         f"Комнаты: {property_obj.rooms or '—'}\n"
