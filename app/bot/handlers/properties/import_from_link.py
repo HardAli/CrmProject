@@ -4,6 +4,8 @@ from decimal import Decimal
 
 from aiogram import F, Router
 from aiogram.filters import StateFilter
+from urllib.parse import urlparse
+import re
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -44,6 +46,55 @@ from app.services.property_import_service import InvalidListingUrlError, Propert
 router = Router(name="property_import")
 
 
+_KRISHA_URL_RE = re.compile(r"https?://(?:www\.)?krisha\.kz/a/show/[^\s]+", re.IGNORECASE)
+
+
+def _extract_krisha_listing_url(text: str) -> str | None:
+    match = _KRISHA_URL_RE.search(text.strip())
+    if not match:
+        return None
+    candidate = match.group(0).rstrip(').,!?]')
+    parsed = urlparse(candidate)
+    host = (parsed.netloc or '').lower()
+    if host not in {'krisha.kz', 'www.krisha.kz'}:
+        return None
+    if not parsed.path.startswith('/a/show/'):
+        return None
+    return candidate
+
+
+async def _run_import_from_url(
+    message: Message,
+    state: FSMContext,
+    property_import_service: PropertyImportService,
+    raw_text: str,
+    *,
+    announce_detected: bool = False,
+) -> None:
+    url_text = _extract_krisha_listing_url(raw_text) or raw_text
+    try:
+        url = property_import_service.validate_url(url_text)
+    except InvalidListingUrlError as error:
+        await message.answer(str(error), parse_mode=None)
+        return
+
+    if announce_detected:
+        await message.answer('Обнаружена ссылка Krisha. Запускаю импорт объекта...')
+
+    raw_data = await property_import_service.parse_listing(url)
+    parsed = property_import_service.normalize_parsed_data(raw_data)
+    preview = property_import_service.build_preview(parsed)
+    payload = property_import_service.to_state_payload(parsed)
+    await state.update_data(import_payload=payload)
+    await state.set_state(PropertyImportStates.preview)
+    await safe_answer(
+        message,
+        preview,
+        reply_markup=get_property_import_preview_keyboard(has_missing_fields=not parsed.is_complete_for_create),
+        parse_mode=None,
+    )
+
+
 async def _get_user(message: Message, auth_service: AuthService):
     if message.from_user is None:
         return None
@@ -75,24 +126,26 @@ async def parse_url(
     state: FSMContext,
     property_import_service: PropertyImportService,
 ) -> None:
-    try:
-        url = property_import_service.validate_url(message.text or "")
-    except InvalidListingUrlError as error:
-        await message.answer(str(error), parse_mode=None)
+    await _run_import_from_url(message, state, property_import_service, message.text or "")
+
+
+@router.message(StateFilter(None), F.text.regexp(_KRISHA_URL_RE.pattern))
+async def parse_krisha_url_from_anywhere(
+    message: Message,
+    state: FSMContext,
+    property_import_service: PropertyImportService,
+    auth_service: AuthService,
+) -> None:
+    user = await _get_user(message, auth_service)
+    if user is None:
         return
 
-    raw_data = await property_import_service.parse_listing(url)
-    parsed = property_import_service.normalize_parsed_data(raw_data)
-    preview = property_import_service.build_preview(parsed)
-    payload = property_import_service.to_state_payload(parsed)
-    await state.update_data(import_payload=payload)
-    await state.set_state(PropertyImportStates.preview)
-    await safe_answer(
-        message,
-        preview,
-        reply_markup=get_property_import_preview_keyboard(has_missing_fields=not parsed.is_complete_for_create),
-        parse_mode=None,
-    )
+    text = (message.text or "").strip()
+    if _extract_krisha_listing_url(text) is None:
+        return
+
+    await state.clear()
+    await _run_import_from_url(message, state, property_import_service, text, announce_detected=True)
 
 
 def _read_payload(state_data: dict[str, object]) -> dict[str, object]:
