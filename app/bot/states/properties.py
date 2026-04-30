@@ -30,3 +30,8 @@ class PropertyListStates(StatesGroup):
 class PropertyCallCarouselStates(StatesGroup):
     waiting_for_note = State()
     waiting_for_price = State()
+
+
+class PropertyEditStates(StatesGroup):
+    choosing_field = State()
+    waiting_for_value = State()

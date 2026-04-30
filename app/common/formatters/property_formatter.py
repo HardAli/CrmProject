@@ -21,6 +21,7 @@ PROPERTY_STATUS_LABELS: dict[PropertyStatus, str] = {
     PropertyStatus.RESERVED: "Забронирован",
     PropertyStatus.SOLD: "Продан",
     PropertyStatus.ARCHIVED: "Архив",
+    PropertyStatus.EXTERNAL_AGENCY: "Чуж.агенство",
 }
 
 

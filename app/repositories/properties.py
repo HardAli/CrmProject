@@ -82,6 +82,13 @@ class PropertyRepository:
         await self._session.delete(property_obj)
         await self._session.flush()
 
+    async def update_fields(self, property_obj: Property, data: dict[str, object]) -> Property:
+        for field_name, value in data.items():
+            setattr(property_obj, field_name, value)
+        await self._session.flush()
+        await self._session.refresh(property_obj)
+        return property_obj
+
     async def get_by_manager(self, manager_id: int, limit: int = 10, offset: int = 0) -> Sequence[Property]:
         stmt = self._base_list_query().where(Property.manager_id == manager_id).limit(limit).offset(offset)
         result = await self._session.execute(stmt)
