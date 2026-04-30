@@ -39,29 +39,62 @@ def parse_money(raw_value: str) -> Decimal:
     return value
 
 
-def parse_next_contact_at(raw_value: str) -> datetime:
+
+
+DATE_INPUT_FORMAT_HINT = """- 03 05
+- 03 05 16:00
+- 03 05 2026
+- 03 05 2026 16:00"""
+
+
+def get_today_display_date(now: datetime | None = None) -> str:
+    current = now or datetime.now(tz=timezone.utc)
+    return current.strftime("%d %m %Y")
+
+
+def build_date_prompt(label: str, now: datetime | None = None) -> str:
+    today = get_today_display_date(now)
+    return (
+        f"Сегодня: {today}\n"
+        f"Введите {label}.\n"
+        "Можно в формате:\n"
+        f"{DATE_INPUT_FORMAT_HINT}"
+    )
+
+
+def build_date_error_message(error_text: str, label: str, now: datetime | None = None) -> str:
+    return f"{error_text}\n\n{build_date_prompt(label=label, now=now)}"
+
+def parse_next_contact_at(raw_value: str, *, now: datetime | None = None) -> datetime:
     value = raw_value.strip()
     if not value:
         raise ValueError("Дата не должна быть пустой.")
 
+    current = now or datetime.now(tz=timezone.utc)
+    default_year = current.year
+
     formats = (
-        "%d %m %Y",
         "%d %m %Y %H:%M",
-        "%d.%m.%Y",
+        "%d %m %Y",
         "%d.%m.%Y %H:%M",
-        "%Y-%m-%d",
+        "%d.%m.%Y",
         "%Y-%m-%d %H:%M",
+        "%Y-%m-%d",
+        "%d %m %H:%M",
+        "%d %m",
+        "%d.%m %H:%M",
+        "%d.%m",
     )
     for dt_format in formats:
         try:
             parsed = datetime.strptime(value, dt_format)
-            if parsed.tzinfo is None:
-                parsed = parsed.replace(tzinfo=timezone.utc)
-            return parsed
+            if "%Y" not in dt_format:
+                parsed = parsed.replace(year=default_year)
+            return parsed.replace(tzinfo=timezone.utc)
         except ValueError:
             continue
 
-    raise ValueError("Неверный формат даты. Пример: 03 08 2026 или 25.04.2026 14:30")
+    raise ValueError("Неверный формат даты.")
 
 
 def parse_int_in_range(raw_value: str, *, field_name: str, minimum: int, maximum: int) -> int:
