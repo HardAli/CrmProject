@@ -103,8 +103,9 @@ class PropertyService:
         return await self._property_repository.get_recent(limit=limit)
 
     async def get_recent_properties(self, current_user: User, limit: int = 10) -> Sequence[Property]:
-        manager_id = current_user.id if current_user.role == UserRole.MANAGER else None
-        return await self._property_repository.get_recent(limit=limit, manager_id=manager_id)
+        if current_user.role not in {UserRole.ADMIN, UserRole.MANAGER, UserRole.SUPERVISOR}:
+            return []
+        return await self._property_repository.get_recent_by_manager(manager_id=current_user.id, limit=limit)
 
     async def get_global_properties(self, current_user: User, limit: int = 10) -> Sequence[Property]:
         if current_user.role not in {UserRole.ADMIN, UserRole.MANAGER, UserRole.SUPERVISOR}:
