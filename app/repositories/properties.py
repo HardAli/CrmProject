@@ -107,6 +107,15 @@ class PropertyRepository:
         result = await self._session.execute(stmt)
         return result.scalars().all()
 
+    async def get_recent_by_manager(self, *, manager_id: int, limit: int = 10) -> Sequence[Property]:
+        stmt = (
+            self._base_list_query()
+            .where(Property.manager_id == manager_id)
+            .limit(limit)
+        )
+        result = await self._session.execute(stmt)
+        return result.scalars().all()
+
     async def get_recent_global(self, limit: int = 10) -> Sequence[Property]:
         return await self.get_all(limit=limit, offset=0)
 
