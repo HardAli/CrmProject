@@ -20,6 +20,7 @@ class PropertyCreateStates(StatesGroup):
     description = State()
     link = State()
     status = State()
+    duplicate_confirm = State()
 
 
 class PropertyListStates(StatesGroup):

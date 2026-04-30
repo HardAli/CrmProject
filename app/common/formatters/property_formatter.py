@@ -253,3 +253,31 @@ def format_property_card(property_obj: Property, manager_name: str, updated: boo
 def format_property_created_card(property_obj: Property, manager_name: str) -> str:
     return "✅ <b>Объект успешно создан</b>\n\n" + format_property_card(property_obj=property_obj,
                                                                        manager_name=manager_name)
+
+
+def format_duplicate_property_card(property_obj: Property, matched_fields: list[str], matched_count: int) -> str:
+    labels = {
+        "owner_phone_normalized": "телефон",
+        "floor": "этаж",
+        "building_floors": "этажность",
+        "building_year": "год",
+        "price": "цена",
+        "rooms": "комнаты",
+        "area": "площадь",
+    }
+    matched_lines = "\n".join(f"- {labels.get(field, field)}" for field in matched_fields) or "- —"
+    return (
+        f"⚠️ Похоже, такой объект уже есть в базе.\n\n"
+        f"ID: {property_obj.id}\n"
+        f"Район: {property_obj.district or '—'}\n"
+        f"Адрес: {property_obj.address or '—'}\n"
+        f"Телефон: {format_owner_phone(property_obj.owner_phone)}\n"
+        f"Цена: {_format_money(property_obj.price)}\n"
+        f"Комнаты: {property_obj.rooms or '—'}\n"
+        f"Площадь: {format_area(property_obj.area)}\n"
+        f"Этаж/Этажность: {property_obj.floor or '—'}/{property_obj.building_floors or '—'}\n"
+        f"Год: {property_obj.building_year or '—'}\n\n"
+        f"Совпадение: {matched_count} из 7\n"
+        f"Совпали:\n{matched_lines}\n\n"
+        f"Вы точно хотите добавить новый объект?"
+    )

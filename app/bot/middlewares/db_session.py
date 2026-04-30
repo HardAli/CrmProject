@@ -25,6 +25,7 @@ from app.services.clients import ClientService
 from app.services.client_properties import ClientPropertyService
 from app.services.client_photo_service import ClientPhotoService
 from app.services.auto_link_service import AutoLinkService
+from app.services.property_duplicate_service import PropertyDuplicateService
 from app.services.tasks import TaskService
 from app.services.properties import PropertyService
 from app.services.property_import_service import PropertyImportService
@@ -88,15 +89,24 @@ class DbSessionMiddleware(BaseMiddleware):
             data["task_repository"] = task_repository
             data["task_service"] = TaskService(task_repository, client_repository, client_log_repository)
             data["property_repository"] = property_repository
+            auto_link_service = AutoLinkService(
+                client_repository=client_repository,
+                client_property_repository=client_property_repository,
+                client_log_repository=client_log_repository,
+            )
+            duplicate_service = PropertyDuplicateService(property_repository=property_repository)
             data["property_service"] = PropertyService(
                 property_repository=property_repository,
                 client_repository=client_repository,
                 client_property_repository=client_property_repository,
                 client_log_repository=client_log_repository,
+                auto_link_service=auto_link_service,
+                duplicate_service=duplicate_service,
             )
             auto_link_service = AutoLinkService(
                 client_repository=client_repository,
                 client_property_repository=client_property_repository,
+                client_log_repository=client_log_repository,
             )
             photo_service = PropertyPhotoService()
             data["property_import_service"] = PropertyImportService(

@@ -67,6 +67,7 @@ class ClientActionType(StrEnum):
     NEXT_CONTACT_CHANGED = "next_contact_changed"
     PROPERTY_LINKED = "property_linked"
     PROPERTY_RELATION_STATUS_CHANGED = "property_relation_status_changed"
+    AUTO_LINKED_BY_PHONE = "auto_linked_by_phone"
 
 
 class ClientPropertyRelationStatus(StrEnum):
