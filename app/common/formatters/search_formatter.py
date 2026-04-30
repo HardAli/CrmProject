@@ -4,6 +4,7 @@ from decimal import Decimal
 from html import escape
 
 from app.common.formatters.client_formatter import REQUEST_TYPE_LABELS, STATUS_LABELS
+from app.common.formatters.property_address_formatter import format_property_address_for_display
 from app.common.formatters.property_formatter import PROPERTY_STATUS_LABELS
 from app.common.utils.phone_links import format_phone_for_copy
 from app.database.models.client import Client
@@ -33,9 +34,10 @@ def format_property_search_results(properties: list[Property], limit: int) -> st
     rows = ["<b>Результаты поиска объектов</b>", ""]
     for index, property_obj in enumerate(properties, start=1):
         status = PROPERTY_STATUS_LABELS.get(property_obj.status, property_obj.status.value)
+        address = format_property_address_for_display(property_obj.district, property_obj.address)
         rows.append(
             f"{index}. <b>{escape(property_obj.title)}</b> · {escape(property_obj.district or '—')} · "
-            f"{escape(_format_money(property_obj.price))} · {escape(status)}"
+            f"{escape(address)} · {escape(_format_money(property_obj.price))} · {escape(status)}"
         )
 
     rows.extend(["", f"Найдено: {len(properties)} (лимит: {limit})."])
