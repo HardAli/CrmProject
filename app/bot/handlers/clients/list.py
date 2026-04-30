@@ -601,6 +601,6 @@ async def show_recent_clients(message: Message, auth_service: AuthService, clien
 
     clients = list(await client_service.get_recent_clients(current_user=user, limit=10))
     if not clients:
-        await message.answer("Клиенты не найдены.")
+        await message.answer("У вас пока нет клиентов.")
         return
     await message.answer(format_clients_list(clients=clients, title="Последние добавленные", limit=10))
