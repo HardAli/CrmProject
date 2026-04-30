@@ -5,8 +5,10 @@ Revises: 20260428_0011_property_call_fields
 Create Date: 2026-04-30
 """
 
-from alembic import op
+from __future__ import annotations
+
 import sqlalchemy as sa
+from alembic import op
 
 
 revision = "20260430_0012"
@@ -26,15 +28,17 @@ def upgrade() -> None:
     if "needs_recall" not in columns:
         op.add_column(
             "properties",
-            sa.Column("needs_recall", sa.Boolean(), nullable=False, server_default=sa.false()),
+            sa.Column("needs_recall", sa.Boolean(), nullable=False, server_default=sa.text("false")),
         )
+        op.alter_column("properties", "needs_recall", server_default=None)
 
     indexes = {idx["name"] for idx in inspector.get_indexes("properties")}
-    if "ix_properties_needs_recall" not in indexes:
-        op.create_index("ix_properties_needs_recall", "properties", ["needs_recall"], unique=False)
+    needs_recall_idx = op.f("ix_properties_needs_recall")
+    if needs_recall_idx not in indexes:
+        op.create_index(needs_recall_idx, "properties", ["needs_recall"], unique=False)
 
 
 def downgrade() -> None:
-    op.drop_index("ix_properties_needs_recall", table_name="properties")
+    op.drop_index(op.f("ix_properties_needs_recall"), table_name="properties")
     op.drop_column("properties", "needs_recall")
     op.drop_column("properties", "refused_manager_names")
