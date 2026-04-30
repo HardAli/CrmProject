@@ -47,6 +47,9 @@ class ClientStatus(StrEnum):
 class PropertyStatus(StrEnum):
     ACTIVE = "active"
     RESERVED = "reserved"
+    AGREED = "agreed"
+    NOT_REACHED = "not_reached"
+    REFUSED_TO_WORK = "refused_to_work"
     SOLD = "sold"
     ARCHIVED = "archived"
     EXTERNAL_AGENCY = "external_agency"

@@ -73,7 +73,8 @@ class PropertyCallRepository:
     def _build_mode_stmt(self, *, current_user: User, mode: str, exclude_ids: Sequence[int] | None, count_only: bool):
         now = datetime.now(timezone.utc)
         base_conditions = [
-            Property.status == PropertyStatus.ACTIVE,
+            Property.status != PropertyStatus.SOLD,
+            Property.status != PropertyStatus.ARCHIVED,
             Property.owner_phone.is_not(None),
             Property.owner_phone != "",
         ]
@@ -87,7 +88,7 @@ class PropertyCallRepository:
         if mode == "retry":
             base_conditions.extend(
                 [
-                    Property.last_call_status == "NO_ANSWER",
+                    (Property.needs_recall.is_(True) | (Property.last_call_status == "NO_ANSWER")),
                     (Property.next_call_at.is_(None) | (Property.next_call_at <= now)),
                 ]
             )
