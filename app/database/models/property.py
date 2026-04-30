@@ -69,7 +69,7 @@ class Property(Base, IdMixin, TimestampMixin):
     next_call_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     call_attempts: Mapped[int] = mapped_column(nullable=False, server_default="0", default=0)
     refused_manager_names: Mapped[str | None] = mapped_column(Text, nullable=True)
-    needs_recall: Mapped[bool] = mapped_column(nullable=False, server_default="0", default=False, index=True)
+    needs_recall: Mapped[bool] = mapped_column(nullable=False, server_default="false", default=False, index=True)
 
     manager_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="RESTRICT"),
