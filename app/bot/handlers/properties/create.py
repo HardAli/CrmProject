@@ -31,11 +31,13 @@ from app.bot.keyboards.properties import (
     get_property_title_keyboard,
     get_property_type_keyboard,
     kitchen_area_reply_keyboard,
+    get_duplicate_confirm_keyboard,
 )
 from app.bot.states.properties import PropertyCreateStates
 from app.common.dto.properties import CreatePropertyDTO
 from app.common.enums import PropertyStatus, PropertyType
 from app.common.formatters.property_formatter import format_property_created_card
+from app.common.formatters.property_formatter import format_duplicate_property_card
 from app.common.utils.money import format_price_short, parse_money_to_tenge
 from app.common.utils.phone_links import normalize_owner_phone
 from app.common.utils.property_fields import normalize_building_material, parse_building_year_or_none
@@ -474,7 +476,7 @@ async def process_status(
     )
 
     try:
-        create_result = await property_service.create_property(current_user=user, data=dto)
+        duplicate_result = await property_service.find_duplicate_before_create(dto)
     except PermissionError as error:
         await message.answer(str(error), reply_markup=get_properties_menu_keyboard())
         await state.clear()
@@ -482,6 +484,25 @@ async def process_status(
     except ValueError as error:
         await message.answer(str(error))
         return
+
+    if duplicate_result.duplicate_found and duplicate_result.matched_property is not None:
+        await state.update_data(
+            pending_property_create_data=data,
+            pending_property_status=status.value,
+            duplicate_property_id=duplicate_result.matched_property.id,
+        )
+        await state.set_state(PropertyCreateStates.duplicate_confirm)
+        await message.answer(
+            format_duplicate_property_card(
+                duplicate_result.matched_property,
+                duplicate_result.matched_fields,
+                duplicate_result.matched_fields_count,
+            ),
+            reply_markup=get_duplicate_confirm_keyboard(),
+        )
+        return
+
+    create_result = await property_service.create_property(current_user=user, data=dto)
 
     if isinstance(create_result, tuple):
         property_obj, linked_clients_count = create_result
@@ -502,6 +523,56 @@ async def process_status(
             f"🔗 Найдено {linked_clients_count} клиентов по совпадающему номеру. "
             "Связи созданы автоматически.",
         )
+
+
+@router.message(PropertyCreateStates.duplicate_confirm, F.text == "Да, добавить")
+async def confirm_duplicate_create(message: Message, state: FSMContext, auth_service: AuthService, property_service: PropertyService, session: AsyncSession) -> None:
+    user = await _get_current_user(message, auth_service)
+    if user is None:
+        return
+    state_data = await state.get_data()
+    data = state_data.get("pending_property_create_data") or {}
+    status_raw = state_data.get("pending_property_status")
+    dto = CreatePropertyDTO(
+        title=data["title"], property_type=PropertyType(data["property_type"]), district=data["district"], address=data["address"],
+        owner_phone=data["owner_phone"], price=parse_decimal_or_none(data.get("price")) or Decimal(0), area=parse_decimal_or_none(data.get("area")) or Decimal(0),
+        kitchen_area=parse_decimal_or_none(data.get("kitchen_area")), rooms=parse_int_or_none(data.get("rooms")), floor=parse_int_or_none(data.get("floor")),
+        building_floors=parse_int_or_none(data.get("building_floors")), building_year=parse_int_or_none(data.get("building_year")),
+        building_material=normalize_building_material(data.get("building_material")), description=data.get("description"), link=data.get("link"),
+        status=PropertyStatus(str(status_raw)), manager_id=user.id,
+    )
+    property_obj, linked_clients_count = await property_service.create_property(current_user=user, data=dto)
+    await session.commit()
+    await state.clear()
+    manager_name = property_obj.manager.full_name if property_obj.manager else user.full_name
+    await message.answer(format_property_created_card(property_obj=property_obj, manager_name=manager_name), reply_markup=get_properties_menu_keyboard())
+    if linked_clients_count > 0:
+        await message.answer(f"🔗 Найдено {linked_clients_count} клиентов по совпадающему номеру. Связи созданы автоматически.")
+
+
+@router.message(PropertyCreateStates.duplicate_confirm, F.text == "Нет, отмена")
+async def cancel_duplicate_create(message: Message, state: FSMContext) -> None:
+    await state.clear()
+    await message.answer("Добавление объекта отменено.", reply_markup=get_properties_menu_keyboard())
+
+
+@router.message(PropertyCreateStates.duplicate_confirm, F.text == "Открыть найденный объект")
+async def open_duplicate_property(message: Message, state: FSMContext, property_service: PropertyService, auth_service: AuthService) -> None:
+    user = await _get_current_user(message, auth_service)
+    if user is None:
+        return
+    data = await state.get_data()
+    property_id = data.get("duplicate_property_id")
+    if not property_id:
+        await message.answer("Объект совпадения не найден.")
+        return
+    property_obj = await property_service.get_property_for_view(user, int(property_id))
+    if property_obj is None:
+        await message.answer("Нет доступа к найденному объекту.")
+        return
+    manager_name = property_obj.manager.full_name if property_obj.manager else "—"
+    from app.common.formatters.property_formatter import format_property_card
+    await message.answer(format_property_card(property_obj, manager_name))
 
 
 @router.message(StateFilter(PropertyCreateStates))

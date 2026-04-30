@@ -7,3 +7,4 @@ class PropertyImportStates(StatesGroup):
     waiting_for_url = State()
     preview = State()
     fill_missing = State()
+    duplicate_confirm = State()

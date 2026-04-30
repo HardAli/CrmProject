@@ -18,6 +18,7 @@ from app.bot.keyboards.properties import (
     get_property_rooms_keyboard,
     get_property_status_keyboard,
     get_property_type_keyboard,
+    get_duplicate_confirm_keyboard,
 )
 from app.bot.keyboards.properties_import import (
     ADD_PROPERTY_BY_LINK_TEXT,
@@ -30,6 +31,8 @@ from app.bot.states.property_import_states import PropertyImportStates
 from app.bot.utils.message_sender import safe_answer
 from app.common.enums import PropertyStatus, PropertyType
 from app.common.formatters.property_formatter import format_property_created_card
+from app.common.formatters.property_formatter import format_duplicate_property_card
+from app.common.dto.properties import CreatePropertyDTO
 from app.common.formatters.property_import_formatter import format_import_success
 from app.common.utils.money import parse_money_to_tenge
 from app.common.utils.phone_links import normalize_owner_phone
@@ -108,6 +111,7 @@ def _compute_missing(payload: dict[str, object]) -> list[str]:
 async def _ask_next_missing(message: Message, state: FSMContext) -> bool:
     data = await state.get_data()
     payload = _read_payload(data)
+    force_create = bool(data.get("force_create_after_duplicate"))
     missing = _compute_missing(payload)
     if not missing:
         await state.set_state(PropertyImportStates.preview)
@@ -227,10 +231,20 @@ async def save_import(
         parse_warnings=payload.get("parse_warnings", []),
     )
 
-    property_obj, linked_clients_count, photo_count = await property_import_service.create_property_from_parsed_data(
-        current_user=user,
-        parsed_data=parsed,
+    dto = CreatePropertyDTO(
+        title=parsed.title or "Без названия", property_type=parsed.property_type, district=parsed.district or "Не указан",
+        address=parsed.address or "Не указан", owner_phone=parsed.owner_phone or "+70000000000", price=parsed.price or Decimal(0),
+        area=parsed.area or Decimal(0), kitchen_area=parsed.kitchen_area, rooms=parsed.rooms, floor=parsed.floor, building_floors=parsed.building_floors,
+        building_year=parsed.building_year, building_material=parsed.building_material, description=parsed.description, link=parsed.source_url,
+        status=parsed.status or PropertyStatus.ACTIVE, manager_id=user.id,
     )
+    duplicate = await property_import_service._property_service.find_duplicate_before_create(dto)
+    if (not force_create) and duplicate.duplicate_found and duplicate.matched_property is not None:
+        await state.update_data(import_duplicate_payload=payload, duplicate_property_id=duplicate.matched_property.id)
+        await state.set_state(PropertyImportStates.duplicate_confirm)
+        await message.answer(format_duplicate_property_card(duplicate.matched_property, duplicate.matched_fields, duplicate.matched_fields_count), reply_markup=get_duplicate_confirm_keyboard())
+        return
+    property_obj, linked_clients_count, photo_count = await property_import_service.create_property_from_parsed_data(current_user=user, parsed_data=parsed)
     await session.commit()
     await state.clear()
 
@@ -238,3 +252,28 @@ async def save_import(
     await message.answer(format_import_success(property_id=property_obj.id, linked_clients_count=linked_clients_count, photo_count=photo_count))
     await message.answer(format_property_created_card(property_obj=property_obj, manager_name=manager_name),
                          reply_markup=get_properties_menu_keyboard())
+
+
+@router.message(PropertyImportStates.duplicate_confirm, F.text == "Да, добавить")
+async def confirm_import_duplicate(message: Message, state: FSMContext, auth_service: AuthService, property_import_service: PropertyImportService, session: AsyncSession) -> None:
+    user = await _get_user(message, auth_service)
+    if user is None:
+        return
+    payload = (await state.get_data()).get("import_duplicate_payload") or {}
+    await state.update_data(import_payload=payload, force_create_after_duplicate=True)
+    await state.set_state(PropertyImportStates.preview)
+    await save_import(message, state, auth_service, property_import_service, session)
+
+@router.message(PropertyImportStates.duplicate_confirm, F.text == "Нет, отмена")
+async def cancel_import_duplicate(message: Message, state: FSMContext) -> None:
+    await state.clear()
+    await message.answer("Добавление объекта отменено.", reply_markup=get_properties_menu_keyboard())
+
+
+@router.message(PropertyImportStates.duplicate_confirm, F.text == "Открыть найденный объект")
+async def open_import_duplicate(message: Message, state: FSMContext, auth_service: AuthService) -> None:
+    user = await _get_user(message, auth_service)
+    if user is None:
+        return
+    from app.services.properties import PropertyService
+    await message.answer("Откройте карточку объекта из базы объектов по ID из предупреждения.")

@@ -17,6 +17,8 @@ from app.repositories.client_logs import ClientLogRepository
 from app.repositories.client_properties import ClientPropertyRepository
 from app.repositories.clients import ClientRepository
 from app.repositories.properties import PropertyRepository
+from app.services.auto_link_service import AutoLinkService
+from app.services.property_duplicate_service import DuplicateCheckResult, PropertyDuplicateService
 
 logger = logging.getLogger(__name__)
 
@@ -43,11 +45,18 @@ class PropertyService:
             client_repository: ClientRepository,
             client_property_repository: ClientPropertyRepository,
             client_log_repository: ClientLogRepository,
+            auto_link_service: AutoLinkService,
+            duplicate_service: PropertyDuplicateService,
     ) -> None:
         self._property_repository = property_repository
         self._client_repository = client_repository
         self._client_property_repository = client_property_repository
         self._client_log_repository = client_log_repository
+        self._auto_link_service = auto_link_service
+        self._duplicate_service = duplicate_service
+
+    async def find_duplicate_before_create(self, data: CreatePropertyDTO) -> DuplicateCheckResult:
+        return await self._duplicate_service.find_best_duplicate(data)
 
     async def create_property(self, current_user: User, data: CreatePropertyDTO) -> tuple[Property, int]:
         if current_user.role == UserRole.SUPERVISOR:
@@ -85,7 +94,7 @@ class PropertyService:
             raise ValueError("Год постройки должен быть в диапазоне 1900 до следующего года.")
 
         property_obj = await self._property_repository.create(data)
-        linked_clients_count = 0
+        linked_clients_count = await self._auto_link_service.auto_link_property_by_phone(current_user=current_user, property_obj=property_obj)
         return property_obj, linked_clients_count
 
     async def get_my_properties(self, current_user: User, limit: int = 10) -> Sequence[Property]:

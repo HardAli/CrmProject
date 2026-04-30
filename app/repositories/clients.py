@@ -216,6 +216,16 @@ class ClientRepository:
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def get_all_by_phone_normalized(self, phone_normalized: str) -> Sequence[Client]:
+        candidates = {phone_normalized}
+        if phone_normalized.startswith("+"):
+            candidates.add(phone_normalized.replace("+", "8", 1))
+        if phone_normalized.startswith("8"):
+            candidates.add(phone_normalized.replace("8", "+", 1))
+        stmt = self._base_list_query().where(Client.phone.in_(candidates)).limit(200)
+        result = await self._session.execute(stmt)
+        return result.scalars().all()
+
     async def get_filtered(
         self,
         *,

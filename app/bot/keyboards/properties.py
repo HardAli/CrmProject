@@ -325,3 +325,14 @@ def get_property_delete_confirm_keyboard(*, property_id: int) -> InlineKeyboardM
             [InlineKeyboardButton(text="↩️ Отмена", callback_data=f"property_view:{property_id}")],
         ]
     )
+
+
+def get_duplicate_confirm_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="Да, добавить")],
+            [KeyboardButton(text="Нет, отмена")],
+            [KeyboardButton(text="Открыть найденный объект")],
+        ],
+        resize_keyboard=True,
+    )

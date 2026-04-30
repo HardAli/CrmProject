@@ -73,6 +73,11 @@ class PropertyRepository:
         result = await self._session.execute(stmt)
         return result.scalars().all()
 
+    async def list_for_duplicate_check(self, limit: int = 300) -> Sequence[Property]:
+        stmt = select(Property).options(joinedload(Property.manager)).order_by(Property.created_at.desc()).limit(limit)
+        result = await self._session.execute(stmt)
+        return result.scalars().all()
+
     async def delete(self, property_obj: Property) -> None:
         await self._session.delete(property_obj)
         await self._session.flush()
