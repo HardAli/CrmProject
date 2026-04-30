@@ -69,7 +69,7 @@ async def _get_current_user(message: Message, auth_service: AuthService):
 
 async def _show_properties(message: Message, properties: list, title: str, limit: int) -> None:
     if not properties:
-        await message.answer("Объекты не найдены.")
+        await message.answer("У вас пока нет объектов.")
         return
 
     await message.answer(
