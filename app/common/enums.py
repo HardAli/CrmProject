@@ -49,6 +49,7 @@ class PropertyStatus(StrEnum):
     RESERVED = "reserved"
     SOLD = "sold"
     ARCHIVED = "archived"
+    EXTERNAL_AGENCY = "external_agency"
 
 
 class TaskStatus(StrEnum):

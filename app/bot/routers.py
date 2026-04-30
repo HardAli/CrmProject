@@ -15,6 +15,7 @@ from app.bot.handlers.properties.create import router as property_create_router
 from app.bot.handlers.properties.import_from_link import router as property_import_router
 from app.bot.handlers.properties.list import router as property_list_router
 from app.bot.handlers.properties.card import router as property_card_router
+from app.bot.handlers.properties.edit import router as property_edit_router
 from app.bot.handlers.properties.call_carousel import router as property_call_carousel_router
 from app.bot.handlers.search import router as search_router
 from app.bot.handlers.start import router as start_router
@@ -38,6 +39,7 @@ COMMON_ROUTERS: tuple[Router, ...] = (
     property_create_router,
     property_import_router,
     property_card_router,
+    property_edit_router,
     property_call_carousel_router,
     search_router,
     stats_router,

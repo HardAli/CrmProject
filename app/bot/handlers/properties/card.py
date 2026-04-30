@@ -45,6 +45,7 @@ async def open_property_card(
 
     can_convert = property_service.can_convert_property(current_user=user, property_obj=property_obj)
     can_delete = property_service.can_delete_property(current_user=user, property_obj=property_obj)
+    can_edit = property_service.can_edit_property(current_user=user, property_obj=property_obj)
     manager_name = property_obj.manager.full_name if property_obj.manager else "—"
     await callback.message.answer(
         format_property_card(property_obj=property_obj, manager_name=manager_name),
@@ -52,6 +53,7 @@ async def open_property_card(
             property_obj=property_obj,
             can_convert=can_convert,
             can_delete=can_delete,
+            can_edit=can_edit,
         ),
     )
     await callback.answer()

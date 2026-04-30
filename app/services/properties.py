@@ -268,3 +268,76 @@ class PropertyService:
 
         await self._client_property_repository.delete_by_property_id(property_obj.id)
         await self._property_repository.delete(property_obj)
+
+    async def get_property_for_edit(self, current_user: User, property_id: int) -> Property | None:
+        property_obj = await self._property_repository.get_by_id(property_id)
+        if property_obj is None:
+            return None
+        return property_obj if self.can_edit_property(current_user=current_user, property_obj=property_obj) else None
+
+    @staticmethod
+    def can_edit_property(*, current_user: User, property_obj: Property) -> bool:
+        if current_user.role == UserRole.ADMIN:
+            return True
+        if current_user.role == UserRole.MANAGER:
+            return property_obj.manager_id == current_user.id
+        return False
+
+    async def update_property_field(self, *, current_user: User, property_id: int, field_name: str, raw_value: str) -> Property:
+        property_obj = await self._property_repository.get_by_id(property_id)
+        if property_obj is None:
+            raise ValueError("Объект не найден")
+        if not self.can_edit_property(current_user=current_user, property_obj=property_obj):
+            raise PermissionError("Недостаточно прав для редактирования")
+        value = self.validate_property_field(field_name=field_name, value=raw_value, property_obj=property_obj)
+        updates = {field_name: value}
+        if field_name == "property_type" and value != PropertyType.APARTMENT:
+            updates.update({"floor": None, "building_floors": None, "building_year": None, "building_material": None})
+        updated = await self._property_repository.update_fields(property_obj, updates)
+        if field_name == "owner_phone":
+            await self._auto_link_service.auto_link_property_by_phone(current_user=current_user, property_obj=updated)
+        return updated
+
+    def validate_property_field(self, *, field_name: str, value: str, property_obj: Property):
+        from urllib.parse import urlparse
+        text=(value or "").strip()
+        if field_name in {"title","district","address","description"}:
+            if not text:
+                raise ValueError("Значение не может быть пустым")
+            return text
+        if field_name == "owner_phone":
+            return normalize_owner_phone(text)
+        if field_name == "price":
+            parsed=parse_decimal_or_none(text)
+            if parsed is None or parsed < 0: raise ValueError("Цена должна быть числом")
+            return parsed
+        if field_name in {"area","kitchen_area"}:
+            parsed=parse_decimal_or_none(text)
+            if parsed is None or parsed <= 0: raise ValueError("Площадь должна быть больше 0")
+            return parsed
+        if field_name in {"rooms","floor","building_floors","building_year"}:
+            parsed=parse_int_or_none(text)
+            if parsed is None: raise ValueError("Введите целое число")
+            if field_name == "rooms" and parsed not in {1,2,3,4,5}: raise ValueError("Комнаты: 1-5")
+            if field_name == "building_year" and not is_valid_building_year(parsed): raise ValueError("Некорректный год")
+            if field_name == "floor" and property_obj.building_floors is not None and parsed > property_obj.building_floors: raise ValueError("Этаж не может быть выше этажности")
+            if field_name == "building_floors" and property_obj.floor is not None and property_obj.floor > parsed: raise ValueError("Этажность не может быть меньше этажа")
+            return parsed
+        if field_name == "building_material":
+            normalized=normalize_building_material(text)
+            if normalized is None: raise ValueError("Допустимо: Кирпич, Панель, Монолит")
+            return normalized
+        if field_name == "link":
+            if not text: return None
+            parsed=urlparse(text)
+            if parsed.scheme not in {"http","https"} or not parsed.netloc: raise ValueError("Некорректный URL")
+            return text
+        if field_name == "property_type":
+            mapping={"Квартира":PropertyType.APARTMENT,"Дом":PropertyType.HOUSE,"Коммерческая":PropertyType.COMMERCIAL,"Участок":PropertyType.LAND}
+            if text not in mapping: raise ValueError("Недопустимый тип")
+            return mapping[text]
+        if field_name == "status":
+            mapping={"Активен":PropertyStatus.ACTIVE,"Продан":PropertyStatus.SOLD,"Сдан":PropertyStatus.RESERVED,"Архив":PropertyStatus.ARCHIVED,"Чуж.агенство":PropertyStatus.EXTERNAL_AGENCY}
+            if text not in mapping: raise ValueError("Недопустимый статус")
+            return mapping[text]
+        raise ValueError("Это поле нельзя редактировать")

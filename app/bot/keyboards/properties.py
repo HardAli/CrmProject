@@ -32,6 +32,7 @@ STATUS_OPTIONS: tuple[str, ...] = (
     "Продан",
     "Сдан",
     "Архив",
+    "Чуж.агенство",
 )
 
 PROPERTY_TYPE_MAP: dict[str, PropertyType] = {
@@ -297,6 +298,7 @@ def get_property_actions_inline_keyboard_with_access(
         property_obj: Property,
         can_convert: bool,
         can_delete: bool,
+        can_edit: bool = False,
 ) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
     whatsapp_url = build_whatsapp_url(property_obj.owner_phone)
@@ -311,6 +313,8 @@ def get_property_actions_inline_keyboard_with_access(
                 )
             ]
         )
+    if can_edit:
+        rows.append([InlineKeyboardButton(text="✏️ Изменить", callback_data=f"property_edit:{property_obj.id}")])
     if can_delete:
         rows.append(
             [InlineKeyboardButton(text="🗑 Удалить", callback_data=f"property_delete_confirm:{property_obj.id}")]
@@ -336,3 +340,47 @@ def get_duplicate_confirm_keyboard() -> ReplyKeyboardMarkup:
         ],
         resize_keyboard=True,
     )
+
+PROPERTY_EDIT_CALLBACK_PREFIX = "prop_edit"
+
+
+def get_property_edit_menu_keyboard(*, property_id: int, is_apartment: bool) -> InlineKeyboardMarkup:
+    rows = [
+        [InlineKeyboardButton(text="Название", callback_data=f"{PROPERTY_EDIT_CALLBACK_PREFIX}:field:{property_id}:title"), InlineKeyboardButton(text="Тип", callback_data=f"{PROPERTY_EDIT_CALLBACK_PREFIX}:field:{property_id}:property_type")],
+        [InlineKeyboardButton(text="Район", callback_data=f"{PROPERTY_EDIT_CALLBACK_PREFIX}:field:{property_id}:district"), InlineKeyboardButton(text="Адрес", callback_data=f"{PROPERTY_EDIT_CALLBACK_PREFIX}:field:{property_id}:address")],
+        [InlineKeyboardButton(text="Номер", callback_data=f"{PROPERTY_EDIT_CALLBACK_PREFIX}:field:{property_id}:owner_phone"), InlineKeyboardButton(text="Цена", callback_data=f"{PROPERTY_EDIT_CALLBACK_PREFIX}:field:{property_id}:price")],
+        [InlineKeyboardButton(text="Площадь", callback_data=f"{PROPERTY_EDIT_CALLBACK_PREFIX}:field:{property_id}:area"), InlineKeyboardButton(text="Кухня", callback_data=f"{PROPERTY_EDIT_CALLBACK_PREFIX}:field:{property_id}:kitchen_area")],
+        [InlineKeyboardButton(text="Комнаты", callback_data=f"{PROPERTY_EDIT_CALLBACK_PREFIX}:field:{property_id}:rooms"), InlineKeyboardButton(text="Описание", callback_data=f"{PROPERTY_EDIT_CALLBACK_PREFIX}:field:{property_id}:description")],
+        [InlineKeyboardButton(text="Ссылка", callback_data=f"{PROPERTY_EDIT_CALLBACK_PREFIX}:field:{property_id}:link"), InlineKeyboardButton(text="Статус", callback_data=f"{PROPERTY_EDIT_CALLBACK_PREFIX}:field:{property_id}:status")],
+    ]
+    if is_apartment:
+        rows.extend([
+            [InlineKeyboardButton(text="Этаж", callback_data=f"{PROPERTY_EDIT_CALLBACK_PREFIX}:field:{property_id}:floor"), InlineKeyboardButton(text="Этажность", callback_data=f"{PROPERTY_EDIT_CALLBACK_PREFIX}:field:{property_id}:building_floors")],
+            [InlineKeyboardButton(text="Год", callback_data=f"{PROPERTY_EDIT_CALLBACK_PREFIX}:field:{property_id}:building_year"), InlineKeyboardButton(text="Материал", callback_data=f"{PROPERTY_EDIT_CALLBACK_PREFIX}:field:{property_id}:building_material")],
+        ])
+    rows.append([InlineKeyboardButton(text="👁 Открыть карточку", callback_data=f"property_view:{property_id}")])
+    rows.append([InlineKeyboardButton(text="⬅️ Назад", callback_data=f"property_view:{property_id}")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def get_property_edit_choice_keyboard(*, property_id: int, field_name: str) -> InlineKeyboardMarkup:
+    options_map = {
+        "property_type": [("Квартира","Квартира"),("Дом","Дом"),("Коммерческая","Коммерческая"),("Участок","Участок")],
+        "district": [(v,v) for v in DISTRICT_OPTIONS_FOR_PROPERTY],
+        "rooms": [(v,v) for v in ROOMS_OPTIONS_FOR_PROPERTY],
+        "building_material": [("Кирпич","Кирпич"),("Панель","Панель"),("Монолит","Монолит")],
+        "status": [("Активен","Активен"),("Продан","Продан"),("Сдан","Сдан"),("Архив","Архив"),("Чуж.агенство","Чуж.агенство")],
+    }
+    vals = options_map.get(field_name, [])
+    rows=[]
+    for i in range(0,len(vals),2):
+        part=vals[i:i+2]
+        rows.append([InlineKeyboardButton(text=t, callback_data=f"{PROPERTY_EDIT_CALLBACK_PREFIX}:value:{property_id}:{field_name}:{v}") for t,v in part])
+    if field_name in {"floor","building_floors"}:
+        nums=[str(x) for x in range(1,17)]
+        for i in range(0,len(nums),4):
+            part=nums[i:i+4]
+            rows.append([InlineKeyboardButton(text=n, callback_data=f"{PROPERTY_EDIT_CALLBACK_PREFIX}:value:{property_id}:{field_name}:{n}") for n in part])
+    rows.append([InlineKeyboardButton(text="✍️ Ввести вручную", callback_data=f"{PROPERTY_EDIT_CALLBACK_PREFIX}:manual:{property_id}:{field_name}")])
+    rows.append([InlineKeyboardButton(text="⬅️ Назад", callback_data=f"{PROPERTY_EDIT_CALLBACK_PREFIX}:menu:{property_id}")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
