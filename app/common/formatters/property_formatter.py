@@ -20,6 +20,9 @@ PROPERTY_TYPE_LABELS: dict[PropertyType, str] = {
 PROPERTY_STATUS_LABELS: dict[PropertyStatus, str] = {
     PropertyStatus.ACTIVE: "Активен",
     PropertyStatus.RESERVED: "Забронирован",
+    PropertyStatus.AGREED: "Договорились",
+    PropertyStatus.NOT_REACHED: "Не дозвонился",
+    PropertyStatus.REFUSED_TO_WORK: "Отказ. работать",
     PropertyStatus.SOLD: "Продан",
     PropertyStatus.ARCHIVED: "Архив",
     PropertyStatus.EXTERNAL_AGENCY: "Чуж.агенство",
@@ -165,7 +168,7 @@ def _trim_middle(value: str, max_len: int) -> str:
 
 
 def format_object_compact(prop: Property, with_status: bool = True, max_length: int | None = None) -> str:
-    status = PROPERTY_STATUS_LABELS.get(prop.status, prop.status.value)
+    status = format_property_status(prop)
     prefix_parts = [
         format_rooms_short(prop.rooms, prop.title),
         format_area_short(prop.area),
@@ -220,7 +223,7 @@ def format_property_card(property_obj: Property, manager_name: str, updated: boo
         header = f"✅ <b>Карточка объекта обновлена</b>\n\n{header}"
 
     property_type = safe_html(PROPERTY_TYPE_LABELS.get(property_obj.property_type, property_obj.property_type.value))
-    status = safe_html(PROPERTY_STATUS_LABELS.get(property_obj.status, property_obj.status.value))
+    status = safe_html(format_property_status(property_obj))
     floor_row = f"<b>Этаж:</b> {safe_html(property_obj.floor)}\n"
     if property_obj.property_type == PropertyType.APARTMENT:
         floor_row = (
@@ -250,6 +253,14 @@ def format_property_card(property_obj: Property, manager_name: str, updated: boo
         f"<b>Дата создания:</b> {safe_html(_format_datetime(property_obj.created_at))}\n"
         f"<b>Дата обновления:</b> {safe_html(_format_datetime(property_obj.updated_at))}"
     )
+
+
+def format_property_status(property_obj: Property) -> str:
+    if property_obj.status == PropertyStatus.REFUSED_TO_WORK:
+        refused_names = (getattr(property_obj, "refused_manager_names", None) or "").strip()
+        if refused_names:
+            return f"Отказ. работать с {refused_names}"
+    return PROPERTY_STATUS_LABELS.get(property_obj.status, property_obj.status.value)
 
 
 def format_property_created_card(property_obj: Property, manager_name: str) -> str:

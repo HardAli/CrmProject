@@ -133,7 +133,12 @@ class DbSessionMiddleware(BaseMiddleware):
             data["database_export_service"] = DatabaseExportService(session)
             data["database_import_service"] = DatabaseImportService(session)
             data["property_call_repository"] = PropertyCallRepository(session)
-            data["property_call_service"] = PropertyCallService(data["property_call_repository"])
+            data["property_call_service"] = PropertyCallService(
+                data["property_call_repository"],
+                client_repository,
+                client_property_repository,
+                client_log_repository,
+            )
             data["call_service"] = data["property_call_service"]
 
             try:

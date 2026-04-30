@@ -254,12 +254,7 @@ async def save_no_answer(callback: CallbackQuery, auth_service: AuthService, cal
     if user is None:
         return
     next_call_at = call_service.calc_no_answer_next_call(option)
-    await call_service.save_call_result(
-        property_id=int(raw_property_id),
-        current_user=user,
-        result="NO_ANSWER",
-        next_call_at=next_call_at,
-    )
+    await call_service.apply_not_reached(property_id=int(raw_property_id), current_user=user, next_call_at=next_call_at)
     await session.commit()
     await _show_next_property(callback, state=state, auth_service=auth_service, property_service=property_service, call_service=call_service)
 
@@ -270,23 +265,20 @@ async def save_rejected(callback: CallbackQuery, auth_service: AuthService, call
     user = await _get_user(callback, auth_service)
     if user is None:
         return
-    reason_map = {
-        "no_cooperation": "NO_COOPERATION",
-        "not_actual": "NOT_ACTUAL",
-        "wrong_number": "WRONG_NUMBER",
-        "other": "OTHER",
-        "skip": None,
-    }
-    mapped_reason = reason_map.get(reason)
-    comment = "Не тот номер" if mapped_reason == "WRONG_NUMBER" else None
-    await call_service.save_call_result(
-        property_id=int(raw_property_id),
-        current_user=user,
-        result="REJECTED",
-        reason=mapped_reason,
-        comment=comment,
-        next_call_at=None,
-    )
+    if reason in {"no_cooperation", "skip"}:
+        await call_service.apply_refused(property_id=int(raw_property_id), current_user=user)
+    else:
+        reason_map = {"not_actual": "NOT_ACTUAL", "wrong_number": "WRONG_NUMBER", "other": "OTHER"}
+        mapped_reason = reason_map.get(reason)
+        comment = "Не тот номер" if mapped_reason == "WRONG_NUMBER" else None
+        await call_service.save_call_result(
+            property_id=int(raw_property_id),
+            current_user=user,
+            result="REJECTED",
+            reason=mapped_reason,
+            comment=comment,
+            next_call_at=None,
+        )
     await session.commit()
     await _show_next_property(callback, state=state, auth_service=auth_service, property_service=property_service, call_service=call_service)
 
@@ -308,7 +300,7 @@ async def save_agreed(callback: CallbackQuery, auth_service: AuthService, call_s
     user = await _get_user(callback, auth_service)
     if user is None:
         return
-    await call_service.save_call_result(property_id=property_id, current_user=user, result="AGREED")
+    await call_service.apply_agreed(property_id=property_id, current_user=user)
     await session.commit()
     await _show_next_property(callback, state=state, auth_service=auth_service, property_service=property_service, call_service=call_service)
 
