@@ -13,7 +13,7 @@ PROPERTIES_MENU_TEXT = "🏠 Объекты"
 ADD_PROPERTY_TEXT = "➕ Добавить объект"
 MY_PROPERTIES_TEXT = "👤 Мои объекты"
 GLOBAL_PROPERTIES_TEXT = "🌐 База объектов"
-RECENT_PROPERTIES_TEXT = "🕒 Последние добавленные объекты"
+RECENT_PROPERTIES_TEXT = "🕒 Посл. доб. объекты"
 CALL_CAROUSEL_TEXT = "📞 Прозвон"
 BACK_TO_MAIN_MENU_TEXT = "Главное меню"
 
