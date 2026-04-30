@@ -100,6 +100,10 @@ def _read_payload(state_data: dict[str, object]) -> dict[str, object]:
     return payload if isinstance(payload, dict) else {}
 
 
+def _read_force_create(state_data: dict[str, object]) -> bool:
+    return bool(state_data.get("force_create_after_duplicate", False))
+
+
 def _compute_missing(payload: dict[str, object]) -> list[str]:
     required = ["title", "property_type", "district", "address", "owner_phone", "price", "area", "rooms", "floor", "status"]
     missing = [field for field in required if payload.get(field) in (None, "")]
@@ -111,7 +115,6 @@ def _compute_missing(payload: dict[str, object]) -> list[str]:
 async def _ask_next_missing(message: Message, state: FSMContext) -> bool:
     data = await state.get_data()
     payload = _read_payload(data)
-    force_create = bool(data.get("force_create_after_duplicate"))
     missing = _compute_missing(payload)
     if not missing:
         await state.set_state(PropertyImportStates.preview)
@@ -200,6 +203,7 @@ async def save_import(
 
     data = await state.get_data()
     payload = _read_payload(data)
+    force_create = _read_force_create(data)
     missing = _compute_missing(payload)
     if missing:
         await message.answer("Есть незаполненные обязательные поля. Нажмите «Заполнить недостающие поля».", reply_markup=get_property_import_preview_keyboard(has_missing_fields=True))
@@ -240,7 +244,11 @@ async def save_import(
     )
     duplicate = await property_import_service._property_service.find_duplicate_before_create(dto)
     if (not force_create) and duplicate.duplicate_found and duplicate.matched_property is not None:
-        await state.update_data(import_duplicate_payload=payload, duplicate_property_id=duplicate.matched_property.id)
+        await state.update_data(
+            import_duplicate_payload=payload,
+            duplicate_property_id=duplicate.matched_property.id,
+            force_create_after_duplicate=False,
+        )
         await state.set_state(PropertyImportStates.duplicate_confirm)
         await message.answer(format_duplicate_property_card(duplicate.matched_property, duplicate.matched_fields, duplicate.matched_fields_count), reply_markup=get_duplicate_confirm_keyboard())
         return
