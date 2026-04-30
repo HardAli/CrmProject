@@ -45,6 +45,8 @@ from app.common.formatters.property_formatter import PROPERTY_TYPE_LABELS
 from app.common.utils.formatters import format_area_compact
 from app.common.utils.money import parse_money_range_to_tenge, parse_money_to_tenge
 from app.common.utils.parsers import (
+    build_date_error_message,
+    build_date_prompt,
     normalize_phone,
     parse_int_in_range,
     parse_next_contact_at,
@@ -592,8 +594,7 @@ async def process_note(message: Message, state: FSMContext) -> None:
 
     await state.set_state(ClientCreateStates.next_contact_at)
     await message.answer(
-        "Введите дату следующего контакта: кнопкой (Сегодня/Завтра/Послезавтра) "
-        "или вручную в формате ДД ММ ГГГГ (например, 03 08 2026).",
+        build_date_prompt(label="дату следующего контакта") + "\nТакже можно кнопками: Сегодня / Завтра / Послезавтра.",
         reply_markup=get_next_contact_keyboard(),
     )
 
@@ -619,7 +620,10 @@ async def process_next_contact_at(
                 next_contact_at = parse_next_contact_at(value)
             except ValueError as error:
                 await message.answer(
-                    f"{error}\nПопробуйте снова: «Сегодня», «Завтра», «Послезавтра» или дату в формате 03 08 2026.",
+                    build_date_error_message(
+                        error_text=str(error),
+                        label="дату следующего контакта",
+                    ) + "\nТакже можно кнопками: Сегодня / Завтра / Послезавтра.",
                     reply_markup=get_next_contact_keyboard(),
                 )
                 return

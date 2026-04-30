@@ -11,7 +11,7 @@ from app.bot.states.clients import ClientCardStates
 from app.bot.states.tasks import NextContactStates
 from app.common.enums import ClientStatus
 from app.common.formatters.client_formatter import format_client_card
-from app.common.utils.parsers import parse_next_contact_at
+from app.common.utils.parsers import build_date_error_message, build_date_prompt, parse_next_contact_at
 from app.services.auth_service import AuthService
 from app.services.clients import ClientService
 
@@ -237,7 +237,7 @@ async def start_next_contact_change(
     await state.set_state(NextContactStates.value)
     await state.update_data(client_id=client.id)
     await callback.message.answer(
-        "Введите новую дату контакта: ДД.ММ.ГГГГ или ДД.ММ.ГГГГ ЧЧ:ММ",
+        build_date_prompt(label="новую дату контакта"),
         reply_markup=get_cancel_keyboard(),
     )
     await callback.answer()
@@ -267,8 +267,8 @@ async def save_next_contact(
     value = (message.text or "").strip()
     try:
         next_contact_at = parse_next_contact_at(value)
-    except ValueError:
-        await message.answer("Неверный формат даты. Пример: 25.04.2026 14:30")
+    except ValueError as error:
+        await message.answer(build_date_error_message(error_text=str(error), label="новую дату контакта"))
         return
 
     state_data = await state.get_data()

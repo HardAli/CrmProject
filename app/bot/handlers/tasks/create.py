@@ -11,7 +11,7 @@ from app.bot.keyboards.tasks import get_task_cancel_keyboard
 from app.bot.states.tasks import TaskCreateStates
 from app.common.formatters.client_formatter import format_client_card
 from app.common.formatters.task_formatter import format_task_card
-from app.common.utils.parsers import parse_next_contact_at
+from app.common.utils.parsers import build_date_error_message, build_date_prompt, parse_next_contact_at
 from app.services.auth_service import AuthService
 from app.services.clients import ClientService
 from app.services.tasks import TaskService
@@ -84,7 +84,7 @@ async def process_description(message: Message, state: FSMContext) -> None:
 
     await state.update_data(description=None if description == "-" else description)
     await state.set_state(TaskCreateStates.due_at)
-    await message.answer("Введите срок задачи: ДД.ММ.ГГГГ ЧЧ:ММ")
+    await message.answer(build_date_prompt(label="дату задачи"))
 
 
 @router.message(TaskCreateStates.due_at)
@@ -99,8 +99,8 @@ async def process_due_at(
     due_raw = (message.text or "").strip()
     try:
         due_at = parse_next_contact_at(due_raw)
-    except ValueError:
-        await message.answer("Неверный формат даты. Пример: 25.04.2026 14:30")
+    except ValueError as error:
+        await message.answer(build_date_error_message(error_text=str(error), label="дату задачи"))
         return
 
     user = await auth_service.get_active_user_by_telegram_id(message.from_user.id)
