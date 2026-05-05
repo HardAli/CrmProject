@@ -21,6 +21,8 @@ def upgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
 
+    existing_columns = {column["name"] for column in inspector.get_columns("clients")}
+
     existing_indexes = {index["name"] for index in inspector.get_indexes("clients")}
     for index_name in (op.f("ix_clients_budget_range"), "ix_clients_budget_range"):
         if index_name in existing_indexes:
@@ -41,7 +43,8 @@ def upgrade() -> None:
         if check_name in existing_checks:
             op.drop_constraint(check_name, "clients", type_="check")
 
-    op.add_column("clients", sa.Column("budget", sa.Numeric(precision=12, scale=2), nullable=True))
+    if "budget" not in existing_columns:
+        op.add_column("clients", sa.Column("budget", sa.Numeric(precision=12, scale=2), nullable=True))
     op.execute(
         """
         UPDATE clients
@@ -51,11 +54,21 @@ def upgrade() -> None:
     )
 
     op.alter_column("clients", "rooms", existing_type=sa.SmallInteger(), type_=sa.String(length=32), existing_nullable=True)
-    op.create_check_constraint(op.f("ck_clients_budget_non_negative"), "clients", "budget IS NULL OR budget >= 0")
-    op.create_index(op.f("ix_clients_budget"), "clients", ["budget"], unique=False)
 
-    op.drop_column("clients", "budget_min")
-    op.drop_column("clients", "budget_max")
+    existing_checks = {constraint["name"] for constraint in inspector.get_check_constraints("clients")}
+    budget_check_name = op.f("ck_clients_budget_non_negative")
+    if budget_check_name not in existing_checks and "ck_clients_budget_non_negative" not in existing_checks:
+        op.create_check_constraint(budget_check_name, "clients", "budget IS NULL OR budget >= 0")
+
+    existing_indexes = {index["name"] for index in inspector.get_indexes("clients")}
+    budget_index_name = op.f("ix_clients_budget")
+    if budget_index_name not in existing_indexes and "ix_clients_budget" not in existing_indexes:
+        op.create_index(budget_index_name, "clients", ["budget"], unique=False)
+
+    if "budget_min" in existing_columns:
+        op.drop_column("clients", "budget_min")
+    if "budget_max" in existing_columns:
+        op.drop_column("clients", "budget_max")
 
 
 def downgrade() -> None:
