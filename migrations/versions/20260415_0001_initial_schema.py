@@ -54,6 +54,11 @@ showing_result_enum = sa.Enum(
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    if "users" in inspector.get_table_names():
+        return
+
     op.create_table(
         "users",
         sa.Column("telegram_id", sa.BigInteger(), nullable=False),
@@ -211,6 +216,11 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    if "users" not in inspector.get_table_names():
+        return
+
     op.drop_index(op.f("ix_tasks_status"), table_name="tasks")
     op.drop_index(op.f("ix_tasks_due_at"), table_name="tasks")
     op.drop_index(op.f("ix_tasks_client_id"), table_name="tasks")
