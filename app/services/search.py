@@ -128,7 +128,7 @@ class SearchService:
     def _clean_text(value: Any) -> str | None:
         if value is None:
             return None
-        cleaned = str(value).strip()
+        cleaned = " ".join(str(value).strip().split())
         return cleaned or None
 
     @staticmethod

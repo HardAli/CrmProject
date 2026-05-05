@@ -25,6 +25,7 @@ from app.bot.keyboards.search import (
 from app.bot.states.search_states import SearchStates
 from app.common.enums import ClientStatus, PropertyStatus, PropertyType, RequestType
 from app.common.utils.money import parse_money_range_to_tenge
+from app.common.utils.property_search import is_query_too_short, normalize_search_text
 from app.common.formatters.search_formatter import (
     format_client_search_applied_filters,
     format_client_search_results,
@@ -141,9 +142,13 @@ async def run_quick_client_search(
     auth_service: AuthService,
     search_service: SearchService,
 ) -> None:
-    query = (message.text or "").strip()
+    query = normalize_search_text(message.text)
     if not query:
         await message.answer("Введите непустой запрос.")
+        return
+
+    if is_query_too_short(query):
+        await message.answer("Введите более точный запрос (минимум 3 буквы или 4 цифры телефона).")
         return
 
     user = await _get_current_user(message, auth_service)
@@ -176,9 +181,13 @@ async def run_quick_property_search(
     auth_service: AuthService,
     search_service: SearchService,
 ) -> None:
-    query = (message.text or "").strip()
+    query = normalize_search_text(message.text)
     if not query:
         await message.answer("Введите непустой запрос.")
+        return
+
+    if is_query_too_short(query):
+        await message.answer("Введите более точный запрос (минимум 3 буквы или 4 цифры телефона).")
         return
 
     user = await _get_current_user(message, auth_service)

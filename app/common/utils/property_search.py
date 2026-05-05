@@ -11,6 +11,30 @@ from app.common.utils.money import parse_money_to_tenge
 from app.database.models.property import Property
 
 
+
+
+def normalize_search_text(value: object) -> str:
+    if value is None:
+        return ""
+    cleaned = str(value).strip()
+    if not cleaned:
+        return ""
+    return " ".join(cleaned.split())
+
+
+def is_query_too_short(query_text: str) -> bool:
+    normalized = normalize_search_text(query_text)
+    if not normalized:
+        return True
+
+    digit_count = len(only_digits(normalized))
+    if digit_count >= 4:
+        return False
+
+    # for text queries require at least 3 visible characters
+    meaningful_len = len(normalized.replace(" ", ""))
+    return meaningful_len < 3
+
 def only_digits(value: object) -> str:
     if value is None:
         return ""
@@ -116,7 +140,7 @@ def _extract_id_from_search(text: str) -> int | None:
 
 
 def build_property_search_conditions(*, search_text: str, available_fields: set[str]) -> list[Any]:
-    query_text = search_text.strip()
+    query_text = normalize_search_text(search_text)
     if not query_text:
         return []
 

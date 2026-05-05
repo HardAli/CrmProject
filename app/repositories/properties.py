@@ -4,13 +4,13 @@ from collections.abc import Sequence
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import Select, func, or_, select
+from sqlalchemy import Select, case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from app.common.dto.properties import CreatePropertyDTO
 from app.common.enums import PropertyStatus, PropertyType, UserRole
-from app.common.utils.property_search import build_property_search_conditions
+from app.common.utils.property_search import build_property_search_conditions, is_query_too_short, normalize_search_text, only_digits
 from app.database.models.property import Property
 from app.database.models.user import User
 from app.services.object_filters import apply_object_filters
@@ -175,9 +175,14 @@ class PropertyRepository:
             stmt = stmt.where(Property.manager_id == manager_id)
 
         if search_text:
-            search_conditions = build_property_search_conditions(search_text=search_text, available_fields=available_fields)
+            normalized_search = normalize_search_text(search_text)
+            if is_query_too_short(normalized_search):
+                return []
+
+            search_conditions = build_property_search_conditions(search_text=normalized_search, available_fields=available_fields)
             if search_conditions:
                 stmt = stmt.where(or_(*search_conditions))
+                stmt = stmt.order_by(self._build_quick_search_ordering(normalized_search), Property.created_at.desc())
 
         if title:
             stmt = stmt.where(Property.title.ilike(f"%{title}%"))
@@ -227,6 +232,27 @@ class PropertyRepository:
         if current_user.role == UserRole.MANAGER:
             return stmt.where(Property.manager_id == current_user.id)
         return stmt
+
+
+    @staticmethod
+    def _build_quick_search_ordering(search_text: str):
+        normalized = normalize_search_text(search_text)
+        pattern = f"%{normalized}%"
+        digits = only_digits(normalized)
+
+        phone_score = None
+        if digits:
+            phone_digits_expr = func.regexp_replace(Property.owner_phone, r"\D", "", "g")
+            phone_score = case((phone_digits_expr.ilike(f"%{digits}%"), 0), else_=1)
+
+        return case(
+            (Property.title.ilike(pattern), 0),
+            (Property.address.ilike(pattern), 1),
+            (Property.district.ilike(pattern), 2),
+            *(([(phone_score == 0, 3)] if phone_score is not None else [])),
+            (Property.description.ilike(pattern), 4),
+            else_=5,
+        )
 
     @staticmethod
     def _base_list_query_without_order() -> Select[tuple[Property]]:
