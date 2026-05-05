@@ -18,17 +18,27 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column("properties", sa.Column("owner_phone", sa.String(length=32), nullable=True))
-    op.add_column("properties", sa.Column("building_floors", sa.SmallInteger(), nullable=True))
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    existing_columns = {column["name"] for column in inspector.get_columns("properties")}
+
+    if "owner_phone" not in existing_columns:
+        op.add_column("properties", sa.Column("owner_phone", sa.String(length=32), nullable=True))
+
+    if "building_floors" not in existing_columns:
+        op.add_column("properties", sa.Column("building_floors", sa.SmallInteger(), nullable=True))
 
     op.execute("UPDATE properties SET owner_phone = '+70000000000' WHERE owner_phone IS NULL")
 
     op.alter_column("properties", "owner_phone", existing_type=sa.String(length=32), nullable=False)
-    op.create_check_constraint(
-        op.f("ck_properties_property_building_floors_positive"),
-        "properties",
-        "building_floors IS NULL OR building_floors > 0",
-    )
+    existing_checks = {check["name"] for check in inspector.get_check_constraints("properties")}
+    constraint_name = op.f("ck_properties_property_building_floors_positive")
+    if constraint_name not in existing_checks:
+        op.create_check_constraint(
+            constraint_name,
+            "properties",
+            "building_floors IS NULL OR building_floors > 0",
+        )
 
 
 def downgrade() -> None:
