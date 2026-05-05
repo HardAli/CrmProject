@@ -10,7 +10,14 @@ from sqlalchemy.orm import joinedload
 
 from app.common.dto.properties import CreatePropertyDTO
 from app.common.enums import PropertyStatus, PropertyType, UserRole
-from app.common.utils.property_search import build_property_search_conditions, is_query_too_short, normalize_search_text, only_digits
+from app.common.utils.property_search import (
+    build_property_search_conditions,
+    is_phone_like_query,
+    is_query_too_short,
+    normalize_phone_query,
+    normalize_search_text,
+    only_digits,
+)
 from app.database.models.property import Property
 from app.database.models.user import User
 from app.services.object_filters import apply_object_filters
@@ -178,11 +185,18 @@ class PropertyRepository:
             normalized_search = normalize_search_text(search_text)
             if is_query_too_short(normalized_search):
                 return []
-
-            search_conditions = build_property_search_conditions(search_text=normalized_search, available_fields=available_fields)
-            if search_conditions:
-                stmt = stmt.where(or_(*search_conditions))
-                stmt = stmt.order_by(self._build_quick_search_ordering(normalized_search), Property.created_at.desc())
+            if is_phone_like_query(normalized_search):
+                return await self.search_properties_by_phone(
+                    base_stmt=stmt,
+                    normalized_search=normalized_search,
+                    limit=limit,
+                )
+            return await self.search_properties_by_text(
+                base_stmt=stmt,
+                normalized_search=normalized_search,
+                available_fields=available_fields,
+                limit=limit,
+            )
 
         if title:
             stmt = stmt.where(Property.title.ilike(f"%{title}%"))
@@ -200,6 +214,67 @@ class PropertyRepository:
             stmt = stmt.where(Property.rooms == rooms)
 
         result = await self._session.execute(stmt.limit(limit))
+        return result.scalars().all()
+
+    async def search_properties_by_phone(
+        self,
+        *,
+        base_stmt: Select[tuple[Property]],
+        normalized_search: str,
+        limit: int,
+    ) -> Sequence[Property]:
+        phone_digits = normalize_phone_query(normalized_search)
+        if not phone_digits:
+            return []
+
+        exact_stmt = base_stmt.where(Property.owner_phone_normalized == phone_digits).order_by(Property.created_at.desc())
+        exact_result = await self._session.execute(exact_stmt)
+        exact_matches = exact_result.scalars().all()
+        if exact_matches:
+            return exact_matches
+
+        phone_digits_expr = func.regexp_replace(func.coalesce(Property.owner_phone, ""), r"\D", "", "g")
+        partial_stmt = (
+            base_stmt.where(
+                or_(
+                    Property.owner_phone_normalized.ilike(f"%{phone_digits}%"),
+                    phone_digits_expr.ilike(f"%{phone_digits}%"),
+                    Property.owner_phone.ilike(f"%{phone_digits}%"),
+                )
+            )
+            .order_by(self._build_phone_partial_ordering(phone_digits), Property.created_at.desc())
+            .limit(limit)
+        )
+        partial_result = await self._session.execute(partial_stmt)
+        partial_matches = partial_result.scalars().all()
+        if partial_matches:
+            return partial_matches
+
+        return await self.search_properties_by_text(
+            base_stmt=base_stmt,
+            normalized_search=normalized_search,
+            available_fields=self.get_available_filter_fields(),
+            limit=limit,
+        )
+
+    async def search_properties_by_text(
+        self,
+        *,
+        base_stmt: Select[tuple[Property]],
+        normalized_search: str,
+        available_fields: set[str],
+        limit: int,
+    ) -> Sequence[Property]:
+        search_conditions = build_property_search_conditions(search_text=normalized_search, available_fields=available_fields)
+        if not search_conditions:
+            return []
+
+        stmt = (
+            base_stmt.where(or_(*search_conditions))
+            .order_by(self._build_quick_search_ordering(normalized_search), Property.created_at.desc())
+            .limit(limit)
+        )
+        result = await self._session.execute(stmt)
         return result.scalars().all()
 
     async def get_filtered_for_user(
@@ -246,11 +321,26 @@ class PropertyRepository:
             phone_score = case((phone_digits_expr.ilike(f"%{digits}%"), 0), else_=1)
 
         return case(
+            (Property.title.ilike(normalized), 0),
+            (Property.address.ilike(normalized), 1),
+            (Property.district.ilike(normalized), 2),
             (Property.title.ilike(pattern), 0),
             (Property.address.ilike(pattern), 1),
             (Property.district.ilike(pattern), 2),
             *(([(phone_score == 0, 3)] if phone_score is not None else [])),
             (Property.description.ilike(pattern), 4),
+            else_=5,
+        )
+
+    @staticmethod
+    def _build_phone_partial_ordering(phone_digits: str):
+        phone_digits_expr = func.regexp_replace(func.coalesce(Property.owner_phone, ""), r"\D", "", "g")
+        return case(
+            (Property.owner_phone_normalized == phone_digits, 0),
+            (Property.owner_phone_normalized.ilike(f"{phone_digits}%"), 1),
+            (phone_digits_expr.ilike(f"{phone_digits}%"), 2),
+            (Property.owner_phone_normalized.ilike(f"%{phone_digits}%"), 3),
+            (phone_digits_expr.ilike(f"%{phone_digits}%"), 4),
             else_=5,
         )
 

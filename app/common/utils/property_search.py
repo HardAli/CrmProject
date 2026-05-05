@@ -41,6 +41,30 @@ def only_digits(value: object) -> str:
     return "".join(ch for ch in str(value) if ch.isdigit())
 
 
+def is_phone_like_query(query: object) -> bool:
+    normalized = normalize_search_text(query)
+    if not normalized:
+        return False
+
+    allowed_chars = set("+() -0123456789")
+    if any(ch not in allowed_chars for ch in normalized):
+        return False
+
+    digits = only_digits(normalized)
+    if len(digits) < 4:
+        return False
+
+    non_space_len = len(normalized.replace(" ", ""))
+    if non_space_len == 0:
+        return False
+    return len(digits) / non_space_len >= 0.6
+
+
+def normalize_phone_query(query: object) -> str:
+    normalized = normalize_search_text(query)
+    return only_digits(normalized)
+
+
 def parse_decimal_or_none(value: object) -> Decimal | None:
     if value is None:
         return None
