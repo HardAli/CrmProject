@@ -89,6 +89,14 @@ class TaskService:
             return await self._task_repository.get_all(limit=limit)
         return await self._task_repository.get_by_assignee(assigned_to=current_user.id, limit=limit)
 
+    async def get_task_by_id(self, *, current_user: User, task_id: int) -> Task | None:
+        task = await self._task_repository.get_by_id(task_id)
+        if task is None:
+            return None
+        if self._can_view_all(current_user) or task.assigned_to == current_user.id:
+            return task
+        return None
+
     @staticmethod
     def _can_view_all(current_user: User) -> bool:
         return current_user.role in {UserRole.ADMIN, UserRole.SUPERVISOR}

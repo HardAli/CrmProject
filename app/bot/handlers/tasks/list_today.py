@@ -10,9 +10,10 @@ from app.bot.keyboards.tasks import (
     TASKS_MENU_TEXT,
     TODAY_CONTACTS_TEXT,
     TODAY_TASKS_TEXT,
+    get_task_list_inline_keyboard,
     get_tasks_menu_keyboard,
 )
-from app.common.formatters.task_formatter import format_contacts_list, format_task_list
+from app.common.formatters.task_formatter import format_contacts_list, format_task_card, format_task_list
 from app.services.auth_service import AuthService
 from app.services.clients import ClientService
 from app.services.tasks import TaskService
@@ -85,7 +86,10 @@ async def show_today_tasks(message: Message, auth_service: AuthService, task_ser
         return
 
     tasks = list(await task_service.get_today_tasks(current_user=user, limit=DEFAULT_TASK_LIMIT))
-    await message.answer(format_task_list(tasks, title="📅 Задачи на сегодня", limit=DEFAULT_TASK_LIMIT))
+    await message.answer(
+        format_task_list(tasks, title="📅 Задачи на сегодня", limit=DEFAULT_TASK_LIMIT),
+        reply_markup=get_task_list_inline_keyboard(tasks),
+    )
 
 
 @router.message(F.text == OVERDUE_TASKS_TEXT)
@@ -95,7 +99,10 @@ async def show_overdue_tasks(message: Message, auth_service: AuthService, task_s
         return
 
     tasks = list(await task_service.get_overdue_tasks(current_user=user, limit=DEFAULT_TASK_LIMIT))
-    await message.answer(format_task_list(tasks, title="⏰ Просроченные задачи", limit=DEFAULT_TASK_LIMIT))
+    await message.answer(
+        format_task_list(tasks, title="⏰ Просроченные задачи", limit=DEFAULT_TASK_LIMIT),
+        reply_markup=get_task_list_inline_keyboard(tasks),
+    )
 
 
 @router.message(F.text == TODAY_CONTACTS_TEXT)
@@ -125,4 +132,31 @@ async def show_my_tasks(message: Message, auth_service: AuthService, task_servic
         return
 
     tasks = list(await task_service.get_my_tasks(current_user=user, limit=DEFAULT_TASK_LIMIT))
-    await message.answer(format_task_list(tasks, title="🗂 Мои задачи", limit=DEFAULT_TASK_LIMIT))
+    await message.answer(
+        format_task_list(tasks, title="🗂 Мои задачи", limit=DEFAULT_TASK_LIMIT),
+        reply_markup=get_task_list_inline_keyboard(tasks),
+    )
+
+
+@router.callback_query(F.data.startswith("task_open:"))
+async def show_task_card(callback: CallbackQuery, auth_service: AuthService, task_service: TaskService) -> None:
+    if callback.message is None:
+        await callback.answer()
+        return
+
+    user = await auth_service.get_active_user_by_telegram_id(callback.from_user.id)
+    if user is None:
+        await callback.answer("Нет доступа", show_alert=True)
+        return
+
+    task_id_raw = callback.data.split(":", maxsplit=1)[1]
+    if not task_id_raw.isdigit():
+        await callback.answer("Некорректный ID задачи", show_alert=True)
+        return
+    task = await task_service.get_task_by_id(current_user=user, task_id=int(task_id_raw))
+    if task is None:
+        await callback.answer("Задача не найдена", show_alert=True)
+        return
+
+    await callback.message.answer(format_task_card(task))
+    await callback.answer()

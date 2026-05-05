@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
+
+from app.database.models.task import Task
 
 from app.bot.keyboards.clients import CANCEL_TEXT
 
@@ -30,4 +32,16 @@ def get_task_cancel_keyboard() -> ReplyKeyboardMarkup:
         keyboard=[[KeyboardButton(text=CANCEL_TEXT)]],
         resize_keyboard=True,
         input_field_placeholder="Введите значение или отмените",
+    )
+
+
+def get_task_list_inline_keyboard(tasks: list[Task]) -> InlineKeyboardMarkup | None:
+    if not tasks:
+        return None
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=f"Открыть #{task.id}: {task.title[:24]}", callback_data=f"task_open:{task.id}")]
+            for task in tasks
+        ]
     )
