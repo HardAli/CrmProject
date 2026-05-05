@@ -25,10 +25,12 @@ class AutoLinkService:
         self._client_log_repository = client_log_repository
 
     async def auto_link_property_by_phone(self, *, current_user: User, property_obj: Property) -> int:
-        try:
-            normalized_phone = normalize_owner_phone(property_obj.owner_phone)
-        except ValueError:
-            return 0
+        normalized_phone = (property_obj.owner_phone_normalized or "").strip()
+        if not normalized_phone:
+            try:
+                normalized_phone = normalize_owner_phone(property_obj.owner_phone)
+            except ValueError:
+                return 0
 
         clients = await self._client_repository.get_all_by_phone_normalized(normalized_phone)
         linked_count = 0

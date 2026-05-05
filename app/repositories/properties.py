@@ -21,6 +21,7 @@ from app.common.utils.property_search import (
 from app.database.models.property import Property
 from app.database.models.user import User
 from app.services.object_filters import apply_object_filters
+from app.common.utils.phone_links import normalize_owner_phone
 
 
 class PropertyRepository:
@@ -34,6 +35,7 @@ class PropertyRepository:
             district=data.district,
             address=data.address,
             owner_phone=data.owner_phone,
+            owner_phone_normalized=normalize_owner_phone(data.owner_phone),
             price=data.price,
             area=data.area,
             kitchen_area=data.kitchen_area,
@@ -69,7 +71,8 @@ class PropertyRepository:
         stmt = select(Property).options(joinedload(Property.manager)).where(Property.property_type == property_type)
 
         if owner_phone:
-            stmt = stmt.where(Property.owner_phone == owner_phone)
+            normalized_owner_phone = normalize_owner_phone(owner_phone)
+            stmt = stmt.where(Property.owner_phone_normalized == normalized_owner_phone)
         elif address:
             stmt = stmt.where(Property.address.ilike(f"%{address}%"))
 
@@ -90,6 +93,9 @@ class PropertyRepository:
         await self._session.flush()
 
     async def update_fields(self, property_obj: Property, data: dict[str, object]) -> Property:
+        if "owner_phone" in data:
+            owner_phone = str(data["owner_phone"] or "")
+            data["owner_phone_normalized"] = normalize_owner_phone(owner_phone)
         for field_name, value in data.items():
             setattr(property_obj, field_name, value)
         await self._session.flush()
