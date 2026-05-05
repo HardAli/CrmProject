@@ -20,6 +20,9 @@ depends_on = None
 def upgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
+    if "properties" not in inspector.get_table_names():
+        return
+
     columns = {col["name"] for col in inspector.get_columns("properties")}
 
     if "refused_manager_names" not in columns:
@@ -32,13 +35,26 @@ def upgrade() -> None:
         )
         op.alter_column("properties", "needs_recall", server_default=None)
 
+    inspector = sa.inspect(bind)
     indexes = {idx["name"] for idx in inspector.get_indexes("properties")}
     needs_recall_idx = op.f("ix_properties_needs_recall")
-    if needs_recall_idx not in indexes:
+    if needs_recall_idx not in indexes and "ix_properties_needs_recall" not in indexes:
         op.create_index(needs_recall_idx, "properties", ["needs_recall"], unique=False)
 
 
 def downgrade() -> None:
-    op.drop_index(op.f("ix_properties_needs_recall"), table_name="properties")
-    op.drop_column("properties", "needs_recall")
-    op.drop_column("properties", "refused_manager_names")
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    if "properties" not in inspector.get_table_names():
+        return
+
+    indexes = {idx["name"] for idx in inspector.get_indexes("properties")}
+    index_name = op.f("ix_properties_needs_recall")
+    if index_name in indexes:
+        op.drop_index(index_name, table_name="properties")
+
+    columns = {col["name"] for col in inspector.get_columns("properties")}
+    if "needs_recall" in columns:
+        op.drop_column("properties", "needs_recall")
+    if "refused_manager_names" in columns:
+        op.drop_column("properties", "refused_manager_names")
