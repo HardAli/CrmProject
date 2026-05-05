@@ -17,46 +17,73 @@ branch_labels = None
 depends_on = None
 
 
-def upgrade() -> None:
-    op.add_column("clients", sa.Column("floor", sa.SmallInteger(), nullable=True))
-    op.add_column("clients", sa.Column("building_floors", sa.SmallInteger(), nullable=True))
-    op.add_column(
-        "clients",
-        sa.Column(
-            "wall_material",
-            sa.Enum("BRICK", "PANEL", "MONOLITH", name="wall_material", native_enum=False),
-            nullable=True,
-        ),
-    )
-    op.add_column("clients", sa.Column("year_built", sa.SmallInteger(), nullable=True))
+def _has_table(inspector: sa.Inspector, table_name: str) -> bool:
+    return table_name in inspector.get_table_names()
 
-    op.create_check_constraint(op.f("ck_clients_client_floor_positive"), "clients", "floor IS NULL OR floor > 0")
-    op.create_check_constraint(
-        op.f("ck_clients_client_building_floors_positive"),
-        "clients",
-        "building_floors IS NULL OR building_floors > 0",
+
+def _get_columns(inspector: sa.Inspector, table_name: str) -> set[str]:
+    return {column["name"] for column in inspector.get_columns(table_name)}
+
+
+def _get_checks(inspector: sa.Inspector, table_name: str) -> set[str]:
+    return {constraint["name"] for constraint in inspector.get_check_constraints(table_name) if constraint.get("name")}
+
+
+def upgrade() -> None:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+
+    if not _has_table(inspector, "clients"):
+        return
+
+    existing_columns = _get_columns(inspector, "clients")
+
+    if "floor" not in existing_columns:
+        op.add_column("clients", sa.Column("floor", sa.SmallInteger(), nullable=True))
+    if "building_floors" not in existing_columns:
+        op.add_column("clients", sa.Column("building_floors", sa.SmallInteger(), nullable=True))
+
+    wall_material_enum = sa.Enum("BRICK", "PANEL", "MONOLITH", name="wall_material", native_enum=False)
+    wall_material_enum.create(bind, checkfirst=True)
+    if "wall_material" not in existing_columns:
+        op.add_column("clients", sa.Column("wall_material", wall_material_enum, nullable=True))
+
+    if "year_built" not in existing_columns:
+        op.add_column("clients", sa.Column("year_built", sa.SmallInteger(), nullable=True))
+
+    inspector = sa.inspect(bind)
+    existing_checks = _get_checks(inspector, "clients")
+    constraints = (
+        (op.f("ck_clients_client_floor_positive"), "floor IS NULL OR floor > 0"),
+        (op.f("ck_clients_client_building_floors_positive"), "building_floors IS NULL OR building_floors > 0"),
+        (op.f("ck_clients_client_floor_lte_building_floors"), "floor IS NULL OR building_floors IS NULL OR floor <= building_floors"),
+        (op.f("ck_clients_client_year_built_reasonable"), "year_built IS NULL OR year_built >= 1800"),
     )
-    op.create_check_constraint(
-        op.f("ck_clients_client_floor_lte_building_floors"),
-        "clients",
-        "floor IS NULL OR building_floors IS NULL OR floor <= building_floors",
-    )
-    op.create_check_constraint(
-        op.f("ck_clients_client_year_built_reasonable"),
-        "clients",
-        "year_built IS NULL OR year_built >= 1800",
-    )
+    for name, expression in constraints:
+        if name not in existing_checks and name.replace("ck_clients_", "") not in existing_checks:
+            op.create_check_constraint(name, "clients", expression)
 
 
 def downgrade() -> None:
-    op.drop_constraint(op.f("ck_clients_client_year_built_reasonable"), "clients", type_="check")
-    op.drop_constraint(op.f("ck_clients_client_floor_lte_building_floors"), "clients", type_="check")
-    op.drop_constraint(op.f("ck_clients_client_building_floors_positive"), "clients", type_="check")
-    op.drop_constraint(op.f("ck_clients_client_floor_positive"), "clients", type_="check")
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
 
-    op.drop_column("clients", "year_built")
-    op.drop_column("clients", "wall_material")
-    op.drop_column("clients", "building_floors")
-    op.drop_column("clients", "floor")
+    if not _has_table(inspector, "clients"):
+        return
 
-    sa.Enum("BRICK", "PANEL", "MONOLITH", name="wall_material", native_enum=False).drop(op.get_bind(), checkfirst=True)
+    existing_checks = _get_checks(inspector, "clients")
+    for name in (
+        op.f("ck_clients_client_year_built_reasonable"),
+        op.f("ck_clients_client_floor_lte_building_floors"),
+        op.f("ck_clients_client_building_floors_positive"),
+        op.f("ck_clients_client_floor_positive"),
+    ):
+        if name in existing_checks:
+            op.drop_constraint(name, "clients", type_="check")
+
+    existing_columns = _get_columns(inspector, "clients")
+    for column_name in ("year_built", "wall_material", "building_floors", "floor"):
+        if column_name in existing_columns:
+            op.drop_column("clients", column_name)
+
+    sa.Enum("BRICK", "PANEL", "MONOLITH", name="wall_material", native_enum=False).drop(bind, checkfirst=True)
