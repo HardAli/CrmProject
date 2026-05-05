@@ -35,6 +35,7 @@ def upgrade() -> None:
             sa.PrimaryKeyConstraint("id", name=op.f("pk_client_photos")),
         )
 
+    inspector = sa.inspect(bind)
     existing_indexes = {index["name"] for index in inspector.get_indexes("client_photos")}
     indexes_to_create = (
         (op.f("ix_client_photos_client_created"), ["client_id", "created_at"]),
@@ -42,7 +43,7 @@ def upgrade() -> None:
         (op.f("ix_client_photos_uploaded_by"), ["uploaded_by"]),
     )
     for index_name, columns in indexes_to_create:
-        if index_name not in existing_indexes:
+        if index_name not in existing_indexes and index_name.replace("ix_client_photos_", "") not in existing_indexes:
             op.create_index(index_name, "client_photos", columns, unique=False)
 
 

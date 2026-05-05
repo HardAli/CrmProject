@@ -24,7 +24,7 @@ def upgrade() -> None:
     indexes = {index["name"] for index in inspector.get_indexes("properties")}
 
     if "owner_phone_normalized" not in columns:
-        op.add_column("properties", sa.Column("owner_phone_normalized", sa.String(length=32), nullable=True))
+        op.add_column("properties", sa.Column("owner_phone_normalized", sa.String(length=20), nullable=True))
 
     if "refused_manager_names" not in columns:
         op.add_column("properties", sa.Column("refused_manager_names", sa.Text(), nullable=True))
@@ -52,5 +52,13 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("ix_properties_owner_phone_normalized", table_name="properties")
-    op.drop_column("properties", "owner_phone_normalized")
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    columns = {column["name"] for column in inspector.get_columns("properties")}
+    indexes = {index["name"] for index in inspector.get_indexes("properties")}
+
+    if "ix_properties_owner_phone_normalized" in indexes:
+        op.drop_index("ix_properties_owner_phone_normalized", table_name="properties")
+
+    if "owner_phone_normalized" in columns:
+        op.drop_column("properties", "owner_phone_normalized")
