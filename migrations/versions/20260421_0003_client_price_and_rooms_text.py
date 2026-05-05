@@ -18,11 +18,28 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.drop_index(op.f("ix_clients_budget_range"), table_name="clients")
-    op.drop_constraint(op.f("ck_clients_budget_range_valid"), "clients", type_="check")
-    op.drop_constraint(op.f("ck_clients_budget_max_non_negative"), "clients", type_="check")
-    op.drop_constraint(op.f("ck_clients_budget_min_non_negative"), "clients", type_="check")
-    op.drop_constraint(op.f("ck_clients_client_rooms_positive"), "clients", type_="check")
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+
+    existing_indexes = {index["name"] for index in inspector.get_indexes("clients")}
+    for index_name in (op.f("ix_clients_budget_range"), "ix_clients_budget_range"):
+        if index_name in existing_indexes:
+            op.drop_index(index_name, table_name="clients")
+            break
+
+    existing_checks = {constraint["name"] for constraint in inspector.get_check_constraints("clients")}
+    for check_name in (
+        op.f("ck_clients_budget_range_valid"),
+        op.f("ck_clients_budget_max_non_negative"),
+        op.f("ck_clients_budget_min_non_negative"),
+        op.f("ck_clients_client_rooms_positive"),
+        "ck_clients_budget_range_valid",
+        "ck_clients_budget_max_non_negative",
+        "ck_clients_budget_min_non_negative",
+        "ck_clients_client_rooms_positive",
+    ):
+        if check_name in existing_checks:
+            op.drop_constraint(check_name, "clients", type_="check")
 
     op.add_column("clients", sa.Column("budget", sa.Numeric(precision=12, scale=2), nullable=True))
     op.execute(
