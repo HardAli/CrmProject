@@ -233,7 +233,12 @@ class PropertyRepository:
         if not phone_digits:
             return []
 
-        exact_stmt = base_stmt.where(Property.owner_phone_normalized == phone_digits).order_by(Property.created_at.desc())
+        exact_stmt = (
+            base_stmt.order_by(None)
+            .where(Property.owner_phone_normalized == phone_digits)
+            .order_by(Property.created_at.desc())
+            .limit(limit)
+        )
         exact_result = await self._session.execute(exact_stmt)
         exact_matches = exact_result.scalars().all()
         if exact_matches:
@@ -241,7 +246,7 @@ class PropertyRepository:
 
         phone_digits_expr = func.regexp_replace(func.coalesce(Property.owner_phone, ""), r"\D", "", "g")
         partial_stmt = (
-            base_stmt.where(
+            base_stmt.order_by(None).where(
                 or_(
                     Property.owner_phone_normalized.ilike(f"%{phone_digits}%"),
                     phone_digits_expr.ilike(f"%{phone_digits}%"),
@@ -276,7 +281,8 @@ class PropertyRepository:
             return []
 
         stmt = (
-            base_stmt.where(or_(*search_conditions))
+            base_stmt.order_by(None)
+            .where(or_(*search_conditions))
             .order_by(self._build_quick_search_ordering(normalized_search), Property.created_at.desc())
             .limit(limit)
         )
