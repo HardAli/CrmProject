@@ -85,8 +85,14 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.add_column("clients", sa.Column("budget_max", sa.Numeric(precision=12, scale=2), nullable=True))
-    op.add_column("clients", sa.Column("budget_min", sa.Numeric(precision=12, scale=2), nullable=True))
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    existing_columns = {column["name"] for column in inspector.get_columns("clients")}
+
+    if "budget_max" not in existing_columns:
+        op.add_column("clients", sa.Column("budget_max", sa.Numeric(precision=12, scale=2), nullable=True))
+    if "budget_min" not in existing_columns:
+        op.add_column("clients", sa.Column("budget_min", sa.Numeric(precision=12, scale=2), nullable=True))
 
     op.execute(
         """
@@ -96,17 +102,39 @@ def downgrade() -> None:
         """
     )
 
-    op.drop_index(op.f("ix_clients_budget"), table_name="clients")
-    op.drop_constraint(op.f("ck_clients_budget_non_negative"), "clients", type_="check")
-    op.alter_column("clients", "rooms", existing_type=sa.String(length=32), type_=sa.SmallInteger(), existing_nullable=True)
-    op.create_check_constraint(op.f("ck_clients_client_rooms_positive"), "clients", "rooms IS NULL OR rooms > 0")
-    op.create_check_constraint(op.f("ck_clients_budget_min_non_negative"), "clients", "budget_min IS NULL OR budget_min >= 0")
-    op.create_check_constraint(op.f("ck_clients_budget_max_non_negative"), "clients", "budget_max IS NULL OR budget_max >= 0")
-    op.create_check_constraint(
-        op.f("ck_clients_budget_range_valid"),
-        "clients",
-        "budget_min IS NULL OR budget_max IS NULL OR budget_min <= budget_max",
-    )
-    op.create_index(op.f("ix_clients_budget_range"), "clients", ["budget_min", "budget_max"], unique=False)
+    inspector = sa.inspect(bind)
+    existing_indexes = {index["name"] for index in inspector.get_indexes("clients")}
+    budget_index_name = op.f("ix_clients_budget")
+    if budget_index_name in existing_indexes or "ix_clients_budget" in existing_indexes:
+        op.drop_index(budget_index_name if budget_index_name in existing_indexes else "ix_clients_budget", table_name="clients")
 
-    op.drop_column("clients", "budget")
+    existing_checks = {constraint["name"] for constraint in inspector.get_check_constraints("clients")}
+    budget_check_name = op.f("ck_clients_budget_non_negative")
+    if budget_check_name in existing_checks or "ck_clients_budget_non_negative" in existing_checks:
+        op.drop_constraint(
+            budget_check_name if budget_check_name in existing_checks else "ck_clients_budget_non_negative",
+            "clients",
+            type_="check",
+        )
+
+    rooms_column = next((col for col in inspector.get_columns("clients") if col["name"] == "rooms"), None)
+    if rooms_column is not None and not isinstance(rooms_column["type"], sa.SmallInteger):
+        op.alter_column("clients", "rooms", existing_type=sa.String(length=32), type_=sa.SmallInteger(), existing_nullable=True)
+
+    existing_checks = {constraint["name"] for constraint in inspector.get_check_constraints("clients")}
+    for name, condition in (
+        (op.f("ck_clients_client_rooms_positive"), "rooms IS NULL OR rooms > 0"),
+        (op.f("ck_clients_budget_min_non_negative"), "budget_min IS NULL OR budget_min >= 0"),
+        (op.f("ck_clients_budget_max_non_negative"), "budget_max IS NULL OR budget_max >= 0"),
+        (op.f("ck_clients_budget_range_valid"), "budget_min IS NULL OR budget_max IS NULL OR budget_min <= budget_max"),
+    ):
+        if name not in existing_checks and name.replace("ck_clients_", "") not in existing_checks:
+            op.create_check_constraint(name, "clients", condition)
+
+    existing_indexes = {index["name"] for index in inspector.get_indexes("clients")}
+    range_index = op.f("ix_clients_budget_range")
+    if range_index not in existing_indexes and "ix_clients_budget_range" not in existing_indexes:
+        op.create_index(range_index, "clients", ["budget_min", "budget_max"], unique=False)
+
+    if "budget" in {column["name"] for column in inspector.get_columns("clients")}:
+        op.drop_column("clients", "budget")

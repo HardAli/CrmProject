@@ -47,7 +47,7 @@ class Property(Base, IdMixin, TimestampMixin):
     district: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
     address: Mapped[str | None] = mapped_column(String(255), nullable=True)
     owner_phone: Mapped[str] = mapped_column(String(32), nullable=False)
-    owner_phone_normalized: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    owner_phone_normalized: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
     price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     area: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     kitchen_area: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)

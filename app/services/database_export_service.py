@@ -33,7 +33,7 @@ class DatabaseExportResult:
 class DatabaseExportService:
     EXPORT_VERSION = 1
     EXPORT_FORMAT = "crm.entities.zip"
-    SCHEMA_VERSION = "20260424_0006_role_passes"
+    SCHEMA_VERSION = "20260505_0013_property_owner_phone_normalized"
 
     ENTITY_MODELS: list[tuple[str, type[Any]]] = [
         ("users", User),
