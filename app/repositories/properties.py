@@ -21,7 +21,6 @@ from app.common.utils.property_search import (
 from app.database.models.property import Property
 from app.database.models.user import User
 from app.services.object_filters import apply_object_filters
-from app.common.utils.phone_links import normalize_owner_phone
 
 
 class PropertyRepository:
@@ -35,7 +34,6 @@ class PropertyRepository:
             district=data.district,
             address=data.address,
             owner_phone=data.owner_phone,
-            owner_phone_normalized=normalize_owner_phone(data.owner_phone),
             price=data.price,
             area=data.area,
             kitchen_area=data.kitchen_area,
@@ -71,8 +69,9 @@ class PropertyRepository:
         stmt = select(Property).options(joinedload(Property.manager)).where(Property.property_type == property_type)
 
         if owner_phone:
-            normalized_owner_phone = normalize_owner_phone(owner_phone)
-            stmt = stmt.where(Property.owner_phone_normalized == normalized_owner_phone)
+            normalized_owner_phone = normalize_phone_query(owner_phone)
+            phone_digits_expr = func.regexp_replace(func.coalesce(Property.owner_phone, ""), r"\D", "", "g")
+            stmt = stmt.where(phone_digits_expr == normalized_owner_phone)
         elif address:
             stmt = stmt.where(Property.address.ilike(f"%{address}%"))
 
@@ -93,9 +92,7 @@ class PropertyRepository:
         await self._session.flush()
 
     async def update_fields(self, property_obj: Property, data: dict[str, object]) -> Property:
-        if "owner_phone" in data:
-            owner_phone = str(data["owner_phone"] or "")
-            data["owner_phone_normalized"] = normalize_owner_phone(owner_phone)
+        data.pop("owner_phone_normalized", None)
         for field_name, value in data.items():
             setattr(property_obj, field_name, value)
         await self._session.flush()
@@ -235,7 +232,7 @@ class PropertyRepository:
 
         exact_stmt = (
             base_stmt.order_by(None)
-            .where(Property.owner_phone_normalized == phone_digits)
+            .where(func.regexp_replace(func.coalesce(Property.owner_phone, ""), r"\D", "", "g") == phone_digits)
             .order_by(Property.created_at.desc())
             .limit(limit)
         )
@@ -248,7 +245,6 @@ class PropertyRepository:
         partial_stmt = (
             base_stmt.order_by(None).where(
                 or_(
-                    Property.owner_phone_normalized.ilike(f"%{phone_digits}%"),
                     phone_digits_expr.ilike(f"%{phone_digits}%"),
                     Property.owner_phone.ilike(f"%{phone_digits}%"),
                 )
@@ -348,12 +344,10 @@ class PropertyRepository:
     def _build_phone_partial_ordering(phone_digits: str):
         phone_digits_expr = func.regexp_replace(func.coalesce(Property.owner_phone, ""), r"\D", "", "g")
         return case(
-            (Property.owner_phone_normalized == phone_digits, 0),
-            (Property.owner_phone_normalized.ilike(f"{phone_digits}%"), 1),
-            (phone_digits_expr.ilike(f"{phone_digits}%"), 2),
-            (Property.owner_phone_normalized.ilike(f"%{phone_digits}%"), 3),
-            (phone_digits_expr.ilike(f"%{phone_digits}%"), 4),
-            else_=5,
+            (phone_digits_expr == phone_digits, 0),
+            (phone_digits_expr.ilike(f"{phone_digits}%"), 1),
+            (phone_digits_expr.ilike(f"%{phone_digits}%"), 2),
+            else_=3,
         )
 
     @staticmethod
