@@ -45,15 +45,28 @@ def upgrade() -> None:
 
     if "budget" not in existing_columns:
         op.add_column("clients", sa.Column("budget", sa.Numeric(precision=12, scale=2), nullable=True))
-    op.execute(
-        """
-        UPDATE clients
-        SET budget = COALESCE(budget_max, budget_min)
-        WHERE budget IS NULL
-        """
-    )
 
-    op.alter_column("clients", "rooms", existing_type=sa.SmallInteger(), type_=sa.String(length=32), existing_nullable=True)
+    budget_sources: list[str] = []
+    if "budget_max" in existing_columns:
+        budget_sources.append("budget_max")
+    if "budget_min" in existing_columns:
+        budget_sources.append("budget_min")
+
+    if budget_sources:
+        budget_expr = f"COALESCE({', '.join(budget_sources)})"
+        op.execute(
+            sa.text(
+                f"""
+                UPDATE clients
+                SET budget = {budget_expr}
+                WHERE budget IS NULL
+                """
+            )
+        )
+
+    rooms_column = next((col for col in inspector.get_columns("clients") if col["name"] == "rooms"), None)
+    if rooms_column is not None and not isinstance(rooms_column["type"], sa.String):
+        op.alter_column("clients", "rooms", existing_type=sa.SmallInteger(), type_=sa.String(length=32), existing_nullable=True)
 
     existing_checks = {constraint["name"] for constraint in inspector.get_check_constraints("clients")}
     budget_check_name = op.f("ck_clients_budget_non_negative")
