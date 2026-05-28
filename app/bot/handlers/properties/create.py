@@ -34,6 +34,7 @@ from app.bot.keyboards.properties import (
     get_duplicate_confirm_keyboard,
 )
 from app.bot.states.properties import PropertyCreateStates
+from app.bot.utils.chat_ui import send_clean_bundle, send_clean_screen
 from app.common.dto.properties import CreatePropertyDTO
 from app.common.enums import PropertyStatus, PropertyType
 from app.common.formatters.property_formatter import format_property_created_card
@@ -62,28 +63,50 @@ async def _get_current_user(message: Message, auth_service: AuthService):
     return user
 
 
-async def _ask_floor(message: Message) -> None:
-    await message.answer("Выберите этаж или введите вручную:", reply_markup=floor_reply_keyboard())
+async def _show_property_create_step(
+    message: Message,
+    state: FSMContext,
+    text: str,
+    *,
+    reply_markup=None,
+    parse_mode: str | None = None,
+    scope: str = "property_create",
+) -> None:
+    await send_clean_screen(
+        message,
+        state=state,
+        scope=scope,
+        text=text,
+        reply_markup=reply_markup,
+        parse_mode=parse_mode,
+        prefer_edit=False,
+    )
 
 
-async def _ask_building_floors(message: Message) -> None:
-    await message.answer("Выберите этажность дома или введите вручную:", reply_markup=building_floors_reply_keyboard())
+async def _ask_floor(message: Message, state: FSMContext) -> None:
+    await _show_property_create_step(message, state, "Выберите этаж или введите вручную:", reply_markup=floor_reply_keyboard())
 
 
-async def _ask_building_year(message: Message) -> None:
-    await message.answer(
+async def _ask_building_floors(message: Message, state: FSMContext) -> None:
+    await _show_property_create_step(message, state, "Выберите этажность дома или введите вручную:", reply_markup=building_floors_reply_keyboard())
+
+
+async def _ask_building_year(message: Message, state: FSMContext) -> None:
+    await _show_property_create_step(
+        message,
+        state,
         "Введите год постройки дома, например 1986, или напишите «пропустить»:",
         reply_markup=building_year_reply_keyboard(),
     )
 
 
-async def _ask_building_material(message: Message) -> None:
-    await message.answer("Выберите тип строения или введите вручную:", reply_markup=building_material_reply_keyboard())
+async def _ask_building_material(message: Message, state: FSMContext) -> None:
+    await _show_property_create_step(message, state, "Выберите тип строения или введите вручную:", reply_markup=building_material_reply_keyboard())
 
 
 async def _go_to_description_step(message: Message, state: FSMContext) -> None:
     await state.set_state(PropertyCreateStates.description)
-    await message.answer("Введите описание (или «Пропустить»).", reply_markup=get_property_skip_cancel_keyboard())
+    await _show_property_create_step(message, state, "Введите описание (или «Пропустить»).", reply_markup=get_property_skip_cancel_keyboard())
 
 
 def _parse_positive_int(raw_value: str, field_name: str) -> int:
@@ -125,7 +148,7 @@ def _is_skip(value: str) -> bool:
 @router.message(F.text == CANCEL_TEXT, StateFilter(PropertyCreateStates))
 async def cancel_property_creation(message: Message, state: FSMContext) -> None:
     await state.clear()
-    await message.answer("Добавление объекта отменено.", reply_markup=get_properties_menu_keyboard())
+    await _show_property_create_step(message, state, "Добавление объекта отменено.", reply_markup=get_properties_menu_keyboard(), scope="properties_menu")
 
 
 @router.message(F.text == ADD_PROPERTY_TEXT)
@@ -135,24 +158,24 @@ async def start_property_create(message: Message, state: FSMContext, auth_servic
         return
 
     if not property_service.can_create_property(user):
-        await message.answer("У вас нет прав на создание объектов.")
+        await _show_property_create_step(message, state, "У вас нет прав на создание объектов.", scope="property_create_error")
         return
 
     await state.clear()
     await state.set_state(PropertyCreateStates.title)
-    await message.answer("Введите название объекта.", reply_markup=get_property_title_keyboard())
+    await _show_property_create_step(message, state, "Введите название объекта.", reply_markup=get_property_title_keyboard())
 
 
 @router.message(PropertyCreateStates.title)
 async def process_title(message: Message, state: FSMContext) -> None:
     title = (message.text or "").strip()
     if not title:
-        await message.answer("Название не должно быть пустым. Введите название объекта.", reply_markup=get_property_title_keyboard())
+        await _show_property_create_step(message, state, "Название не должно быть пустым. Введите название объекта.", reply_markup=get_property_title_keyboard())
         return
 
     await state.update_data(title=title)
     await state.set_state(PropertyCreateStates.property_type)
-    await message.answer("Выберите тип недвижимости:", reply_markup=get_property_type_keyboard())
+    await _show_property_create_step(message, state, "Выберите тип недвижимости:", reply_markup=get_property_type_keyboard())
 
 
 @router.message(PropertyCreateStates.property_type)
@@ -160,36 +183,36 @@ async def process_property_type(message: Message, state: FSMContext) -> None:
     value = (message.text or "").strip()
     property_type = PROPERTY_TYPE_MAP.get(value)
     if property_type is None:
-        await message.answer("Выберите тип недвижимости с помощью кнопок.", reply_markup=get_property_type_keyboard())
+        await _show_property_create_step(message, state, "Выберите тип недвижимости с помощью кнопок.", reply_markup=get_property_type_keyboard())
         return
 
     await state.update_data(property_type=property_type.value)
     await state.set_state(PropertyCreateStates.district)
-    await message.answer("Выберите район кнопкой или введите вручную.", reply_markup=get_property_district_keyboard())
+    await _show_property_create_step(message, state, "Выберите район кнопкой или введите вручную.", reply_markup=get_property_district_keyboard())
 
 
 @router.message(PropertyCreateStates.district)
 async def process_district(message: Message, state: FSMContext) -> None:
     district = (message.text or "").strip()
     if not district:
-        await message.answer("Район не должен быть пустым. Выберите кнопкой или введите вручную.", reply_markup=get_property_district_keyboard())
+        await _show_property_create_step(message, state, "Район не должен быть пустым. Выберите кнопкой или введите вручную.", reply_markup=get_property_district_keyboard())
         return
 
     await state.update_data(district=district)
     await state.set_state(PropertyCreateStates.address)
-    await message.answer("Введите адрес.")
+    await _show_property_create_step(message, state, "Введите адрес.")
 
 
 @router.message(PropertyCreateStates.address)
 async def process_address(message: Message, state: FSMContext) -> None:
     address = (message.text or "").strip()
     if not address:
-        await message.answer("Адрес не должен быть пустым. Введите адрес.")
+        await _show_property_create_step(message, state, "Адрес не должен быть пустым. Введите адрес.")
         return
 
     await state.update_data(address=address)
     await state.set_state(PropertyCreateStates.owner_phone)
-    await message.answer("Введите номер владельца объекта (обязательно).", reply_markup=get_property_cancel_keyboard())
+    await _show_property_create_step(message, state, "Введите номер владельца объекта (обязательно).", reply_markup=get_property_cancel_keyboard())
 
 
 @router.message(PropertyCreateStates.owner_phone)
@@ -197,24 +220,24 @@ async def process_owner_phone(message: Message, state: FSMContext) -> None:
     try:
         owner_phone = normalize_owner_phone(message.text or "")
     except ValueError as error:
-        await message.answer(f"{error}")
+        await _show_property_create_step(message, state, f"{error}", reply_markup=get_property_cancel_keyboard())
         return
 
     await state.update_data(owner_phone=owner_phone)
     await state.set_state(PropertyCreateStates.price)
-    await message.answer("Цена", reply_markup=get_property_cancel_keyboard())
+    await _show_property_create_step(message, state, "Цена", reply_markup=get_property_cancel_keyboard())
 
 
 @router.message(PropertyCreateStates.price)
 async def process_price(message: Message, state: FSMContext) -> None:
     price = parse_money_to_tenge(message.text)
     if price is None:
-        await message.answer("Введите цену, например 19.5 или 19 500 000.")
+        await _show_property_create_step(message, state, "Введите цену, например 19.5 или 19 500 000.", reply_markup=get_property_cancel_keyboard())
         return
 
     await state.update_data(price=int(price))
     await state.set_state(PropertyCreateStates.area)
-    await message.answer(f"Цена: {format_price_short(price)}\n\nВведите площадь в м² (только число).")
+    await _show_property_create_step(message, state, f"Цена: {format_price_short(price)}\n\nВведите площадь в м² (только число).")
 
 
 @router.message(PropertyCreateStates.area)
@@ -222,7 +245,7 @@ async def process_area(message: Message, state: FSMContext) -> None:
     value = (message.text or "").strip()
     area = parse_decimal_or_none(value)
     if area is None or area <= 0:
-        await message.answer("Введите площадь числом больше 0, например 130 или 58.6.")
+        await _show_property_create_step(message, state, "Введите площадь числом больше 0, например 130 или 58.6.")
         return
 
     await state.update_data(area=str(area))
@@ -230,7 +253,9 @@ async def process_area(message: Message, state: FSMContext) -> None:
     property_type = PropertyType(data["property_type"])
     if property_type in {PropertyType.APARTMENT, PropertyType.HOUSE}:
         await state.set_state(PropertyCreateStates.kitchen_area)
-        await message.answer(
+        await _show_property_create_step(
+            message,
+            state,
             "Введите площадь кухни в м², например 10.5, или напишите «пропустить»:",
             reply_markup=kitchen_area_reply_keyboard(),
         )
@@ -238,7 +263,7 @@ async def process_area(message: Message, state: FSMContext) -> None:
 
     await state.update_data(kitchen_area=None)
     await state.set_state(PropertyCreateStates.rooms)
-    await message.answer("Выберите количество комнат кнопкой или введите вручную (1-5, Студия).", reply_markup=get_property_rooms_keyboard())
+    await _show_property_create_step(message, state, "Выберите количество комнат кнопкой или введите вручную (1-5, Студия).", reply_markup=get_property_rooms_keyboard())
 
 
 @router.message(PropertyCreateStates.kitchen_area)
@@ -246,24 +271,24 @@ async def process_kitchen_area(message: Message, state: FSMContext) -> None:
     value = (message.text or "").strip()
     if value == BACK_TEXT:
         await state.set_state(PropertyCreateStates.area)
-        await message.answer("Введите площадь в м² (только число).", reply_markup=get_property_cancel_keyboard())
+        await _show_property_create_step(message, state, "Введите площадь в м² (только число).", reply_markup=get_property_cancel_keyboard())
         return
     if _is_skip(value):
         await state.update_data(kitchen_area=None)
     else:
         kitchen_area = parse_decimal_or_none(value)
         if kitchen_area is None or kitchen_area <= 0:
-            await message.answer("Введите площадь кухни числом больше 0 или нажмите «Пропустить».", reply_markup=kitchen_area_reply_keyboard())
+            await _show_property_create_step(message, state, "Введите площадь кухни числом больше 0 или нажмите «Пропустить».", reply_markup=kitchen_area_reply_keyboard())
             return
         data = await state.get_data()
         area = parse_decimal_or_none(data.get("area"))
         if area is not None and kitchen_area > area:
-            await message.answer("Площадь кухни не может быть больше общей площади. Введите заново.", reply_markup=kitchen_area_reply_keyboard())
+            await _show_property_create_step(message, state, "Площадь кухни не может быть больше общей площади. Введите заново.", reply_markup=kitchen_area_reply_keyboard())
             return
         await state.update_data(kitchen_area=str(kitchen_area))
 
     await state.set_state(PropertyCreateStates.rooms)
-    await message.answer("Выберите количество комнат кнопкой или введите вручную (1-5, Студия).", reply_markup=get_property_rooms_keyboard())
+    await _show_property_create_step(message, state, "Выберите количество комнат кнопкой или введите вручную (1-5, Студия).", reply_markup=get_property_rooms_keyboard())
 
 
 @router.message(PropertyCreateStates.rooms)
@@ -271,12 +296,12 @@ async def process_rooms(message: Message, state: FSMContext) -> None:
     try:
         rooms = _parse_rooms(message.text or "")
     except ValueError as error:
-        await message.answer(f"{error}")
+        await _show_property_create_step(message, state, f"{error}", reply_markup=get_property_rooms_keyboard())
         return
 
     await state.update_data(rooms=rooms)
     await state.set_state(PropertyCreateStates.floor)
-    await _ask_floor(message)
+    await _ask_floor(message, state)
 
 
 @router.message(PropertyCreateStates.floor)
@@ -284,13 +309,15 @@ async def process_floor(message: Message, state: FSMContext) -> None:
     value = (message.text or "").strip()
     if value == BACK_TEXT:
         await state.set_state(PropertyCreateStates.rooms)
-        await message.answer(
+        await _show_property_create_step(
+            message,
+            state,
             "Выберите количество комнат кнопкой или введите вручную (1-5, Студия).",
             reply_markup=get_property_rooms_keyboard(),
         )
         return
     if value == MANUAL_INPUT_TEXT:
-        await message.answer("Введите число вручную:", reply_markup=ReplyKeyboardRemove())
+        await _show_property_create_step(message, state, "Введите число вручную:", reply_markup=ReplyKeyboardRemove())
         return
     if _is_skip(value):
         await state.update_data(floor=None)
@@ -298,16 +325,16 @@ async def process_floor(message: Message, state: FSMContext) -> None:
         property_type = PropertyType(data["property_type"])
         if property_type == PropertyType.APARTMENT:
             await state.set_state(PropertyCreateStates.building_floors)
-            await _ask_building_floors(message)
+            await _ask_building_floors(message, state)
             return
         await state.update_data(building_floors=None)
         await state.set_state(PropertyCreateStates.building_year)
-        await _ask_building_year(message)
+        await _ask_building_year(message, state)
         return
     try:
         floor = _parse_positive_int(value, "Этаж")
     except ValueError as error:
-        await message.answer(f"{error}\nВведите этаж числом или выберите кнопку.", reply_markup=floor_reply_keyboard())
+        await _show_property_create_step(message, state, f"{error}\nВведите этаж числом или выберите кнопку.", reply_markup=floor_reply_keyboard())
         return
 
     await state.update_data(floor=floor)
@@ -315,12 +342,12 @@ async def process_floor(message: Message, state: FSMContext) -> None:
     property_type = PropertyType(data["property_type"])
     if property_type == PropertyType.APARTMENT:
         await state.set_state(PropertyCreateStates.building_floors)
-        await _ask_building_floors(message)
+        await _ask_building_floors(message, state)
         return
 
     await state.update_data(building_floors=None)
     await state.set_state(PropertyCreateStates.building_year)
-    await _ask_building_year(message)
+    await _ask_building_year(message, state)
 
 
 @router.message(PropertyCreateStates.building_floors)
@@ -328,19 +355,21 @@ async def process_building_floors(message: Message, state: FSMContext) -> None:
     value = (message.text or "").strip()
     if value == BACK_TEXT:
         await state.set_state(PropertyCreateStates.floor)
-        await _ask_floor(message)
+        await _ask_floor(message, state)
         return
     if value == MANUAL_INPUT_TEXT:
-        await message.answer("Введите число вручную:", reply_markup=ReplyKeyboardRemove())
+        await _show_property_create_step(message, state, "Введите число вручную:", reply_markup=ReplyKeyboardRemove())
         return
     if _is_skip(value):
         await state.update_data(building_floors=None)
         await state.set_state(PropertyCreateStates.building_year)
-        await _ask_building_year(message)
+        await _ask_building_year(message, state)
         return
     parsed = parse_int_or_none(value)
     if parsed is None or parsed <= 0:
-        await message.answer(
+        await _show_property_create_step(
+            message,
+            state,
             "Этажность здания должна быть положительным целым числом.\nВведите число или выберите кнопку.",
             reply_markup=building_floors_reply_keyboard(),
         )
@@ -350,12 +379,12 @@ async def process_building_floors(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     floor = data.get("floor")
     if floor is not None and floor > building_floors:
-        await message.answer("Этаж объекта не может быть больше этажности здания.")
+        await _show_property_create_step(message, state, "Этаж объекта не может быть больше этажности здания.", reply_markup=building_floors_reply_keyboard())
         return
 
     await state.update_data(building_floors=building_floors)
     await state.set_state(PropertyCreateStates.building_year)
-    await _ask_building_year(message)
+    await _ask_building_year(message, state)
 
 
 @router.message(PropertyCreateStates.building_year)
@@ -366,20 +395,22 @@ async def process_building_year(message: Message, state: FSMContext) -> None:
         property_type = PropertyType(data["property_type"])
         if property_type == PropertyType.APARTMENT:
             await state.set_state(PropertyCreateStates.building_floors)
-            await _ask_building_floors(message)
+            await _ask_building_floors(message, state)
             return
         await state.set_state(PropertyCreateStates.floor)
-        await _ask_floor(message)
+        await _ask_floor(message, state)
         return
     if _is_skip(value):
         await state.update_data(building_year=None)
         await state.set_state(PropertyCreateStates.building_material)
-        await _ask_building_material(message)
+        await _ask_building_material(message, state)
         return
 
     building_year = parse_building_year_or_none(value)
     if building_year is None:
-        await message.answer(
+        await _show_property_create_step(
+            message,
+            state,
             "Введите год числом, например 1986, или напишите «пропустить».",
             reply_markup=building_year_reply_keyboard(),
         )
@@ -387,7 +418,7 @@ async def process_building_year(message: Message, state: FSMContext) -> None:
 
     await state.update_data(building_year=building_year)
     await state.set_state(PropertyCreateStates.building_material)
-    await _ask_building_material(message)
+    await _ask_building_material(message, state)
 
 
 @router.message(PropertyCreateStates.building_material)
@@ -395,7 +426,7 @@ async def process_building_material(message: Message, state: FSMContext) -> None
     value = (message.text or "").strip()
     if value == BACK_TEXT:
         await state.set_state(PropertyCreateStates.building_year)
-        await _ask_building_year(message)
+        await _ask_building_year(message, state)
         return
     if _is_skip(value):
         await state.update_data(building_material=None)
@@ -404,7 +435,7 @@ async def process_building_material(message: Message, state: FSMContext) -> None
 
     material = normalize_building_material(value)
     if material is None:
-        await message.answer("Введите материал дома или выберите кнопку.", reply_markup=building_material_reply_keyboard())
+        await _show_property_create_step(message, state, "Введите материал дома или выберите кнопку.", reply_markup=building_material_reply_keyboard())
         return
 
     await state.update_data(building_material=material)
@@ -418,7 +449,7 @@ async def process_description(message: Message, state: FSMContext) -> None:
 
     await state.update_data(description=description)
     await state.set_state(PropertyCreateStates.link)
-    await message.answer("Введите ссылку (или «Пропустить»).", reply_markup=get_property_skip_cancel_keyboard())
+    await _show_property_create_step(message, state, "Введите ссылку (или «Пропустить»).", reply_markup=get_property_skip_cancel_keyboard())
 
 
 @router.message(PropertyCreateStates.link)
@@ -426,12 +457,12 @@ async def process_link(message: Message, state: FSMContext) -> None:
     try:
         link = _parse_url_or_skip(message.text or "")
     except ValueError as error:
-        await message.answer(f"{error}")
+        await _show_property_create_step(message, state, f"{error}", reply_markup=get_property_skip_cancel_keyboard())
         return
 
     await state.update_data(link=link)
     await state.set_state(PropertyCreateStates.status)
-    await message.answer("Выберите статус объекта:", reply_markup=get_property_status_keyboard())
+    await _show_property_create_step(message, state, "Выберите статус объекта:", reply_markup=get_property_status_keyboard())
 
 
 @router.message(PropertyCreateStates.status)
@@ -445,7 +476,7 @@ async def process_status(
     value = (message.text or "").strip()
     status = PROPERTY_STATUS_MAP.get(value)
     if status is None:
-        await message.answer("Выберите статус с помощью кнопок.", reply_markup=get_property_status_keyboard())
+        await _show_property_create_step(message, state, "Выберите статус с помощью кнопок.", reply_markup=get_property_status_keyboard())
         return
 
     user = await _get_current_user(message, auth_service)
@@ -478,11 +509,11 @@ async def process_status(
     try:
         duplicate_result = await property_service.find_duplicate_before_create(dto)
     except PermissionError as error:
-        await message.answer(str(error), reply_markup=get_properties_menu_keyboard())
+        await _show_property_create_step(message, state, str(error), reply_markup=get_properties_menu_keyboard(), scope="property_create_error")
         await state.clear()
         return
     except ValueError as error:
-        await message.answer(str(error))
+        await _show_property_create_step(message, state, str(error), scope="property_create_error")
         return
 
     if duplicate_result.duplicate_found and duplicate_result.matched_property is not None:
@@ -492,13 +523,16 @@ async def process_status(
             duplicate_property_id=duplicate_result.matched_property.id,
         )
         await state.set_state(PropertyCreateStates.duplicate_confirm)
-        await message.answer(
+        await _show_property_create_step(
+            message,
+            state,
             format_duplicate_property_card(
                 duplicate_result.matched_property,
                 duplicate_result.matched_fields,
                 duplicate_result.matched_fields_count,
             ),
             reply_markup=get_duplicate_confirm_keyboard(),
+            scope="property_duplicate_confirm",
         )
         return
 
@@ -514,15 +548,31 @@ async def process_status(
     await state.clear()
 
     manager_name = property_obj.manager.full_name if property_obj.manager else user.full_name
-    await message.answer(
+    if linked_clients_count > 0:
+        await send_clean_bundle(
+            message,
+            state=state,
+            items=[
+                {
+                    "scope": "property_created_card",
+                    "text": format_property_created_card(property_obj=property_obj, manager_name=manager_name),
+                    "reply_markup": get_properties_menu_keyboard(),
+                },
+                {
+                    "scope": "property_linked_clients_notice",
+                    "text": f"🔗 Найдено {linked_clients_count} клиентов по совпадающему номеру. Связи созданы автоматически.",
+                },
+            ],
+        )
+        return
+
+    await _show_property_create_step(
+        message,
+        state,
         format_property_created_card(property_obj=property_obj, manager_name=manager_name),
         reply_markup=get_properties_menu_keyboard(),
+        scope="property_created_card",
     )
-    if linked_clients_count > 0:
-        await message.answer(
-            f"🔗 Найдено {linked_clients_count} клиентов по совпадающему номеру. "
-            "Связи созданы автоматически.",
-        )
 
 
 @router.message(PropertyCreateStates.duplicate_confirm, F.text == "Да, добавить")
@@ -545,15 +595,37 @@ async def confirm_duplicate_create(message: Message, state: FSMContext, auth_ser
     await session.commit()
     await state.clear()
     manager_name = property_obj.manager.full_name if property_obj.manager else user.full_name
-    await message.answer(format_property_created_card(property_obj=property_obj, manager_name=manager_name), reply_markup=get_properties_menu_keyboard())
     if linked_clients_count > 0:
-        await message.answer(f"🔗 Найдено {linked_clients_count} клиентов по совпадающему номеру. Связи созданы автоматически.")
+        await send_clean_bundle(
+            message,
+            state=state,
+            items=[
+                {
+                    "scope": "property_created_card",
+                    "text": format_property_created_card(property_obj=property_obj, manager_name=manager_name),
+                    "reply_markup": get_properties_menu_keyboard(),
+                },
+                {
+                    "scope": "property_linked_clients_notice",
+                    "text": f"🔗 Найдено {linked_clients_count} клиентов по совпадающему номеру. Связи созданы автоматически.",
+                },
+            ],
+        )
+        return
+
+    await _show_property_create_step(
+        message,
+        state,
+        format_property_created_card(property_obj=property_obj, manager_name=manager_name),
+        reply_markup=get_properties_menu_keyboard(),
+        scope="property_created_card",
+    )
 
 
 @router.message(PropertyCreateStates.duplicate_confirm, F.text == "Нет, отмена")
 async def cancel_duplicate_create(message: Message, state: FSMContext) -> None:
     await state.clear()
-    await message.answer("Добавление объекта отменено.", reply_markup=get_properties_menu_keyboard())
+    await _show_property_create_step(message, state, "Добавление объекта отменено.", reply_markup=get_properties_menu_keyboard(), scope="properties_menu")
 
 
 @router.message(PropertyCreateStates.duplicate_confirm, F.text == "Открыть найденный объект")
@@ -564,20 +636,20 @@ async def open_duplicate_property(message: Message, state: FSMContext, property_
     data = await state.get_data()
     property_id = data.get("duplicate_property_id")
     if not property_id:
-        await message.answer("Объект совпадения не найден.")
+        await _show_property_create_step(message, state, "Объект совпадения не найден.", scope="property_create_error")
         return
     property_obj = await property_service.get_property_for_view(user, int(property_id))
     if property_obj is None:
-        await message.answer("Нет доступа к найденному объекту.")
+        await _show_property_create_step(message, state, "Нет доступа к найденному объекту.", scope="property_create_error")
         return
     manager_name = property_obj.manager.full_name if property_obj.manager else "—"
     from app.common.formatters.property_formatter import format_property_card
-    await message.answer(format_property_card(property_obj, manager_name))
+    await _show_property_create_step(message, state, format_property_card(property_obj, manager_name), scope="property_card")
 
 
 @router.message(StateFilter(PropertyCreateStates))
-async def fallback_in_state(message: Message) -> None:
-    await message.answer("Используйте предложенные кнопки или введите корректное значение.")
+async def fallback_in_state(message: Message, state: FSMContext) -> None:
+    await _show_property_create_step(message, state, "Используйте предложенные кнопки или введите корректное значение.")
 
 
 @router.message(F.text == "Добавить объект")

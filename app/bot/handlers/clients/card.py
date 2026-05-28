@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from aiogram import F, Router
+from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery
 
 from app.bot.keyboards.clients import get_client_card_actions_keyboard
+from app.bot.utils.chat_ui import send_clean_screen
 from app.common.formatters.client_formatter import format_client_card
 from app.services.auth_service import AuthService
 from app.services.clients import ClientService
@@ -14,6 +16,7 @@ router = Router(name="client_card")
 @router.callback_query(F.data.startswith("client_view:"))
 async def open_client_card(
     callback: CallbackQuery,
+    state: FSMContext,
     auth_service: AuthService,
     client_service: ClientService,
 ) -> None:
@@ -37,11 +40,15 @@ async def open_client_card(
         return
 
     manager_name = client.manager.full_name if client.manager else "—"
-    await callback.message.answer(
-        format_client_card(client=client, manager_name=manager_name),
+    await send_clean_screen(
+        callback,
+        state=state,
+        scope="client_card",
+        text=format_client_card(client=client, manager_name=manager_name),
         reply_markup=get_client_card_actions_keyboard(
             client_id=client.id,
             can_edit=client_service.can_edit_client(current_user=user, client=client),
         ),
+        prefer_edit=True,
     )
     await callback.answer()

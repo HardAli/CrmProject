@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from aiogram import F, Router
+from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery
 
+from app.bot.utils.chat_ui import send_clean_screen
 from app.common.formatters.client_log_formatter import format_client_history
 from app.services.auth_service import AuthService
 from app.services.clients import ClientService
@@ -14,6 +16,7 @@ DEFAULT_HISTORY_LIMIT = 10
 @router.callback_query(F.data.startswith("client_history:"))
 async def show_client_history(
     callback: CallbackQuery,
+    state: FSMContext,
     auth_service: AuthService,
     client_service: ClientService,
 ) -> None:
@@ -43,5 +46,11 @@ async def show_client_history(
         await callback.answer("Клиент не найден или недоступен", show_alert=True)
         return
 
-    await callback.message.answer(format_client_history(logs=logs, limit=DEFAULT_HISTORY_LIMIT))
+    await send_clean_screen(
+        callback,
+        state=state,
+        scope="client_history",
+        text=format_client_history(logs=logs, limit=DEFAULT_HISTORY_LIMIT),
+        prefer_edit=True,
+    )
     await callback.answer()

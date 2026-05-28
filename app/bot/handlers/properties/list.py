@@ -37,6 +37,7 @@ from app.common.formatters.object_filters_formatter import (
     build_objects_list_text,
 )
 from app.common.formatters.property_formatter import format_properties_list
+from app.bot.utils.chat_ui import send_clean_screen
 from app.services.auth_service import AuthService
 from app.services.object_filters import (
     AREA_PRESETS,
@@ -67,14 +68,18 @@ async def _get_current_user(message: Message, auth_service: AuthService):
     return user
 
 
-async def _show_properties(message: Message, properties: list, title: str, limit: int) -> None:
+async def _show_properties(message: Message, state: FSMContext, properties: list, title: str, limit: int) -> None:
     if not properties:
-        await message.answer("У вас пока нет объектов.")
+        await send_clean_screen(message, state=state, scope="properties_list", text="У вас пока нет объектов.", prefer_edit=False)
         return
 
-    await message.answer(
-        format_properties_list(properties=properties, title=title, limit=limit),
+    await send_clean_screen(
+        message,
+        state=state,
+        scope="properties_list",
+        text=format_properties_list(properties=properties, title=title, limit=limit),
         reply_markup=get_properties_list_inline_keyboard(properties),
+        prefer_edit=False,
     )
 
 
@@ -130,48 +135,45 @@ async def _render_global_objects(
     if isinstance(target, CallbackQuery):
         if target.message is None:
             return
-        if edit:
-            await target.message.edit_text(text, reply_markup=keyboard)
-        else:
-            await target.message.answer(text, reply_markup=keyboard)
+        await send_clean_screen(target, state=state, scope="objects_list", text=text, reply_markup=keyboard, prefer_edit=edit)
         await target.answer()
     else:
-        await target.answer(text, reply_markup=keyboard)
+        await send_clean_screen(target, state=state, scope="objects_list", text=text, reply_markup=keyboard, prefer_edit=False)
 
 
 @router.message(F.text == PROPERTIES_MENU_TEXT)
-async def open_properties_menu(message: Message, auth_service: AuthService) -> None:
+async def open_properties_menu(message: Message, state: FSMContext, auth_service: AuthService) -> None:
     user = await _get_current_user(message, auth_service)
     if user is None:
         return
 
-    await message.answer("Раздел объектов. Выберите действие:", reply_markup=get_properties_menu_keyboard())
+    await send_clean_screen(message, state=state, scope="properties_menu", text="Раздел объектов. Выберите действие:", reply_markup=get_properties_menu_keyboard(), prefer_edit=False)
 
 
 @router.message(F.text.in_({BACK_TO_MAIN_MENU_TEXT, "⬅️ Главное меню"}))
-async def back_to_main_menu(message: Message) -> None:
-    await message.answer("Главное меню:", reply_markup=get_main_menu_keyboard())
+async def back_to_main_menu(message: Message, state: FSMContext) -> None:
+    await send_clean_screen(message, state=state, scope="main_menu", text="Главное меню:", reply_markup=get_main_menu_keyboard(), prefer_edit=False)
 
 
 @router.message(F.text == MY_PROPERTIES_TEXT)
-async def show_my_properties(message: Message, auth_service: AuthService, property_service: PropertyService) -> None:
+async def show_my_properties(message: Message, state: FSMContext, auth_service: AuthService, property_service: PropertyService) -> None:
     user = await _get_current_user(message, auth_service)
     if user is None:
         return
 
     properties = list(await property_service.get_my_properties(current_user=user, limit=DEFAULT_LIST_LIMIT))
     title = "Мои объекты" if user.role == UserRole.MANAGER else "Все объекты"
-    await _show_properties(message, properties, title=title, limit=DEFAULT_LIST_LIMIT)
+    await _show_properties(message, state, properties, title=title, limit=DEFAULT_LIST_LIMIT)
 
 
 @router.message(F.text == RECENT_PROPERTIES_TEXT)
-async def show_recent_properties(message: Message, auth_service: AuthService, property_service: PropertyService) -> None:
+async def show_recent_properties(message: Message, state: FSMContext, auth_service: AuthService, property_service: PropertyService) -> None:
     user = await _get_current_user(message, auth_service)
     if user is None:
         return
 
     properties = list(await property_service.get_recent_properties(current_user=user, limit=DEFAULT_LIST_LIMIT))
-    await _show_properties(message, properties, title="Последние добавленные объекты", limit=DEFAULT_LIST_LIMIT)
+    await _show_properties(message, state, properties, title="Последние добавленные объекты", limit=DEFAULT_LIST_LIMIT)
 
 
 @router.message(F.text == GLOBAL_PROPERTIES_TEXT)
@@ -200,9 +202,15 @@ async def noop_callback(callback: CallbackQuery) -> None:
 async def open_search_input(callback: CallbackQuery, state: FSMContext) -> None:
     await state.set_state(PropertyListStates.search_query)
     if callback.message is not None:
-        await callback.message.answer(
-            "Введите запрос для поиска по базе объектов.\n"
-            "Например: каратал, 7775, 58.6, 19.5, 2/5, 1976.",
+        await send_clean_screen(
+            callback,
+            state=state,
+            scope="objects_search_prompt",
+            text=(
+                "Введите запрос для поиска по базе объектов.\n"
+                "Например: каратал, 7775, 58.6, 19.5, 2/5, 1976."
+            ),
+            prefer_edit=True,
         )
     await callback.answer()
 
@@ -216,7 +224,7 @@ async def apply_search_query(
 ) -> None:
     query = (message.text or "").strip()
     if not query:
-        await message.answer("Введите запрос для поиска.")
+        await send_clean_screen(message, state=state, scope="objects_search_prompt", text="Введите запрос для поиска.", prefer_edit=False)
         return
 
     user = await _get_current_user(message, auth_service)
@@ -228,7 +236,7 @@ async def apply_search_query(
     filters = update_object_filter(filters, "search_query", query)
     filters = update_object_filter(filters, "page", 1, reset_page=False)
     await _save_filters(state, filters)
-    await state.clear()
+    await state.set_state(None)
     await _render_global_objects(message, current_user=user, state=state, property_service=property_service, edit=False)
 
 

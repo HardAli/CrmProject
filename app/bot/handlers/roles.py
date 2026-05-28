@@ -4,6 +4,7 @@ import re
 
 from aiogram import F, Router
 from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +17,7 @@ from app.bot.keyboards.supervisor import (
     USERS_BUTTON_TEXT,
     get_supervisor_menu_keyboard,
 )
+from app.bot.utils.chat_ui import send_clean_screen
 from app.common.enums import UserRole
 from app.common.formatters.role_formatter import (
     format_pass_error,
@@ -38,18 +40,19 @@ async def _get_current_user(message: Message, auth_service: AuthService):
 
 
 @router.message(Command(SUPERVISOR_MENU_COMMAND.lstrip("/")))
-async def open_supervisor_panel(message: Message, auth_service: AuthService, role_service: RoleService) -> None:
+async def open_supervisor_panel(message: Message, state: FSMContext, auth_service: AuthService, role_service: RoleService) -> None:
     user = await _get_current_user(message, auth_service)
     if not role_service.can_open_supervisor_panel(user):
         await message.answer("Доступ запрещён.")
         return
 
-    await message.answer("Панель supervisor", reply_markup=get_supervisor_menu_keyboard())
+    await send_clean_screen(message, state=state, scope="supervisor_menu", text="Панель supervisor", reply_markup=get_supervisor_menu_keyboard(), prefer_edit=False)
 
 
 @router.message(F.text == USERS_BUTTON_TEXT)
 async def show_users(
     message: Message,
+    state: FSMContext,
     auth_service: AuthService,
     role_service: RoleService,
     user_repository: UserRepository,
@@ -60,12 +63,13 @@ async def show_users(
         return
 
     users = await user_repository.list_users(limit=50, offset=0)
-    await message.answer(format_users_list(users, limit=50))
+    await send_clean_screen(message, state=state, scope="supervisor_users", text=format_users_list(users, limit=50), prefer_edit=False)
 
 
 @router.message(F.text == MANAGER_PASS_BUTTON_TEXT)
 async def generate_manager_pass(
     message: Message,
+    state: FSMContext,
     auth_service: AuthService,
     role_service: RoleService,
     role_pass_service: RolePassService,
@@ -78,12 +82,13 @@ async def generate_manager_pass(
 
     role_pass = await role_pass_service.generate_manager_pass(user)
     await session.commit()
-    await message.answer(format_role_pass(role_pass))
+    await send_clean_screen(message, state=state, scope="supervisor_role_pass", text=format_role_pass(role_pass), prefer_edit=False)
 
 
 @router.message(F.text == ADMIN_PASS_BUTTON_TEXT)
 async def generate_admin_pass(
     message: Message,
+    state: FSMContext,
     auth_service: AuthService,
     role_service: RoleService,
     role_pass_service: RolePassService,
@@ -96,17 +101,18 @@ async def generate_admin_pass(
 
     role_pass = await role_pass_service.generate_admin_pass(user)
     await session.commit()
-    await message.answer(format_role_pass(role_pass))
+    await send_clean_screen(message, state=state, scope="supervisor_role_pass", text=format_role_pass(role_pass), prefer_edit=False)
 
 
 @router.message(F.text == EXIT_TO_MENU_BUTTON_TEXT)
-async def exit_supervisor_menu(message: Message) -> None:
-    await message.answer("Возврат в главное меню.", reply_markup=get_main_menu_keyboard())
+async def exit_supervisor_menu(message: Message, state: FSMContext) -> None:
+    await send_clean_screen(message, state=state, scope="main_menu", text="Возврат в главное меню.", reply_markup=get_main_menu_keyboard(), prefer_edit=False)
 
 
 @router.message(F.text)
 async def process_role_text(
     message: Message,
+    state: FSMContext,
     auth_service: AuthService,
     role_service: RoleService,
     user_repository: UserRepository,
@@ -122,7 +128,7 @@ async def process_role_text(
     )
     if promoted is not None:
         await session.commit()
-        await message.answer("Роль supervisor успешно выдана.")
+        await send_clean_screen(message, state=state, scope="role_applied", text="Роль supervisor успешно выдана.", prefer_edit=False)
         return
 
     if re.fullmatch(r"[A-Z0-9]{10}", message.text) is None:
@@ -138,8 +144,8 @@ async def process_role_text(
 
     result = await role_service.apply_role_passcode(user=user, code=message.text)
     if not result.success:
-        await message.answer(format_pass_error(result.reason))
+        await send_clean_screen(message, state=state, scope="role_pass_error", text=format_pass_error(result.reason), prefer_edit=False)
         return
 
     await session.commit()
-    await message.answer(format_role_applied(result.role.value if result.role else "manager"))
+    await send_clean_screen(message, state=state, scope="role_applied", text=format_role_applied(result.role.value if result.role else "manager"), prefer_edit=False)

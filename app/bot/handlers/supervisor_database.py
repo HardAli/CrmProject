@@ -20,6 +20,7 @@ from app.bot.keyboards.supervisor_database import (
 from app.bot.states.database_import_states import DatabaseImportStates
 from app.common.formatters.database_export_formatter import format_database_export_summary
 from app.common.formatters.database_import_formatter import format_database_import_report
+from app.bot.utils.chat_ui import send_clean_screen
 from app.services.auth_service import AuthService
 from app.services.database_export_service import DatabaseExportService
 from app.services.database_import_service import DatabaseImportService, InvalidDatabaseArchiveError
@@ -48,7 +49,7 @@ async def open_database_menu(
         return
 
     await state.clear()
-    await message.answer("Меню базы данных", reply_markup=get_supervisor_database_keyboard())
+    await send_clean_screen(message, state=state, scope="supervisor_db_menu", text="Меню базы данных", reply_markup=get_supervisor_database_keyboard(), prefer_edit=False)
 
 
 @router.message(F.text == DATABASE_BACK_BUTTON_TEXT)
@@ -63,12 +64,13 @@ async def back_to_supervisor_menu(
         return
 
     await state.clear()
-    await message.answer("Панель supervisor", reply_markup=get_supervisor_menu_keyboard())
+    await send_clean_screen(message, state=state, scope="supervisor_menu", text="Панель supervisor", reply_markup=get_supervisor_menu_keyboard(), prefer_edit=False)
 
 
 @router.message(F.text == DATABASE_EXPORT_BUTTON_TEXT)
 async def export_database(
     message: Message,
+    state: FSMContext,
     auth_service: AuthService,
     role_service: RoleService,
     database_export_service: DatabaseExportService,
@@ -81,14 +83,14 @@ async def export_database(
         export_result = await database_export_service.export()
     except Exception:
         logger.exception("Database export failed")
-        await message.answer("Не удалось сформировать экспорт базы. Подробности записаны в лог.")
+        await send_clean_screen(message, state=state, scope="supervisor_db_error", text="Не удалось сформировать экспорт базы. Подробности записаны в лог.", prefer_edit=False)
         return
 
     await message.answer_document(
         BufferedInputFile(export_result.payload, filename=export_result.file_name),
         caption="Архив экспорта базы данных.",
     )
-    await message.answer(format_database_export_summary(export_result))
+    await send_clean_screen(message, state=state, scope="supervisor_db_export_summary", text=format_database_export_summary(export_result), prefer_edit=False)
 
 
 @router.message(F.text == DATABASE_IMPORT_BUTTON_TEXT)
@@ -103,7 +105,7 @@ async def request_import_archive(
         return
 
     await state.set_state(DatabaseImportStates.waiting_for_archive)
-    await message.answer("Отправьте zip-файл экспорта базы данных (формат crm.entities.zip).")
+    await send_clean_screen(message, state=state, scope="supervisor_db_import_prompt", text="Отправьте zip-файл экспорта базы данных (формат crm.entities.zip).", prefer_edit=False)
 
 
 @router.message(DatabaseImportStates.waiting_for_archive, F.document)
@@ -122,7 +124,7 @@ async def import_database_archive(
 
     document = message.document
     if document is None:
-        await message.answer("Не удалось прочитать документ. Отправьте файл заново.")
+        await send_clean_screen(message, state=state, scope="supervisor_db_import_prompt", text="Не удалось прочитать документ. Отправьте файл заново.", prefer_edit=False)
         return
 
     file = await message.bot.get_file(document.file_id)
@@ -135,22 +137,23 @@ async def import_database_archive(
         await session.commit()
     except InvalidDatabaseArchiveError as exc:
         await session.rollback()
-        await message.answer(f"Файл не подходит для импорта: {exc}")
+        await send_clean_screen(message, state=state, scope="supervisor_db_import_error", text=f"Файл не подходит для импорта: {exc}", prefer_edit=False)
         return
     except Exception:
         await session.rollback()
         logger.exception("Database import failed")
-        await message.answer("Импорт завершился ошибкой. Подробности записаны в лог.")
+        await send_clean_screen(message, state=state, scope="supervisor_db_import_error", text="Импорт завершился ошибкой. Подробности записаны в лог.", prefer_edit=False)
         return
     finally:
         await state.clear()
 
-    await message.answer(format_database_import_report(report))
+    await send_clean_screen(message, state=state, scope="supervisor_db_import_report", text=format_database_import_report(report), prefer_edit=False)
 
 
 @router.message(DatabaseImportStates.waiting_for_archive)
 async def import_waiting_for_document(
     message: Message,
+    state: FSMContext,
     auth_service: AuthService,
     role_service: RoleService,
 ) -> None:
@@ -159,7 +162,8 @@ async def import_waiting_for_document(
         return
 
     if message.text == EXIT_TO_MENU_BUTTON_TEXT:
-        await message.answer("Возврат в главное меню.", reply_markup=get_main_menu_keyboard())
+        await state.clear()
+        await send_clean_screen(message, state=state, scope="main_menu", text="Возврат в главное меню.", reply_markup=get_main_menu_keyboard(), prefer_edit=False)
         return
 
-    await message.answer("Ожидаю zip-файл экспорта. Отправьте документом.")
+    await send_clean_screen(message, state=state, scope="supervisor_db_import_prompt", text="Ожидаю zip-файл экспорта. Отправьте документом.", prefer_edit=False)

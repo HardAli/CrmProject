@@ -37,6 +37,7 @@ from app.bot.keyboards.clients import (
     get_year_built_keyboard,
 )
 from app.bot.states.clients import ClientCreateStates
+from app.bot.utils.chat_ui import send_clean_screen
 from app.common.dto.clients import CreateClientDTO
 from app.common.dto.properties import CreatePropertyDTO
 from app.common.enums import PropertyStatus, PropertyType, RequestType, WallMaterial
@@ -184,29 +185,54 @@ async def _get_current_user(message: Message, auth_service: AuthService):
     return user
 
 
+async def _show_client_create_step(
+    message: Message,
+    state: FSMContext,
+    text: str,
+    *,
+    reply_markup=None,
+    parse_mode: str | None = None,
+    scope: str = "client_create",
+) -> None:
+    await send_clean_screen(
+        message,
+        state=state,
+        scope=scope,
+        text=text,
+        reply_markup=reply_markup,
+        parse_mode=parse_mode,
+        prefer_edit=False,
+    )
+
+
 async def _show_client_card_after_photo_step(
     *,
     message: Message,
+    state: FSMContext,
     client_id: int | None,
     user,
     client_service: ClientService,
 ) -> None:
     if not isinstance(client_id, int):
-        await message.answer("Клиент не найден.")
+        await _show_client_create_step(message, state, "Клиент не найден.", scope="client_create_error")
         return
 
     client = await client_service.get_client_for_view(current_user=user, client_id=client_id)
     if client is None:
-        await message.answer("Клиент не найден.")
+        await _show_client_create_step(message, state, "Клиент не найден.", scope="client_create_error")
         return
 
     manager_name = client.manager.full_name if client.manager else "—"
-    await message.answer(
-        format_client_created_card(client=client, manager_name=manager_name),
+    await send_clean_screen(
+        message,
+        state=state,
+        scope="client_card",
+        text=format_client_created_card(client=client, manager_name=manager_name),
         reply_markup=get_client_card_actions_keyboard(
             client_id=client.id,
             can_edit=client_service.can_edit_client(current_user=user, client=client),
         ),
+        prefer_edit=False,
     )
 
 
@@ -288,12 +314,15 @@ async def _finalize_client_creation(
     else:
         text = "Клиент создан. Найден существующий объект, он привязан к клиенту."
 
-    await message.answer(
+    await _show_client_create_step(
+        message,
+        state,
         f"{text}\n\n"
         "Теперь отправьте фотографии клиента.\n"
         "Можно отправить одну фотографию или сразу пачку до 10 фото.\n\n"
         "Если фото не нужны, нажмите «Пропустить».",
         reply_markup=get_client_create_photo_keyboard(),
+        scope="client_create_photo_prompt",
     )
 
 
@@ -343,7 +372,7 @@ async def _finalize_client_creation(
 )
 async def cancel_client_creation(message: Message, state: FSMContext) -> None:
     await state.clear()
-    await message.answer("Добавление клиента отменено.", reply_markup=get_clients_menu_keyboard())
+    await _show_client_create_step(message, state, "Добавление клиента отменено.", reply_markup=get_clients_menu_keyboard(), scope="clients_menu")
 
 
 @router.message(F.text == ADD_CLIENT_TEXT)
@@ -354,7 +383,9 @@ async def start_client_create(message: Message, state: FSMContext, auth_service:
 
     await state.clear()
     await state.set_state(ClientCreateStates.full_name)
-    await message.answer(
+    await _show_client_create_step(
+        message,
+        state,
         "Введите ФИО клиента.",
         reply_markup=get_full_name_keyboard(),
     )
@@ -364,7 +395,7 @@ async def start_client_create(message: Message, state: FSMContext, auth_service:
 async def process_full_name(message: Message, state: FSMContext) -> None:
     raw_value = (message.text or "").strip()
     if not raw_value:
-        await message.answer("ФИО не должно быть пустым. Введите ФИО клиента или нажмите «Неизвестно».")
+        await _show_client_create_step(message, state, "ФИО не должно быть пустым. Введите ФИО клиента или нажмите «Неизвестно».", reply_markup=get_full_name_keyboard())
         return
 
     full_name_is_unknown = raw_value == UNKNOWN_TEXT
@@ -374,7 +405,7 @@ async def process_full_name(message: Message, state: FSMContext) -> None:
         await state.update_data(full_name=raw_value, full_name_is_unknown=False)
 
     await state.set_state(ClientCreateStates.phone)
-    await message.answer("Введите телефон клиента (например, +79991234567).")
+    await _show_client_create_step(message, state, "Введите телефон клиента (например, +79991234567).")
 
 
 @router.message(ClientCreateStates.phone)
@@ -382,7 +413,7 @@ async def process_phone(message: Message, state: FSMContext) -> None:
     try:
         phone = normalize_phone(message.text or "")
     except ValueError as error:
-        await message.answer(f"{error}\nВведите телефон в корректном формате.")
+        await _show_client_create_step(message, state, f"{error}\nВведите телефон в корректном формате.")
         return
 
     data = await state.get_data()
@@ -392,19 +423,19 @@ async def process_phone(message: Message, state: FSMContext) -> None:
 
     await state.update_data(**update_data)
     await state.set_state(ClientCreateStates.source)
-    await message.answer("Выберите источник клиента:", reply_markup=get_source_keyboard())
+    await _show_client_create_step(message, state, "Выберите источник клиента:", reply_markup=get_source_keyboard())
 
 
 @router.message(ClientCreateStates.source)
 async def process_source(message: Message, state: FSMContext) -> None:
     value = (message.text or "").strip()
     if value not in SOURCE_OPTIONS:
-        await message.answer("Выберите источник с помощью кнопок.", reply_markup=get_source_keyboard())
+        await _show_client_create_step(message, state, "Выберите источник с помощью кнопок.", reply_markup=get_source_keyboard())
         return
 
     await state.update_data(source=value)
     await state.set_state(ClientCreateStates.request_type)
-    await message.answer("Выберите тип запроса:", reply_markup=get_request_type_keyboard())
+    await _show_client_create_step(message, state, "Выберите тип запроса:", reply_markup=get_request_type_keyboard())
 
 
 @router.message(ClientCreateStates.request_type)
@@ -412,12 +443,12 @@ async def process_request_type(message: Message, state: FSMContext) -> None:
     value = (message.text or "").strip()
     request_type = REQUEST_TYPE_MAP.get(value)
     if request_type is None:
-        await message.answer("Выберите тип запроса с помощью кнопок.", reply_markup=get_request_type_keyboard())
+        await _show_client_create_step(message, state, "Выберите тип запроса с помощью кнопок.", reply_markup=get_request_type_keyboard())
         return
 
     await state.update_data(request_type=request_type.value)
     await state.set_state(ClientCreateStates.property_type)
-    await message.answer("Выберите тип недвижимости:", reply_markup=get_property_type_keyboard())
+    await _show_client_create_step(message, state, "Выберите тип недвижимости:", reply_markup=get_property_type_keyboard())
 
 
 @router.message(ClientCreateStates.property_type)
@@ -425,27 +456,33 @@ async def process_property_type(message: Message, state: FSMContext) -> None:
     value = (message.text or "").strip()
     property_type = PROPERTY_TYPE_MAP.get(value)
     if property_type is None:
-        await message.answer("Выберите тип недвижимости с помощью кнопок.", reply_markup=get_property_type_keyboard())
+        await _show_client_create_step(message, state, "Выберите тип недвижимости с помощью кнопок.", reply_markup=get_property_type_keyboard())
         return
 
     await state.update_data(property_type=property_type.value)
     await state.set_state(ClientCreateStates.district)
-    await message.answer("Выберите район кнопкой или введите вручную.", reply_markup=get_district_keyboard())
+    await _show_client_create_step(message, state, "Выберите район кнопкой или введите вручную.", reply_markup=get_district_keyboard())
 
 
 @router.message(ClientCreateStates.district)
 async def process_district(message: Message, state: FSMContext) -> None:
     value = (message.text or "").strip()
     if not value:
-        await message.answer("Район не должен быть пустым. Выберите кнопкой или введите текстом.",
-                             reply_markup=get_district_keyboard())
+        await _show_client_create_step(
+            message,
+            state,
+            "Район не должен быть пустым. Выберите кнопкой или введите текстом.",
+            reply_markup=get_district_keyboard(),
+        )
         return
 
     district = None if value == SKIP_TEXT else value
 
     await state.update_data(district=district)
     await state.set_state(ClientCreateStates.rooms)
-    await message.answer(
+    await _show_client_create_step(
+        message,
+        state,
         "Выберите количество комнат кнопкой или введите вручную (1-5, Студия).",
         reply_markup=get_rooms_keyboard(),
     )
@@ -464,12 +501,16 @@ async def process_rooms(message: Message, state: FSMContext) -> None:
     elif value.isdigit() and 0 < int(value) <= 50:
         await state.update_data(rooms=value)
     else:
-        await message.answer("Комнаты: выберите 1-5, «Студия», «Пропустить» или введите число вручную.")
+        await _show_client_create_step(message, state, "Комнаты: выберите 1-5, «Студия», «Пропустить» или введите число вручную.", reply_markup=get_rooms_keyboard())
         return
 
     await state.set_state(ClientCreateStates.budget)
-    await message.answer("Введите цену (только число) или нажмите «Пропустить».",
-                         reply_markup=get_skip_cancel_keyboard())
+    await _show_client_create_step(
+        message,
+        state,
+        "Введите цену (только число) или нажмите «Пропустить».",
+        reply_markup=get_skip_cancel_keyboard(),
+    )
 
 
 @router.message(ClientCreateStates.budget)
@@ -481,7 +522,7 @@ async def process_budget(message: Message, state: FSMContext) -> None:
     else:
         budget_min, budget_max = parse_money_range_to_tenge(value)
         if budget_min is None and budget_max is None:
-            await message.answer("Введите бюджет, например 25, 15-25, от 20 или до 30.")
+            await _show_client_create_step(message, state, "Введите бюджет, например 25, 15-25, от 20 или до 30.", reply_markup=get_skip_cancel_keyboard())
             return
 
         budget_value = budget_max if budget_max is not None else budget_min
@@ -491,7 +532,9 @@ async def process_budget(message: Message, state: FSMContext) -> None:
     property_type = PropertyType(data["property_type"])
     if property_type == PropertyType.APARTMENT:
         await state.set_state(ClientCreateStates.floor)
-        await message.answer(
+        await _show_client_create_step(
+            message,
+            state,
             "Выберите этаж (1-16) кнопкой или введите вручную.",
             reply_markup=get_floor_keyboard(),
         )
@@ -499,8 +542,7 @@ async def process_budget(message: Message, state: FSMContext) -> None:
 
     await state.update_data(floor=None, building_floors=None, wall_material=None, year_built=None)
     await state.set_state(ClientCreateStates.note)
-    await message.answer("Введите заметку по клиенту (или нажмите «Пропустить»).",
-                         reply_markup=get_skip_cancel_keyboard())
+    await _show_client_create_step(message, state, "Введите заметку по клиенту (или нажмите «Пропустить»).", reply_markup=get_skip_cancel_keyboard())
 
 
 @router.message(ClientCreateStates.floor)
@@ -508,7 +550,9 @@ async def process_floor(message: Message, state: FSMContext) -> None:
     try:
         floor = parse_int_in_range(message.text or "", field_name="Этаж", minimum=1, maximum=16)
     except ValueError as error:
-        await message.answer(
+        await _show_client_create_step(
+            message,
+            state,
             f"{error}\nВыберите этаж кнопкой 1-16 или введите вручную.",
             reply_markup=get_floor_keyboard(),
         )
@@ -516,7 +560,9 @@ async def process_floor(message: Message, state: FSMContext) -> None:
 
     await state.update_data(floor=floor)
     await state.set_state(ClientCreateStates.building_floors)
-    await message.answer(
+    await _show_client_create_step(
+        message,
+        state,
         "Выберите этажность дома (1-16) кнопкой или введите вручную.",
         reply_markup=get_building_floors_keyboard(),
     )
@@ -527,7 +573,9 @@ async def process_building_floors(message: Message, state: FSMContext) -> None:
     try:
         building_floors = parse_int_in_range(message.text or "", field_name="Этажность дома", minimum=1, maximum=16)
     except ValueError as error:
-        await message.answer(
+        await _show_client_create_step(
+            message,
+            state,
             f"{error}\nВыберите этажность кнопкой 1-16 или введите вручную.",
             reply_markup=get_building_floors_keyboard(),
         )
@@ -536,7 +584,9 @@ async def process_building_floors(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     floor = data.get("floor")
     if floor is not None and floor > building_floors:
-        await message.answer(
+        await _show_client_create_step(
+            message,
+            state,
             "Этаж не может быть больше этажности дома. Введите этажность повторно.",
             reply_markup=get_building_floors_keyboard(),
         )
@@ -544,7 +594,7 @@ async def process_building_floors(message: Message, state: FSMContext) -> None:
 
     await state.update_data(building_floors=building_floors)
     await state.set_state(ClientCreateStates.wall_material)
-    await message.answer("Выберите материал стен:", reply_markup=get_wall_material_keyboard())
+    await _show_client_create_step(message, state, "Выберите материал стен:", reply_markup=get_wall_material_keyboard())
 
 
 @router.message(ClientCreateStates.wall_material)
@@ -552,7 +602,9 @@ async def process_wall_material(message: Message, state: FSMContext) -> None:
     value = (message.text or "").strip()
     wall_material = WALL_MATERIAL_MAP.get(value)
     if wall_material is None:
-        await message.answer(
+        await _show_client_create_step(
+            message,
+            state,
             f"Выберите материал стен кнопкой ({', '.join(WALL_MATERIAL_OPTIONS)}).",
             reply_markup=get_wall_material_keyboard(),
         )
@@ -560,7 +612,9 @@ async def process_wall_material(message: Message, state: FSMContext) -> None:
 
     await state.update_data(wall_material=wall_material.value)
     await state.set_state(ClientCreateStates.year_built)
-    await message.answer(
+    await _show_client_create_step(
+        message,
+        state,
         "Введите год постройки (например, 2012) или нажмите «Пропустить».",
         reply_markup=get_year_built_keyboard(),
     )
@@ -576,13 +630,17 @@ async def process_year_built(message: Message, state: FSMContext) -> None:
         try:
             year_built = parse_year_built(value)
         except ValueError as error:
-            await message.answer(f"{error}\nВведите корректный год или нажмите «Пропустить».",
-                                 reply_markup=get_year_built_keyboard())
+            await _show_client_create_step(
+                message,
+                state,
+                f"{error}\nВведите корректный год или нажмите «Пропустить».",
+                reply_markup=get_year_built_keyboard(),
+            )
             return
         await state.update_data(year_built=year_built)
 
     await state.set_state(ClientCreateStates.note)
-    await message.answer("Введите заметку по клиенту (или нажмите «Пропустить»).", reply_markup=get_skip_cancel_keyboard())
+    await _show_client_create_step(message, state, "Введите заметку по клиенту (или нажмите «Пропустить»).", reply_markup=get_skip_cancel_keyboard())
 
 
 @router.message(ClientCreateStates.note)
@@ -593,7 +651,9 @@ async def process_note(message: Message, state: FSMContext) -> None:
     await state.update_data(note=note)
 
     await state.set_state(ClientCreateStates.next_contact_at)
-    await message.answer(
+    await _show_client_create_step(
+        message,
+        state,
         build_date_prompt(label="дату следующего контакта") + "\nТакже можно кнопками: Сегодня / Завтра / Послезавтра.",
         reply_markup=get_next_contact_keyboard(),
     )
@@ -619,7 +679,9 @@ async def process_next_contact_at(
             try:
                 next_contact_at = parse_next_contact_at(value)
             except ValueError as error:
-                await message.answer(
+                await _show_client_create_step(
+                    message,
+                    state,
                     build_date_error_message(
                         error_text=str(error),
                         label="дату следующего контакта",
@@ -640,15 +702,15 @@ async def process_next_contact_at(
         missing_field = _get_missing_seller_property_field(data)
         if missing_field == "address":
             await state.set_state(ClientCreateStates.seller_missing_address)
-            await message.answer("Укажите адрес или ЖК объекта, чтобы добавить его в базу.")
+            await _show_client_create_step(message, state, "Укажите адрес или ЖК объекта, чтобы добавить его в базу.")
             return
         if missing_field == "price":
             await state.set_state(ClientCreateStates.seller_missing_price)
-            await message.answer("Укажите цену объекта, чтобы добавить его в базу.")
+            await _show_client_create_step(message, state, "Укажите цену объекта, чтобы добавить его в базу.")
             return
         if missing_field == "area":
             await state.set_state(ClientCreateStates.seller_missing_area)
-            await message.answer("Укажите площадь объекта (м²), чтобы добавить его в базу.")
+            await _show_client_create_step(message, state, "Укажите площадь объекта (м²), чтобы добавить его в базу.")
             return
 
     await _finalize_client_creation(
@@ -671,7 +733,7 @@ async def process_seller_missing_address(
 ) -> None:
     value = (message.text or "").strip()
     if not value or value == SKIP_TEXT:
-        await message.answer("Адрес/ЖК обязателен для автодобавления объекта.")
+        await _show_client_create_step(message, state, "Адрес/ЖК обязателен для автодобавления объекта.")
         return
     await state.update_data(address=value)
 
@@ -679,11 +741,11 @@ async def process_seller_missing_address(
     missing_field = _get_missing_seller_property_field(data)
     if missing_field == "price":
         await state.set_state(ClientCreateStates.seller_missing_price)
-        await message.answer("Укажите цену объекта, чтобы добавить его в базу.")
+        await _show_client_create_step(message, state, "Укажите цену объекта, чтобы добавить его в базу.")
         return
     if missing_field == "area":
         await state.set_state(ClientCreateStates.seller_missing_area)
-        await message.answer("Укажите площадь объекта (м²), чтобы добавить его в базу.")
+        await _show_client_create_step(message, state, "Укажите площадь объекта (м²), чтобы добавить его в базу.")
         return
 
     user = await _get_current_user(message, auth_service)
@@ -715,14 +777,14 @@ async def process_seller_missing_price(
 ) -> None:
     price = parse_money_to_tenge(message.text)
     if price is None:
-        await message.answer("Введите цену, например 19.5 или 19 500 000.")
+        await _show_client_create_step(message, state, "Введите цену, например 19.5 или 19 500 000.")
         return
     await state.update_data(budget=str(price))
 
     data = await state.get_data()
     if _get_missing_seller_property_field(data) == "area":
         await state.set_state(ClientCreateStates.seller_missing_area)
-        await message.answer("Укажите площадь объекта (м²), чтобы добавить его в базу.")
+        await _show_client_create_step(message, state, "Укажите площадь объекта (м²), чтобы добавить его в базу.")
         return
 
     user = await _get_current_user(message, auth_service)
@@ -752,7 +814,7 @@ async def process_seller_missing_area(
 ) -> None:
     area = parse_decimal_or_none(message.text)
     if area is None or area <= 0:
-        await message.answer("Введите площадь числом больше 0.")
+        await _show_client_create_step(message, state, "Введите площадь числом больше 0.")
         return
     await state.update_data(area=str(area))
 
@@ -789,9 +851,9 @@ async def skip_photos_after_create(
     if user is None:
         return
 
-    await message.answer("Клиент создан без фотографий.")
     await _show_client_card_after_photo_step(
         message=message,
+        state=state,
         client_id=client_id,
         user=user,
         client_service=client_service,
@@ -814,9 +876,9 @@ async def done_photos_after_create(
     if user is None:
         return
 
-    await message.answer("Клиент создан. Фото сохранены.")
     await _show_client_card_after_photo_step(
         message=message,
+        state=state,
         client_id=client_id,
         user=user,
         client_service=client_service,
@@ -839,9 +901,9 @@ async def cancel_photo_step_after_create(
     if user is None:
         return
 
-    await message.answer("Добавление фото отменено. Клиент уже создан.")
     await _show_client_card_after_photo_step(
         message=message,
+        state=state,
         client_id=client_id,
         user=user,
         client_service=client_service,
@@ -857,20 +919,20 @@ async def save_photo_after_create(
     session: AsyncSession,
 ) -> None:
     if message.from_user is None:
-        await message.answer("Не удалось определить пользователя Telegram.")
+        await _show_client_create_step(message, state, "Не удалось определить пользователя Telegram.", scope="client_create_error")
         return
 
     user = await auth_service.get_active_user_by_telegram_id(message.from_user.id)
     if user is None:
         await state.clear()
-        await message.answer("Нет доступа")
+        await _show_client_create_step(message, state, "Нет доступа", scope="client_create_error")
         return
 
     state_data = await state.get_data()
     client_id = state_data.get("created_client_id")
     if not isinstance(client_id, int):
         await state.clear()
-        await message.answer("Клиент не найден.")
+        await _show_client_create_step(message, state, "Клиент не найден.", scope="client_create_error")
         return
 
     try:
@@ -880,17 +942,20 @@ async def save_photo_after_create(
         )
     except ValueError:
         await state.clear()
-        await message.answer("Клиент не найден.")
+        await _show_client_create_step(message, state, "Клиент не найден.", scope="client_create_error")
         return
     if not can_manage:
         await state.clear()
-        await message.answer("У вас нет прав на добавление фото.")
+        await _show_client_create_step(message, state, "У вас нет прав на добавление фото.", scope="client_create_error")
         return
 
     if not message.photo:
-        await message.answer(
+        await _show_client_create_step(
+            message,
+            state,
             "Отправьте фото клиента или нажмите «Пропустить».",
             reply_markup=get_client_create_photo_keyboard(),
+            scope="client_create_photo_prompt",
         )
         return
 
@@ -908,23 +973,29 @@ async def save_photo_after_create(
                 )
             except (PermissionError, ValueError):
                 await state.clear()
-                await message.answer("Клиент не найден.")
+                await _show_client_create_step(message, state, "Клиент не найден.", scope="client_create_error")
                 return
             except Exception:
-                await message.answer("Не удалось сохранить фотографии. Попробуйте позже.")
+                await _show_client_create_step(message, state, "Не удалось сохранить фотографии. Попробуйте позже.", scope="client_create_error")
                 return
 
             if duplicate_count:
-                await message.answer(
+                await _show_client_create_step(
+                    message,
+                    state,
                     f"Сохранено фото: {saved_count}. Дубликатов пропущено: {duplicate_count}. "
                     "Можете отправить ещё фото или нажать «Готово».",
                     reply_markup=get_client_create_photo_keyboard(),
+                    scope="client_create_photo_prompt",
                 )
                 return
 
-            await message.answer(
+            await _show_client_create_step(
+                message,
+                state,
                 f"Сохранено фото: {saved_count}. Можете отправить ещё фото или нажать «Готово».",
                 reply_markup=get_client_create_photo_keyboard(),
+                scope="client_create_photo_prompt",
             )
 
         key = f"client_create_photo:{client_id}:{message.from_user.id}:{message.media_group_id}"
@@ -944,26 +1015,32 @@ async def save_photo_after_create(
         )
     except (ValueError, PermissionError):
         await state.clear()
-        await message.answer("Клиент не найден.")
+        await _show_client_create_step(message, state, "Клиент не найден.", scope="client_create_error")
         return
 
     await session.commit()
     if saved_photo is None:
-        await message.answer(
+        await _show_client_create_step(
+            message,
+            state,
             "Сохранено фото: 0. Дубликатов пропущено: 1. Можете отправить ещё фото или нажать «Готово».",
             reply_markup=get_client_create_photo_keyboard(),
+            scope="client_create_photo_prompt",
         )
         return
 
-    await message.answer(
+    await _show_client_create_step(
+        message,
+        state,
         "Фото сохранено. Можете отправить ещё фото или нажать «Готово».",
         reply_markup=get_client_create_photo_keyboard(),
+        scope="client_create_photo_prompt",
     )
 
 
 @router.message(StateFilter(ClientCreateStates))
-async def fallback_in_state(message: Message) -> None:
-    await message.answer("Используйте предложенные кнопки или введите корректное значение.")
+async def fallback_in_state(message: Message, state: FSMContext) -> None:
+    await _show_client_create_step(message, state, "Используйте предложенные кнопки или введите корректное значение.")
 
 
 @router.message(F.text == "Добавить клиента")

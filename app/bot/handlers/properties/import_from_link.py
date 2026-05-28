@@ -30,7 +30,7 @@ from app.bot.keyboards.properties_import import (
     get_property_import_url_keyboard,
 )
 from app.bot.states.property_import_states import PropertyImportStates
-from app.bot.utils.message_sender import safe_answer
+from app.bot.utils.chat_ui import send_clean_bundle, send_clean_screen
 from app.common.enums import PropertyStatus, PropertyType
 from app.common.formatters.property_formatter import format_property_created_card
 from app.common.formatters.property_formatter import format_duplicate_property_card
@@ -39,6 +39,7 @@ from app.common.formatters.property_import_formatter import format_import_succes
 from app.common.utils.money import parse_money_to_tenge
 from app.common.utils.phone_links import normalize_owner_phone
 from app.common.utils.property_fields import normalize_building_material, parse_building_year_or_none
+from app.common.utils.telegram_text import split_message
 from app.common.utils.value_parsers import parse_decimal_or_none, parse_int_or_none
 from app.services.auth_service import AuthService
 from app.services.property_import_service import InvalidListingUrlError, PropertyImportService
@@ -47,6 +48,26 @@ router = Router(name="property_import")
 
 
 _KRISHA_URL_RE = re.compile(r"https?://(?:www\.)?krisha\.kz/a/show/[^\s]+", re.IGNORECASE)
+
+
+async def _show_import_step(
+    message: Message,
+    state: FSMContext,
+    text: str,
+    *,
+    reply_markup=None,
+    parse_mode: str | None = None,
+    scope: str = "property_import",
+) -> None:
+    await send_clean_screen(
+        message,
+        state=state,
+        scope=scope,
+        text=text,
+        reply_markup=reply_markup,
+        parse_mode=parse_mode,
+        prefer_edit=False,
+    )
 
 
 def _extract_krisha_listing_url(text: str) -> str | None:
@@ -75,11 +96,11 @@ async def _run_import_from_url(
     try:
         url = property_import_service.validate_url(url_text)
     except InvalidListingUrlError as error:
-        await message.answer(str(error), parse_mode=None)
+        await _show_import_step(message, state, str(error), parse_mode=None, scope="property_import_error")
         return
 
     if announce_detected:
-        await message.answer('Обнаружена ссылка Krisha. Запускаю импорт объекта...')
+        await _show_import_step(message, state, "Обнаружена ссылка Krisha. Запускаю импорт объекта...", scope="property_import_progress")
 
     raw_data = await property_import_service.parse_listing(url)
     parsed = property_import_service.normalize_parsed_data(raw_data)
@@ -87,11 +108,21 @@ async def _run_import_from_url(
     payload = property_import_service.to_state_payload(parsed)
     await state.update_data(import_payload=payload)
     await state.set_state(PropertyImportStates.preview)
-    await safe_answer(
+    chunks = split_message(preview, max_length=3500)
+    await send_clean_bundle(
         message,
-        preview,
-        reply_markup=get_property_import_preview_keyboard(has_missing_fields=not parsed.is_complete_for_create),
-        parse_mode=None,
+        state=state,
+        items=[
+            {
+                "scope": f"property_import_preview_{index}",
+                "text": chunk,
+                "reply_markup": get_property_import_preview_keyboard(has_missing_fields=not parsed.is_complete_for_create)
+                if index == len(chunks) - 1
+                else None,
+                "parse_mode": None,
+            }
+            for index, chunk in enumerate(chunks)
+        ],
     )
 
 
@@ -105,11 +136,11 @@ async def _get_user(message: Message, auth_service: AuthService):
 async def start_import(message: Message, state: FSMContext, auth_service: AuthService) -> None:
     user = await _get_user(message, auth_service)
     if user is None:
-        await message.answer("У вас нет доступа к этой функции.")
+        await _show_import_step(message, state, "У вас нет доступа к этой функции.", scope="property_import_error")
         return
     await state.clear()
     await state.set_state(PropertyImportStates.waiting_for_url)
-    await message.answer("Отправьте ссылку на объявление (пока поддерживается Krisha.kz).", reply_markup=get_property_import_url_keyboard())
+    await _show_import_step(message, state, "Отправьте ссылку на объявление (пока поддерживается Krisha.kz).", reply_markup=get_property_import_url_keyboard())
 
 
 @router.message(StateFilter(PropertyImportStates.waiting_for_url), F.text == CANCEL_TEXT)
@@ -117,7 +148,7 @@ async def start_import(message: Message, state: FSMContext, auth_service: AuthSe
 @router.message(StateFilter(PropertyImportStates.fill_missing), F.text == CANCEL_TEXT)
 async def cancel_import(message: Message, state: FSMContext) -> None:
     await state.clear()
-    await message.answer("Импорт по ссылке отменён.", reply_markup=get_properties_menu_keyboard())
+    await _show_import_step(message, state, "Импорт по ссылке отменён.", reply_markup=get_properties_menu_keyboard(), scope="properties_menu")
 
 
 @router.message(PropertyImportStates.waiting_for_url)
@@ -171,21 +202,21 @@ async def _ask_next_missing(message: Message, state: FSMContext) -> bool:
     missing = _compute_missing(payload)
     if not missing:
         await state.set_state(PropertyImportStates.preview)
-        await message.answer("Все обязательные поля заполнены. Нажмите «Сохранить».", reply_markup=get_property_import_preview_keyboard(has_missing_fields=False))
+        await _show_import_step(message, state, "Все обязательные поля заполнены. Нажмите «Сохранить».", reply_markup=get_property_import_preview_keyboard(has_missing_fields=False), scope="property_import_preview_ready")
         return False
 
     field = missing[0]
     await state.update_data(current_missing_field=field)
     if field == "property_type":
-        await message.answer("Выберите тип недвижимости:", reply_markup=get_property_type_keyboard())
+        await _show_import_step(message, state, "Выберите тип недвижимости:", reply_markup=get_property_type_keyboard())
     elif field == "district":
-        await message.answer("Выберите район кнопкой или введите вручную.", reply_markup=get_property_district_keyboard())
+        await _show_import_step(message, state, "Выберите район кнопкой или введите вручную.", reply_markup=get_property_district_keyboard())
     elif field == "rooms":
-        await message.answer("Выберите комнаты:", reply_markup=get_property_rooms_keyboard())
+        await _show_import_step(message, state, "Выберите комнаты:", reply_markup=get_property_rooms_keyboard())
     elif field == "status":
-        await message.answer("Выберите статус:", reply_markup=get_property_status_keyboard())
+        await _show_import_step(message, state, "Выберите статус:", reply_markup=get_property_status_keyboard())
     else:
-        await message.answer(f"Введите значение для поля: {field}")
+        await _show_import_step(message, state, f"Введите значение для поля: {field}")
     await state.set_state(PropertyImportStates.fill_missing)
     return True
 
@@ -205,25 +236,25 @@ async def process_missing(message: Message, state: FSMContext) -> None:
     if field == "property_type":
         enum_value = PROPERTY_TYPE_MAP.get(text)
         if enum_value is None:
-            await message.answer("Выберите тип кнопкой.", reply_markup=get_property_type_keyboard())
+            await _show_import_step(message, state, "Выберите тип кнопкой.", reply_markup=get_property_type_keyboard())
             return
         payload[field] = enum_value.value
     elif field == "status":
         status = PROPERTY_STATUS_MAP.get(text)
         if status is None:
-            await message.answer("Выберите статус кнопкой.", reply_markup=get_property_status_keyboard())
+            await _show_import_step(message, state, "Выберите статус кнопкой.", reply_markup=get_property_status_keyboard())
             return
         payload[field] = status.value
     elif field == "price":
         price = parse_money_to_tenge(text)
         if price is None:
-            await message.answer("Введите цену, например 19.5 или 19 500 000.")
+            await _show_import_step(message, state, "Введите цену, например 19.5 или 19 500 000.")
             return
         payload[field] = str(price)
     elif field == "area":
         area = parse_decimal_or_none(text)
         if area is None or area <= 0:
-            await message.answer("Введите площадь числом больше 0.")
+            await _show_import_step(message, state, "Введите площадь числом больше 0.")
             return
         payload[field] = str(area)
     elif field == "owner_phone":
@@ -259,7 +290,13 @@ async def save_import(
     force_create = _read_force_create(data)
     missing = _compute_missing(payload)
     if missing:
-        await message.answer("Есть незаполненные обязательные поля. Нажмите «Заполнить недостающие поля».", reply_markup=get_property_import_preview_keyboard(has_missing_fields=True))
+        await _show_import_step(
+            message,
+            state,
+            "Есть незаполненные обязательные поля. Нажмите «Заполнить недостающие поля».",
+            reply_markup=get_property_import_preview_keyboard(has_missing_fields=True),
+            scope="property_import_preview_ready",
+        )
         return
 
     from app.schemas.parsed_property import ParsedPropertyData
@@ -303,16 +340,34 @@ async def save_import(
             force_create_after_duplicate=False,
         )
         await state.set_state(PropertyImportStates.duplicate_confirm)
-        await message.answer(format_duplicate_property_card(duplicate.matched_property, duplicate.matched_fields, duplicate.matched_fields_count), reply_markup=get_duplicate_confirm_keyboard())
+        await _show_import_step(
+            message,
+            state,
+            format_duplicate_property_card(duplicate.matched_property, duplicate.matched_fields, duplicate.matched_fields_count),
+            reply_markup=get_duplicate_confirm_keyboard(),
+            scope="property_import_duplicate_confirm",
+        )
         return
     property_obj, linked_clients_count, photo_count = await property_import_service.create_property_from_parsed_data(current_user=user, parsed_data=parsed)
     await session.commit()
     await state.clear()
 
     manager_name = property_obj.manager.full_name if property_obj.manager else user.full_name
-    await message.answer(format_import_success(property_id=property_obj.id, linked_clients_count=linked_clients_count, photo_count=photo_count))
-    await message.answer(format_property_created_card(property_obj=property_obj, manager_name=manager_name),
-                         reply_markup=get_properties_menu_keyboard())
+    await send_clean_bundle(
+        message,
+        state=state,
+        items=[
+            {
+                "scope": "property_import_success",
+                "text": format_import_success(property_id=property_obj.id, linked_clients_count=linked_clients_count, photo_count=photo_count),
+            },
+            {
+                "scope": "property_created_card",
+                "text": format_property_created_card(property_obj=property_obj, manager_name=manager_name),
+                "reply_markup": get_properties_menu_keyboard(),
+            },
+        ],
+    )
 
 
 @router.message(PropertyImportStates.duplicate_confirm, F.text == "Да, добавить")
@@ -328,7 +383,7 @@ async def confirm_import_duplicate(message: Message, state: FSMContext, auth_ser
 @router.message(PropertyImportStates.duplicate_confirm, F.text == "Нет, отмена")
 async def cancel_import_duplicate(message: Message, state: FSMContext) -> None:
     await state.clear()
-    await message.answer("Добавление объекта отменено.", reply_markup=get_properties_menu_keyboard())
+    await _show_import_step(message, state, "Добавление объекта отменено.", reply_markup=get_properties_menu_keyboard(), scope="properties_menu")
 
 
 @router.message(PropertyImportStates.duplicate_confirm, F.text == "Открыть найденный объект")
@@ -337,4 +392,4 @@ async def open_import_duplicate(message: Message, state: FSMContext, auth_servic
     if user is None:
         return
     from app.services.properties import PropertyService
-    await message.answer("Откройте карточку объекта из базы объектов по ID из предупреждения.")
+    await _show_import_step(message, state, "Откройте карточку объекта из базы объектов по ID из предупреждения.")

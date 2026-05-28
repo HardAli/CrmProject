@@ -22,6 +22,7 @@ from app.bot.keyboards.property_call_carousel import (
 from app.common.formatters.property_formatter import format_price_compact, format_property_call_card
 from app.services.auth_service import AuthService
 from app.bot.states.properties import PropertyCallCarouselStates
+from app.bot.utils.chat_ui import send_clean_screen
 from app.services.properties import PropertyService
 from app.services.property_call_service import PropertyCallService
 
@@ -162,7 +163,7 @@ async def _show_next_property(
 
 
 @router.message(F.text == CALL_CAROUSEL_TEXT)
-async def open_call_menu_message(message: Message, auth_service: AuthService, call_service: PropertyCallService) -> None:
+async def open_call_menu_message(message: Message, state: FSMContext, auth_service: AuthService, call_service: PropertyCallService) -> None:
     user = await auth_service.get_active_user_by_telegram_id(message.from_user.id)
     if user is None:
         await message.answer("Нет доступа")
@@ -176,7 +177,15 @@ async def open_call_menu_message(message: Message, auth_service: AuthService, ca
         f"❌ Отказали: {stats.get('REJECTED', 0)}\n"
         f"🏁 Продано: {stats.get('SOLD', 0)}"
     )
-    await message.answer(text, reply_markup=get_call_menu_keyboard(), parse_mode=None)
+    await send_clean_screen(
+        message,
+        state=state,
+        scope="call_menu",
+        text=text,
+        reply_markup=get_call_menu_keyboard(),
+        parse_mode=None,
+        prefer_edit=False,
+    )
 
 
 @router.callback_query(F.data == "callmenu")
@@ -195,8 +204,15 @@ async def open_call_menu_callback(callback: CallbackQuery, auth_service: AuthSer
         f"🏁 Продано: {stats.get('SOLD', 0)}\n"
         f"⏭ Пропущено: {stats.get('SKIPPED', 0)}"
     )
-    if callback.message is not None:
-        await safe_edit_text(callback.message, text, reply_markup=get_call_menu_keyboard(), parse_mode=None)
+    await send_clean_screen(
+        callback,
+        state=state,
+        scope="call_menu",
+        text=text,
+        reply_markup=get_call_menu_keyboard(),
+        parse_mode=None,
+        prefer_edit=True,
+    )
     await callback.answer()
 
 
@@ -347,7 +363,15 @@ async def ask_note(callback: CallbackQuery, state: FSMContext) -> None:
     await state.set_state(PropertyCallCarouselStates.waiting_for_note)
     await state.update_data(current_property_id=property_id)
     if callback.message is not None:
-        await callback.message.answer("Напишите заметку по объекту:", reply_markup=get_note_cancel_keyboard(property_id), parse_mode=None)
+        await send_clean_screen(
+            callback,
+            state=state,
+            scope="call_note_prompt",
+            text="Напишите заметку по объекту:",
+            reply_markup=get_note_cancel_keyboard(property_id),
+            parse_mode=None,
+            prefer_edit=True,
+        )
     await callback.answer()
 
 
@@ -355,21 +379,21 @@ async def ask_note(callback: CallbackQuery, state: FSMContext) -> None:
 async def save_note(message: Message, state: FSMContext, auth_service: AuthService, call_service: PropertyCallService, session: AsyncSession) -> None:
     if (message.text or "").strip().lower() == "отмена":
         await state.clear()
-        await message.answer("Отменено.")
+        await send_clean_screen(message, state=state, scope="call_cancelled", text="Отменено.", prefer_edit=False)
         return
     data = await state.get_data()
     property_id = data.get("current_property_id")
     if not isinstance(property_id, int):
-        await message.answer("Объект не найден")
+        await send_clean_screen(message, state=state, scope="call_error", text="Объект не найден", prefer_edit=False)
         return
     user = await auth_service.get_active_user_by_telegram_id(message.from_user.id)
     if user is None:
-        await message.answer("Нет доступа")
+        await send_clean_screen(message, state=state, scope="call_error", text="Нет доступа", prefer_edit=False)
         return
     await call_service.add_call_note(property_id=property_id, current_user=user, note=(message.text or "").strip())
     await session.commit()
     await state.clear()
-    await message.answer("✅ Заметка сохранена.")
+    await send_clean_screen(message, state=state, scope="call_note_saved", text="✅ Заметка сохранена.", prefer_edit=False)
 
 
 @router.callback_query(F.data.startswith("callprice:"))
@@ -378,7 +402,15 @@ async def ask_price(callback: CallbackQuery, state: FSMContext) -> None:
     await state.set_state(PropertyCallCarouselStates.waiting_for_price)
     await state.update_data(current_property_id=property_id)
     if callback.message is not None:
-        await callback.message.answer("Введите новую цену, например 18.5 или 18 500 000:", reply_markup=get_note_cancel_keyboard(property_id), parse_mode=None)
+        await send_clean_screen(
+            callback,
+            state=state,
+            scope="call_price_prompt",
+            text="Введите новую цену, например 18.5 или 18 500 000:",
+            reply_markup=get_note_cancel_keyboard(property_id),
+            parse_mode=None,
+            prefer_edit=True,
+        )
     await callback.answer()
 
 
@@ -387,32 +419,36 @@ async def save_price(message: Message, state: FSMContext, auth_service: AuthServ
     data = await state.get_data()
     property_id = data.get("current_property_id")
     if not isinstance(property_id, int):
-        await message.answer("Объект не найден")
+        await send_clean_screen(message, state=state, scope="call_error", text="Объект не найден", prefer_edit=False)
         return
     price = call_service.parse_price_value((message.text or "").strip())
     if price is None:
-        await message.answer("Введите цену, например 18.5 или 18 500 000.")
+        await send_clean_screen(message, state=state, scope="call_price_prompt", text="Введите цену, например 18.5 или 18 500 000.", prefer_edit=False)
         return
     user = await auth_service.get_active_user_by_telegram_id(message.from_user.id)
     if user is None:
-        await message.answer("Нет доступа")
+        await send_clean_screen(message, state=state, scope="call_error", text="Нет доступа", prefer_edit=False)
         return
     old_price, new_price = await call_service.update_property_price_from_call(property_id=property_id, current_user=user, price=price)
     await session.commit()
     await state.clear()
-    await message.answer(f"✅ Цена изменена: {format_price_compact(old_price)} -> {format_price_compact(new_price)}")
+    await send_clean_screen(message, state=state, scope="call_price_saved", text=f"✅ Цена изменена: {format_price_compact(old_price)} -> {format_price_compact(new_price)}", prefer_edit=False)
 
 
 @router.callback_query(F.data.startswith("callcard:"))
-async def open_property_card_from_call(callback: CallbackQuery) -> None:
+async def open_property_card_from_call(callback: CallbackQuery, state: FSMContext) -> None:
     property_id = int(callback.data.split(":")[1])
     if callback.message is not None:
-        await callback.message.answer(
-            "Открыть подробную карточку:",
+        await send_clean_screen(
+            callback,
+            state=state,
+            scope="call_open_card",
+            text="Открыть подробную карточку:",
             reply_markup=InlineKeyboardMarkup(
                 inline_keyboard=[[InlineKeyboardButton(text="📄 Карточка", callback_data=f"property_view:{property_id}")]]
             ),
             parse_mode=None,
+            prefer_edit=True,
         )
     await callback.answer()
 
@@ -444,6 +480,12 @@ async def show_call_stats(callback: CallbackQuery, auth_service: AuthService, ca
 @router.callback_query(F.data == "callmenu_exit")
 async def exit_call_menu(callback: CallbackQuery, state: FSMContext) -> None:
     await state.clear()
-    if callback.message is not None:
-        await callback.message.answer("Раздел объектов. Выберите действие:", reply_markup=get_properties_menu_keyboard())
+    await send_clean_screen(
+        callback,
+        state=state,
+        scope="properties_menu",
+        text="Раздел объектов. Выберите действие:",
+        reply_markup=get_properties_menu_keyboard(),
+        prefer_edit=True,
+    )
     await callback.answer()

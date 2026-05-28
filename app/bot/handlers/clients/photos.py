@@ -17,6 +17,7 @@ from app.bot.keyboards.clients import (
     get_client_photos_menu_keyboard,
 )
 from app.bot.handlers.clients.photo_media_group import buffer_media_group_photo
+from app.bot.utils.chat_ui import send_clean_screen
 from app.database.session import session_scope
 from app.repositories.client_photo_repository import ClientPhotoRepository
 from app.repositories.clients import ClientRepository
@@ -94,6 +95,7 @@ async def _process_media_group_batch(
 @router.callback_query(F.data.startswith("client_photos:"))
 async def open_client_photos_menu(
     callback: CallbackQuery,
+    state: FSMContext,
     auth_service: AuthService,
     client_photo_service: ClientPhotoService,
 ) -> None:
@@ -131,9 +133,13 @@ async def open_client_photos_menu(
             return
         raise
 
-    await callback.message.answer(
-        f"Раздел фото клиента.\nКоличество фото: {photos_count}.\nВыберите действие:",
+    await send_clean_screen(
+        callback,
+        state=state,
+        scope="client_photos_menu",
+        text=f"Раздел фото клиента.\nКоличество фото: {photos_count}.\nВыберите действие:",
         reply_markup=get_client_photos_menu_keyboard(client_id=client_id, can_manage=can_manage),
+        prefer_edit=True,
     )
     await callback.answer()
 
@@ -175,10 +181,16 @@ async def start_add_photo(
     await state.set_state(ClientCardStates.add_photo)
     await state.update_data(client_id=client_id)
 
-    await callback.message.answer(
-        "Отправьте одну или несколько фотографий клиента. Можно отправить альбомом до 10 фото. "
-        "Когда закончите, нажмите «Готово».",
+    await send_clean_screen(
+        callback,
+        state=state,
+        scope="client_photo_upload",
+        text=(
+            "Отправьте одну или несколько фотографий клиента. Можно отправить альбомом до 10 фото. "
+            "Когда закончите, нажмите «Готово»."
+        ),
         reply_markup=get_client_photo_upload_keyboard(),
+        prefer_edit=True,
     )
     await callback.answer()
 
@@ -187,7 +199,7 @@ async def start_add_photo(
 @router.message(F.text == CANCEL_TEXT, ClientCardStates.add_photo)
 async def cancel_add_photo(message: Message, state: FSMContext) -> None:
     await state.clear()
-    await message.answer("Добавление фото отменено.")
+    await send_clean_screen(message, state=state, scope="client_photo_cancelled", text="Добавление фото отменено.", prefer_edit=False)
 
 
 @router.message(Command("done"), ClientCardStates.add_photo)
@@ -198,13 +210,17 @@ async def finish_add_photo(message: Message, state: FSMContext) -> None:
     await state.clear()
 
     if isinstance(client_id, int):
-        await message.answer(
-            "Загрузка фото завершена.",
+        await send_clean_screen(
+            message,
+            state=state,
+            scope="client_photos_menu",
+            text="Загрузка фото завершена.",
             reply_markup=get_client_photos_menu_keyboard(client_id=client_id, can_manage=True),
+            prefer_edit=False,
         )
         return
 
-    await message.answer("Загрузка фото завершена.")
+    await send_clean_screen(message, state=state, scope="client_photo_done", text="Загрузка фото завершена.", prefer_edit=False)
 
 
 @router.message(ClientCardStates.add_photo)
@@ -216,19 +232,26 @@ async def save_client_photo(
     session: AsyncSession,
 ) -> None:
     if message.from_user is None:
-        await message.answer("Не удалось определить пользователя Telegram.")
+        await send_clean_screen(message, state=state, scope="client_photo_error", text="Не удалось определить пользователя Telegram.", prefer_edit=False)
         return
 
     user = await auth_service.get_active_user_by_telegram_id(message.from_user.id)
     if user is None:
         await state.clear()
-        await message.answer("Нет доступа")
+        await send_clean_screen(message, state=state, scope="client_photo_error", text="Нет доступа", prefer_edit=False)
         return
 
     if not message.photo:
-        await message.answer(
+        await send_clean_screen(
+            message,
+            state=state,
+            scope="client_photo_upload",
+            text=(
             "Пожалуйста, отправьте фото клиента. "
             "Можно отправить сразу несколько фотографий альбомом."
+            ),
+            reply_markup=get_client_photo_upload_keyboard(),
+            prefer_edit=False,
         )
         return
 
@@ -236,7 +259,7 @@ async def save_client_photo(
     client_id = state_data.get("client_id")
     if not isinstance(client_id, int):
         await state.clear()
-        await message.answer("Не удалось определить клиента. Откройте карточку заново.")
+        await send_clean_screen(message, state=state, scope="client_photo_error", text="Не удалось определить клиента. Откройте карточку заново.", prefer_edit=False)
         return
 
     try:
@@ -246,11 +269,11 @@ async def save_client_photo(
         )
     except ValueError:
         await state.clear()
-        await message.answer("Клиент не найден.")
+        await send_clean_screen(message, state=state, scope="client_photo_error", text="Клиент не найден.", prefer_edit=False)
         return
     if not can_manage:
         await state.clear()
-        await message.answer("У вас нет прав на добавление фото.")
+        await send_clean_screen(message, state=state, scope="client_photo_error", text="У вас нет прав на добавление фото.", prefer_edit=False)
         return
 
     photo = message.photo[-1]
@@ -280,24 +303,29 @@ async def save_client_photo(
         )
     except (ValueError, PermissionError):
         await state.clear()
-        await message.answer("Клиент не найден.")
+        await send_clean_screen(message, state=state, scope="client_photo_error", text="Клиент не найден.", prefer_edit=False)
         return
 
     await session.commit()
 
     if saved_photo is None:
-        await message.answer(
-            "Сохранено фото: 0. Дубликатов пропущено: 1.",
+        await send_clean_screen(
+            message,
+            state=state,
+            scope="client_photo_upload",
+            text="Сохранено фото: 0. Дубликатов пропущено: 1.",
             reply_markup=get_client_photo_upload_keyboard(),
+            prefer_edit=False,
         )
         return
 
-    await message.answer("Фото сохранено.", reply_markup=get_client_photo_upload_keyboard())
+    await send_clean_screen(message, state=state, scope="client_photo_upload", text="Фото сохранено.", reply_markup=get_client_photo_upload_keyboard(), prefer_edit=False)
 
 
 @router.callback_query(F.data.startswith("client_photo_view:"))
 async def view_client_photos(
     callback: CallbackQuery,
+    state: FSMContext,
     auth_service: AuthService,
     client_photo_service: ClientPhotoService,
 ) -> None:
@@ -337,11 +365,11 @@ async def view_client_photos(
         raise
 
     if not photos:
-        await callback.message.answer("У клиента пока нет фотографий.")
+        await send_clean_screen(callback, state=state, scope="client_photos_view", text="У клиента пока нет фотографий.", prefer_edit=True)
         await callback.answer()
         return
 
-    await callback.message.answer(f"Количество фото клиента: {len(photos)}.")
+    await send_clean_screen(callback, state=state, scope="client_photos_view", text=f"Количество фото клиента: {len(photos)}.", prefer_edit=True)
     for offset in range(0, len(photos), 10):
         chunk = photos[offset:offset + 10]
         media = [InputMediaPhoto(media=photo.telegram_file_id) for photo in chunk]
@@ -353,6 +381,7 @@ async def view_client_photos(
 @router.callback_query(F.data.startswith("client_photo_delete_menu:"))
 async def delete_client_photo_menu(
     callback: CallbackQuery,
+    state: FSMContext,
     auth_service: AuthService,
     client_photo_service: ClientPhotoService,
 ) -> None:
@@ -395,9 +424,13 @@ async def delete_client_photo_menu(
         return
 
     delete_items = [(photo.id, f"🗑 Фото #{photo.id}") for photo in photos]
-    await callback.message.answer(
-        "Выберите фотографию для удаления:",
+    await send_clean_screen(
+        callback,
+        state=state,
+        scope="client_photo_delete_menu",
+        text="Выберите фотографию для удаления:",
         reply_markup=get_client_photo_delete_keyboard(client_id=client_id, photos=delete_items),
+        prefer_edit=True,
     )
     await callback.answer()
 
@@ -405,6 +438,7 @@ async def delete_client_photo_menu(
 @router.callback_query(F.data.startswith("client_photo_delete:"))
 async def delete_client_photo(
     callback: CallbackQuery,
+    state: FSMContext,
     auth_service: AuthService,
     client_photo_service: ClientPhotoService,
     session: AsyncSession,
@@ -436,8 +470,12 @@ async def delete_client_photo(
         return
 
     await session.commit()
-    await callback.message.answer(
-        "Фото удалено ✅",
+    await send_clean_screen(
+        callback,
+        state=state,
+        scope="client_photos_menu",
+        text="Фото удалено ✅",
         reply_markup=get_client_photos_menu_keyboard(client_id=client_id, can_manage=True),
+        prefer_edit=True,
     )
     await callback.answer()

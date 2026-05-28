@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from aiogram import F, Router
+from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,6 +11,7 @@ from app.bot.keyboards.clients import (
     get_property_pick_for_link_keyboard,
     get_relation_status_change_keyboard,
 )
+from app.bot.utils.chat_ui import send_clean_screen
 from app.common.enums import ClientPropertyRelationStatus
 from app.common.formatters.client_property_formatter import (
     format_client_properties_list,
@@ -25,6 +27,7 @@ DEFAULT_LINKS_LIMIT = 10
 @router.callback_query(F.data.startswith("client_properties:"))
 async def show_client_properties(
     callback: CallbackQuery,
+    state: FSMContext,
     auth_service: AuthService,
     client_property_service: ClientPropertyService,
 ) -> None:
@@ -58,10 +61,13 @@ async def show_client_properties(
 
     if not links:
         can_edit = await client_property_service.can_link_properties_to_client(current_user=user, client_id=client_id)
-        await callback.message.answer("У клиента пока нет привязанных объектов.")
-        await callback.message.answer(
-            "Вы можете привязать объект:",
+        await send_clean_screen(
+            callback,
+            state=state,
+            scope="client_properties",
+            text="У клиента пока нет привязанных объектов.\n\nВы можете привязать объект:",
             reply_markup=get_client_properties_list_keyboard(client_id=client_id, links=[], can_edit=can_edit),
+            prefer_edit=True,
         )
         await callback.answer()
         return
@@ -71,9 +77,13 @@ async def show_client_properties(
         client=links[0].client,
         property_obj=links[0].property,
     )
-    await callback.message.answer(
-        format_client_properties_list(links=links, client_name=links[0].client.full_name, limit=DEFAULT_LINKS_LIMIT),
+    await send_clean_screen(
+        callback,
+        state=state,
+        scope="client_properties",
+        text=format_client_properties_list(links=links, client_name=links[0].client.full_name, limit=DEFAULT_LINKS_LIMIT),
         reply_markup=get_client_properties_list_keyboard(client_id=client_id, links=links, can_edit=can_edit),
+        prefer_edit=True,
     )
     await callback.answer()
 
@@ -81,6 +91,7 @@ async def show_client_properties(
 @router.callback_query(F.data.startswith("client_property_link_pick:"))
 async def pick_property_for_link(
     callback: CallbackQuery,
+    state: FSMContext,
     auth_service: AuthService,
     client_property_service: ClientPropertyService,
 ) -> None:
@@ -115,9 +126,13 @@ async def pick_property_for_link(
         await callback.answer("Нет доступных объектов для привязки", show_alert=True)
         return
 
-    await callback.message.answer(
-        "Выберите объект для привязки:",
+    await send_clean_screen(
+        callback,
+        state=state,
+        scope="client_property_pick",
+        text="Выберите объект для привязки:",
         reply_markup=get_property_pick_for_link_keyboard(client_id=client_id, properties=properties),
+        prefer_edit=True,
     )
     await callback.answer()
 
@@ -125,6 +140,7 @@ async def pick_property_for_link(
 @router.callback_query(F.data.startswith("client_property_link:"))
 async def link_property_to_client(
     callback: CallbackQuery,
+    state: FSMContext,
     auth_service: AuthService,
     client_property_service: ClientPropertyService,
     session: AsyncSession,
@@ -179,17 +195,22 @@ async def link_property_to_client(
             current_user=user,
             client=links[0].client,
             property_obj=links[0].property,
-        )
+    )
     if links:
-        await callback.message.answer(
-            format_client_properties_list(links=links, client_name=links[0].client.full_name, limit=DEFAULT_LINKS_LIMIT),
+        await send_clean_screen(
+            callback,
+            state=state,
+            scope="client_properties",
+            text=format_client_properties_list(links=links, client_name=links[0].client.full_name, limit=DEFAULT_LINKS_LIMIT),
             reply_markup=get_client_properties_list_keyboard(client_id=client_id, links=links, can_edit=can_edit),
+            prefer_edit=True,
         )
 
 
 @router.callback_query(F.data.startswith("client_property_view:"))
 async def open_link_card(
     callback: CallbackQuery,
+    state: FSMContext,
     auth_service: AuthService,
     client_property_service: ClientPropertyService,
 ) -> None:
@@ -221,9 +242,13 @@ async def open_link_card(
         client=link.client,
         property_obj=link.property,
     )
-    await callback.message.answer(
-        format_client_property_link_card(link),
+    await send_clean_screen(
+        callback,
+        state=state,
+        scope="client_property_card",
+        text=format_client_property_link_card(link),
         reply_markup=get_client_property_card_keyboard(link_id=link.id, client_id=link.client_id, can_edit=can_edit),
+        prefer_edit=True,
     )
     await callback.answer()
 
@@ -231,6 +256,7 @@ async def open_link_card(
 @router.callback_query(F.data.startswith("client_property_change_status:"))
 async def start_relation_status_change(
     callback: CallbackQuery,
+    state: FSMContext,
     auth_service: AuthService,
     client_property_service: ClientPropertyService,
 ) -> None:
@@ -262,9 +288,13 @@ async def start_relation_status_change(
         await callback.answer("Недостаточно прав", show_alert=True)
         return
 
-    await callback.message.answer(
-        "Выберите новый статус связи:",
+    await send_clean_screen(
+        callback,
+        state=state,
+        scope="client_property_status",
+        text="Выберите новый статус связи:",
         reply_markup=get_relation_status_change_keyboard(link_id=link.id, client_id=link.client_id),
+        prefer_edit=True,
     )
     await callback.answer()
 
@@ -272,6 +302,7 @@ async def start_relation_status_change(
 @router.callback_query(F.data.startswith("client_property_set_status:"))
 async def set_relation_status(
     callback: CallbackQuery,
+    state: FSMContext,
     auth_service: AuthService,
     client_property_service: ClientPropertyService,
     session: AsyncSession,
@@ -310,8 +341,12 @@ async def set_relation_status(
         return
 
     await session.commit()
-    await callback.message.answer(
-        format_client_property_link_card(link),
+    await send_clean_screen(
+        callback,
+        state=state,
+        scope="client_property_card",
+        text=format_client_property_link_card(link),
         reply_markup=get_client_property_card_keyboard(link_id=link.id, client_id=link.client_id, can_edit=True),
+        prefer_edit=True,
     )
     await callback.answer("Статус связи обновлён")

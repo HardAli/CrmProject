@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.bot.keyboards.clients import CANCEL_TEXT, get_cancel_keyboard, get_client_card_actions_keyboard, get_status_change_keyboard
 from app.bot.states.clients import ClientCardStates
 from app.bot.states.tasks import NextContactStates
+from app.bot.utils.chat_ui import send_clean_screen
 from app.common.enums import ClientStatus
 from app.common.formatters.client_formatter import format_client_card
 from app.common.utils.parsers import build_date_error_message, build_date_prompt, parse_next_contact_at
@@ -21,6 +22,7 @@ router = Router(name="client_edit")
 @router.callback_query(F.data.startswith("client_edit_status:"))
 async def start_status_change(
     callback: CallbackQuery,
+    state: FSMContext,
     auth_service: AuthService,
     client_service: ClientService,
 ) -> None:
@@ -47,9 +49,13 @@ async def start_status_change(
         await callback.answer("У вас нет прав на изменение этого клиента", show_alert=True)
         return
 
-    await callback.message.answer(
-        "Выберите новый статус:",
+    await send_clean_screen(
+        callback,
+        state=state,
+        scope="client_status_edit",
+        text="Выберите новый статус:",
         reply_markup=get_status_change_keyboard(client_id=client.id),
+        prefer_edit=True,
     )
     await callback.answer()
 
@@ -57,6 +63,7 @@ async def start_status_change(
 @router.callback_query(F.data.startswith("client_set_status:"))
 async def set_client_status(
     callback: CallbackQuery,
+    state: FSMContext,
     auth_service: AuthService,
     client_service: ClientService,
     session: AsyncSession,
@@ -97,12 +104,16 @@ async def set_client_status(
     await session.commit()
 
     manager_name = client.manager.full_name if client.manager else "—"
-    await callback.message.answer(
-        format_client_card(client=client, manager_name=manager_name, updated=True),
+    await send_clean_screen(
+        callback,
+        state=state,
+        scope="client_card",
+        text=format_client_card(client=client, manager_name=manager_name, updated=True),
         reply_markup=get_client_card_actions_keyboard(
             client_id=client.id,
             can_edit=client_service.can_edit_client(current_user=user, client=client),
         ),
+        prefer_edit=True,
     )
     await callback.answer("Статус обновлён")
 
@@ -140,9 +151,13 @@ async def start_add_note(
     await state.set_state(ClientCardStates.add_note)
     await state.update_data(client_id=client.id)
 
-    await callback.message.answer(
-        "Введите новую заметку для клиента (или отмените):",
+    await send_clean_screen(
+        callback,
+        state=state,
+        scope="client_note_prompt",
+        text="Введите новую заметку для клиента (или отмените):",
         reply_markup=get_cancel_keyboard(),
+        prefer_edit=True,
     )
     await callback.answer()
 
@@ -151,7 +166,7 @@ async def start_add_note(
 @router.message(F.text == CANCEL_TEXT, ClientCardStates.add_note)
 async def cancel_add_note(message: Message, state: FSMContext) -> None:
     await state.clear()
-    await message.answer("Добавление заметки отменено.")
+    await send_clean_screen(message, state=state, scope="client_note_cancelled", text="Добавление заметки отменено.", prefer_edit=False)
 
 
 @router.message(ClientCardStates.add_note)
@@ -165,42 +180,53 @@ async def save_note(
     user = await auth_service.get_active_user_by_telegram_id(message.from_user.id)
     if user is None:
         await state.clear()
-        await message.answer("Нет доступа")
+        await send_clean_screen(message, state=state, scope="client_edit_error", text="Нет доступа", prefer_edit=False)
         return
 
     note = (message.text or "").strip()
     if not note:
-        await message.answer("Заметка не должна быть пустой. Введите текст или нажмите «Отмена».")
+        await send_clean_screen(
+            message,
+            state=state,
+            scope="client_note_prompt",
+            text="Заметка не должна быть пустой. Введите текст или нажмите «Отмена».",
+            reply_markup=get_cancel_keyboard(),
+            prefer_edit=False,
+        )
         return
 
     state_data = await state.get_data()
     client_id = state_data.get("client_id")
     if not isinstance(client_id, int):
         await state.clear()
-        await message.answer("Не удалось определить клиента. Попробуйте открыть карточку снова.")
+        await send_clean_screen(message, state=state, scope="client_edit_error", text="Не удалось определить клиента. Попробуйте открыть карточку снова.", prefer_edit=False)
         return
 
     try:
         client = await client_service.add_note(current_user=user, client_id=client_id, note=note)
     except ValueError:
         await state.clear()
-        await message.answer("Клиент не найден или недоступен.")
+        await send_clean_screen(message, state=state, scope="client_edit_error", text="Клиент не найден или недоступен.", prefer_edit=False)
         return
     except PermissionError:
         await state.clear()
-        await message.answer("У вас нет прав на редактирование клиента.")
+        await send_clean_screen(message, state=state, scope="client_edit_error", text="У вас нет прав на редактирование клиента.", prefer_edit=False)
         return
 
     await session.commit()
     await state.clear()
 
     manager_name = client.manager.full_name if client.manager else "—"
-    await message.answer(
-        format_client_card(client=client, manager_name=manager_name, updated=True),
+    await send_clean_screen(
+        message,
+        state=state,
+        scope="client_card",
+        text=format_client_card(client=client, manager_name=manager_name, updated=True),
         reply_markup=get_client_card_actions_keyboard(
             client_id=client.id,
             can_edit=client_service.can_edit_client(current_user=user, client=client),
         ),
+        prefer_edit=False,
     )
 
 
@@ -236,9 +262,13 @@ async def start_next_contact_change(
 
     await state.set_state(NextContactStates.value)
     await state.update_data(client_id=client.id)
-    await callback.message.answer(
-        build_date_prompt(label="новую дату контакта"),
+    await send_clean_screen(
+        callback,
+        state=state,
+        scope="client_next_contact_prompt",
+        text=build_date_prompt(label="новую дату контакта"),
         reply_markup=get_cancel_keyboard(),
+        prefer_edit=True,
     )
     await callback.answer()
 
@@ -247,7 +277,7 @@ async def start_next_contact_change(
 @router.message(F.text == CANCEL_TEXT, NextContactStates.value)
 async def cancel_next_contact_change(message: Message, state: FSMContext) -> None:
     await state.clear()
-    await message.answer("Изменение даты следующего контакта отменено.")
+    await send_clean_screen(message, state=state, scope="client_next_contact_cancelled", text="Изменение даты следующего контакта отменено.", prefer_edit=False)
 
 
 @router.message(NextContactStates.value)
@@ -261,21 +291,28 @@ async def save_next_contact(
     user = await auth_service.get_active_user_by_telegram_id(message.from_user.id)
     if user is None:
         await state.clear()
-        await message.answer("Нет доступа")
+        await send_clean_screen(message, state=state, scope="client_edit_error", text="Нет доступа", prefer_edit=False)
         return
 
     value = (message.text or "").strip()
     try:
         next_contact_at = parse_next_contact_at(value)
     except ValueError as error:
-        await message.answer(build_date_error_message(error_text=str(error), label="новую дату контакта"))
+        await send_clean_screen(
+            message,
+            state=state,
+            scope="client_next_contact_prompt",
+            text=build_date_error_message(error_text=str(error), label="новую дату контакта"),
+            reply_markup=get_cancel_keyboard(),
+            prefer_edit=False,
+        )
         return
 
     state_data = await state.get_data()
     client_id = state_data.get("client_id")
     if not isinstance(client_id, int):
         await state.clear()
-        await message.answer("Не удалось определить клиента. Откройте карточку заново.")
+        await send_clean_screen(message, state=state, scope="client_edit_error", text="Не удалось определить клиента. Откройте карточку заново.", prefer_edit=False)
         return
 
     try:
@@ -286,20 +323,24 @@ async def save_next_contact(
         )
     except ValueError:
         await state.clear()
-        await message.answer("Клиент не найден или недоступен.")
+        await send_clean_screen(message, state=state, scope="client_edit_error", text="Клиент не найден или недоступен.", prefer_edit=False)
         return
     except PermissionError:
         await state.clear()
-        await message.answer("У вас нет прав для изменения даты контакта.")
+        await send_clean_screen(message, state=state, scope="client_edit_error", text="У вас нет прав для изменения даты контакта.", prefer_edit=False)
         return
 
     await session.commit()
     await state.clear()
     manager_name = client.manager.full_name if client.manager else "—"
-    await message.answer(
-        format_client_card(client=client, manager_name=manager_name, updated=True),
+    await send_clean_screen(
+        message,
+        state=state,
+        scope="client_card",
+        text=format_client_card(client=client, manager_name=manager_name, updated=True),
         reply_markup=get_client_card_actions_keyboard(
             client_id=client.id,
             can_edit=client_service.can_edit_client(current_user=user, client=client),
         ),
+        prefer_edit=False,
     )

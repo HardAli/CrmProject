@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from aiogram import F, Router
+from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
+from app.bot.utils.chat_ui import send_clean_screen
 from app.bot.keyboards.stats import (
     SECTION_GLOBAL,
     SECTION_MANAGERS,
@@ -24,6 +26,7 @@ router = Router(name="statistics")
 @router.message(F.text == STATS_MENU_TEXT)
 async def open_statistics_menu(
     message: Message,
+    state: FSMContext,
     auth_service: AuthService,
 ) -> None:
     user = await auth_service.get_active_user_by_telegram_id(message.from_user.id) if message.from_user else None
@@ -32,9 +35,13 @@ async def open_statistics_menu(
         return
 
     default_period = StatsPeriod.DAYS_30
-    await message.answer(
-        "Выберите раздел статистики:",
+    await send_clean_screen(
+        message,
+        state=state,
+        scope="statistics",
+        text="Выберите раздел статистики:",
         reply_markup=get_stats_sections_keyboard(role=user.role, period=default_period),
+        prefer_edit=False,
     )
 
 

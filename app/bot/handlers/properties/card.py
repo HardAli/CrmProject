@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from aiogram import F, Router
+from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,6 +10,7 @@ from app.bot.keyboards.properties import (
     get_property_actions_inline_keyboard_with_access,
     get_property_delete_confirm_keyboard,
 )
+from app.bot.utils.chat_ui import send_clean_screen
 from app.common.formatters.client_formatter import format_client_card
 from app.common.formatters.property_formatter import format_property_card
 from app.services.auth_service import AuthService
@@ -21,6 +23,7 @@ router = Router(name="property_card")
 @router.callback_query(F.data.startswith("property_view:"))
 async def open_property_card(
     callback: CallbackQuery,
+    state: FSMContext,
     auth_service: AuthService,
     property_service: PropertyService,
 ) -> None:
@@ -47,14 +50,18 @@ async def open_property_card(
     can_delete = property_service.can_delete_property(current_user=user, property_obj=property_obj)
     can_edit = property_service.can_edit_property(current_user=user, property_obj=property_obj)
     manager_name = property_obj.manager.full_name if property_obj.manager else "—"
-    await callback.message.answer(
-        format_property_card(property_obj=property_obj, manager_name=manager_name),
+    await send_clean_screen(
+        callback,
+        state=state,
+        scope="property_card",
+        text=format_property_card(property_obj=property_obj, manager_name=manager_name),
         reply_markup=get_property_actions_inline_keyboard_with_access(
             property_obj=property_obj,
             can_convert=can_convert,
             can_delete=can_delete,
             can_edit=can_edit,
         ),
+        prefer_edit=True,
     )
     await callback.answer()
 
@@ -62,6 +69,7 @@ async def open_property_card(
 @router.callback_query(F.data.startswith("property_make_client:"))
 async def make_client_from_property(
         callback: CallbackQuery,
+        state: FSMContext,
         auth_service: AuthService,
         property_service: PropertyService,
         client_service: ClientService,
@@ -99,12 +107,16 @@ async def make_client_from_property(
         client = loaded_client
     manager_name = client.manager.full_name if client.manager else user.full_name
     prefix = "✅ Клиент создан из объекта.\n\n" if result == "created" else "ℹ️ Клиент с таким номером уже существует.\n\n"
-    await callback.message.answer(
-        prefix + format_client_card(client=client, manager_name=manager_name),
+    await send_clean_screen(
+        callback,
+        state=state,
+        scope="client_card",
+        text=prefix + format_client_card(client=client, manager_name=manager_name),
         reply_markup=get_client_card_actions_keyboard(
             client_id=client.id,
             can_edit=client_service.can_edit_client(current_user=user, client=client),
         ),
+        prefer_edit=True,
     )
     await callback.answer()
 
@@ -112,6 +124,7 @@ async def make_client_from_property(
 @router.callback_query(F.data.startswith("property_delete_confirm:"))
 async def ask_property_delete_confirmation(
         callback: CallbackQuery,
+        state: FSMContext,
         auth_service: AuthService,
         property_service: PropertyService,
 ) -> None:
@@ -137,10 +150,14 @@ async def ask_property_delete_confirmation(
         await callback.answer("Недостаточно прав для удаления объекта", show_alert=True)
         return
 
-    await callback.message.answer(
-        f"⚠️ Вы уверены, что хотите удалить объект #{property_obj.id} «{property_obj.title}»?",
+    await send_clean_screen(
+        callback,
+        state=state,
+        scope="property_delete_confirm",
+        text=f"⚠️ Вы уверены, что хотите удалить объект #{property_obj.id} «{property_obj.title}»?",
         reply_markup=get_property_delete_confirm_keyboard(property_id=property_obj.id),
         parse_mode=None,
+        prefer_edit=True,
     )
     await callback.answer()
 
@@ -148,6 +165,7 @@ async def ask_property_delete_confirmation(
 @router.callback_query(F.data.startswith("property_delete_yes:"))
 async def delete_property_confirmed(
         callback: CallbackQuery,
+        state: FSMContext,
         auth_service: AuthService,
         property_service: PropertyService,
         session: AsyncSession,
@@ -176,5 +194,11 @@ async def delete_property_confirmed(
         return
 
     await session.commit()
-    await callback.message.answer("✅ Объект удалён. Откройте список объектов, чтобы продолжить работу.")
+    await send_clean_screen(
+        callback,
+        state=state,
+        scope="property_deleted",
+        text="✅ Объект удалён. Откройте список объектов, чтобы продолжить работу.",
+        prefer_edit=True,
+    )
     await callback.answer()
