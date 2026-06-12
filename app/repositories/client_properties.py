@@ -74,6 +74,17 @@ class ClientPropertyRepository:
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def get_linked_client_ids_for_property(self, *, property_id: int, client_ids: set[int]) -> set[int]:
+        if not client_ids:
+            return set()
+
+        stmt = select(ClientProperty.client_id).where(
+            ClientProperty.property_id == property_id,
+            ClientProperty.client_id.in_(client_ids),
+        )
+        result = await self._session.execute(stmt)
+        return set(result.scalars().all())
+
     async def update_relation_status(
         self,
         *,

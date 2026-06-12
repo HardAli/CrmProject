@@ -13,6 +13,10 @@ class SearchStates(StatesGroup):
     client_status = State()
     client_request_type = State()
 
+    buyer_quick_query = State()
+    buyer_query = State()
+    buyer_status = State()
+
     property_quick_query = State()
     property_title = State()
     property_district = State()

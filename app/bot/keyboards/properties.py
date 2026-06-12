@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
 
-from app.bot.keyboards.clients import CANCEL_TEXT, DISTRICT_OPTIONS, ROOMS_OPTIONS, SKIP_TEXT, UNKNOWN_TEXT
+from app.bot.keyboards.clients import CANCEL_TEXT, DISTRICT_OPTIONS, SKIP_TEXT, UNKNOWN_TEXT
+from app.bot.keyboards.property_selections import SELECTION_ADD_PROPERTY_TEXT
 from app.bot.keyboards.properties_import import ADD_PROPERTY_BY_LINK_TEXT
 from app.common.enums import PropertyStatus, PropertyType
-from app.common.formatters.property_formatter import format_object_compact
+from app.common.formatters.property_formatter import format_property_button_text
 from app.common.utils.phone_links import build_whatsapp_url
 from app.database.models.property import Property
 
@@ -25,7 +26,18 @@ PROPERTY_TYPE_OPTIONS: tuple[str, ...] = (
 )
 
 DISTRICT_OPTIONS_FOR_PROPERTY: tuple[str, ...] = DISTRICT_OPTIONS
-ROOMS_OPTIONS_FOR_PROPERTY: tuple[str, ...] = ROOMS_OPTIONS
+MORE_THAN_FIVE_ROOMS_TEXT = "Больше 5"
+STUDIO_ROOMS_TEXT = "Студия"
+ROOMS_OPTIONS_FOR_PROPERTY: tuple[str, ...] = (
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    MORE_THAN_FIVE_ROOMS_TEXT,
+    STUDIO_ROOMS_TEXT,
+    UNKNOWN_TEXT,
+)
 
 STATUS_OPTIONS: tuple[str, ...] = (
     "Активен",
@@ -115,6 +127,7 @@ def get_property_rooms_keyboard() -> ReplyKeyboardMarkup:
         keyboard=[
             [KeyboardButton(text=ROOMS_OPTIONS_FOR_PROPERTY[0]), KeyboardButton(text=ROOMS_OPTIONS_FOR_PROPERTY[1]), KeyboardButton(text=ROOMS_OPTIONS_FOR_PROPERTY[2])],
             [KeyboardButton(text=ROOMS_OPTIONS_FOR_PROPERTY[3]), KeyboardButton(text=ROOMS_OPTIONS_FOR_PROPERTY[4]), KeyboardButton(text=ROOMS_OPTIONS_FOR_PROPERTY[5])],
+            [KeyboardButton(text=ROOMS_OPTIONS_FOR_PROPERTY[6]), KeyboardButton(text=ROOMS_OPTIONS_FOR_PROPERTY[7])],
             [KeyboardButton(text=CANCEL_TEXT)],
         ],
         resize_keyboard=True,
@@ -272,9 +285,8 @@ def get_properties_list_inline_keyboard(properties: list[Property]) -> InlineKey
     rows: list[list[InlineKeyboardButton]] = []
     for property_obj in properties:
         property_button = InlineKeyboardButton(
-            text=format_object_compact(
+            text=format_property_button_text(
                 property_obj,
-                with_status=False,
                 max_length=MAX_PROPERTY_BUTTON_TEXT_LENGTH,
             ),
             callback_data=f"property_view:{property_obj.id}",
@@ -283,6 +295,15 @@ def get_properties_list_inline_keyboard(properties: list[Property]) -> InlineKey
         rows.append([property_button])
 
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def get_property_created_actions_keyboard(property_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Открыть объект", callback_data=f"property_view:{property_id}")],
+            [InlineKeyboardButton(text="Создать задачу", callback_data=f"property_task_create:{property_id}")],
+        ]
+    )
 
 
 def get_property_actions_inline_keyboard(property_obj: Property) -> InlineKeyboardMarkup:
@@ -301,6 +322,8 @@ def get_property_actions_inline_keyboard_with_access(
         can_edit: bool = False,
 ) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
+    rows.append([InlineKeyboardButton(text="ℹ️ Информация", callback_data=f"property_info:{property_obj.id}")])
+
     whatsapp_url = build_whatsapp_url(property_obj.owner_phone)
     if whatsapp_url:
         rows.append([InlineKeyboardButton(text="💬 WhatsApp", url=whatsapp_url)])
@@ -315,11 +338,20 @@ def get_property_actions_inline_keyboard_with_access(
         )
     if can_edit:
         rows.append([InlineKeyboardButton(text="✏️ Изменить", callback_data=f"property_edit:{property_obj.id}")])
+        rows.append([InlineKeyboardButton(text=SELECTION_ADD_PROPERTY_TEXT, callback_data=f"property_add_to_selection:{property_obj.id}")])
     if can_delete:
         rows.append(
             [InlineKeyboardButton(text="🗑 Удалить", callback_data=f"property_delete_confirm:{property_obj.id}")]
         )
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def get_property_info_keyboard(*, property_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="↩️ Назад к карточке", callback_data=f"property_view:{property_id}")],
+        ]
+    )
 
 
 def get_property_delete_confirm_keyboard(*, property_id: int) -> InlineKeyboardMarkup:

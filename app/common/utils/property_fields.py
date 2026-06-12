@@ -3,8 +3,41 @@ from __future__ import annotations
 import re
 from datetime import datetime, timezone
 
+from app.common.utils.value_parsers import parse_int_or_none
+
 
 ALLOWED_BUILDING_MATERIALS = {"Кирпич", "Панель", "Монолит"}
+MAX_PROPERTY_ROOMS = 50
+MORE_THAN_FIVE_ROOMS_VALUE = 6
+
+
+def parse_property_rooms_or_none(value: object) -> int | None:
+    if value is None:
+        return None
+
+    text = str(value).strip()
+    if not text:
+        return None
+
+    normalized = " ".join(text.lower().replace("ё", "е").split())
+    compact = normalized.replace(" ", "")
+
+    if normalized in {"студия", "неизвестно", "не указано", "пропустить"} or compact in {"?", "-", "unknown"}:
+        return None
+
+    if (
+        normalized in {"больше 5", "более 5", "свыше 5"}
+        or re.search(r"(?:больше|более|свыше)\s*5", normalized)
+        or re.search(r"от\s*6", normalized)
+        or compact in {"5+", ">5", "больше5", "более5", "свыше5", "от6", "6+"}
+    ):
+        return MORE_THAN_FIVE_ROOMS_VALUE
+
+    parsed = parse_int_or_none(text)
+    if parsed is not None and 0 < parsed <= MAX_PROPERTY_ROOMS:
+        return parsed
+
+    raise ValueError("Комнаты: выберите «Неизвестно», «Больше 5» или введите число от 1 до 50.")
 
 
 def normalize_building_material(raw_value: object) -> str | None:

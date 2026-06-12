@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from aiogram import Dispatcher, Router
 
+from app.bot.handlers.buyer_requests import router as buyer_requests_router
 from app.bot.handlers.clients.card import router as client_card_router
 from app.bot.handlers.clients.edit import router as client_edit_router
 from app.bot.handlers.clients.logs import router as client_logs_router
@@ -17,6 +18,7 @@ from app.bot.handlers.properties.list import router as property_list_router
 from app.bot.handlers.properties.card import router as property_card_router
 from app.bot.handlers.properties.edit import router as property_edit_router
 from app.bot.handlers.properties.call_carousel import router as property_call_carousel_router
+from app.bot.handlers.property_selections import router as property_selections_router
 from app.bot.handlers.search import router as search_router
 from app.bot.handlers.start import router as start_router
 from app.bot.handlers.stats import router as stats_router
@@ -27,6 +29,7 @@ from app.bot.handlers.supervisor_database import router as supervisor_database_r
 COMMON_ROUTERS: tuple[Router, ...] = (
     start_router,
     client_list_router,
+    buyer_requests_router,
     client_create_router,
     client_card_router,
     client_edit_router,
@@ -41,6 +44,7 @@ COMMON_ROUTERS: tuple[Router, ...] = (
     property_card_router,
     property_edit_router,
     property_call_carousel_router,
+    property_selections_router,
     search_router,
     stats_router,
     supervisor_database_router,

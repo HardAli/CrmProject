@@ -11,10 +11,10 @@ from app.database.models.user import User
 def format_role_pass(role_pass: RolePass) -> str:
     expires_at = role_pass.expires_at.astimezone(timezone.utc).strftime("%d.%m.%Y %H:%M UTC")
     return (
-        f"🔐 <b>Одноразовый пароль создан</b>\n\n"
-        f"<b>Роль:</b> {escape(role_pass.target_role.value)}\n"
-        f"<b>Код:</b> <code>{escape(role_pass.code)}</code>\n"
-        f"<b>Действует до:</b> {expires_at}"
+        f"🔐 Одноразовый пароль создан\n\n"
+        f"Роль: {escape(role_pass.target_role.value)}\n"
+        f"Код: <code>{escape(role_pass.code)}</code>\n"
+        f"Действует до: {expires_at}"
     )
 
 
@@ -22,7 +22,7 @@ def format_users_list(users: Sequence[User], *, limit: int) -> str:
     if not users:
         return "Пользователи не найдены."
 
-    rows = ["<b>Пользователи:</b>", ""]
+    rows = ["Пользователи:", ""]
     for index, user in enumerate(users, start=1):
         name = user.full_name.strip() if user.full_name else "Неизвестно"
         rows.append(
@@ -44,4 +44,4 @@ def format_pass_error(reason: str | None) -> str:
 
 
 def format_role_applied(role: str) -> str:
-    return f"Роль <b>{escape(role)}</b> успешно выдана."
+    return f"Роль {escape(role)} успешно выдана."

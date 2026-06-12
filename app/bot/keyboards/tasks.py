@@ -2,11 +2,14 @@ from __future__ import annotations
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
 
+from app.common.formatters.client_formatter import format_client_compact
+from app.database.models.client import Client
 from app.database.models.task import Task
 
 from app.bot.keyboards.clients import CANCEL_TEXT
 
 TASKS_MENU_TEXT = "✅ Задачи"
+CREATE_TASK_TEXT = "➕ Создать задачу"
 TODAY_TASKS_TEXT = "📅 Задачи на сегодня"
 OVERDUE_TASKS_TEXT = "⏰ Просроченные задачи"
 TODAY_CONTACTS_TEXT = "📞 Контакты на сегодня"
@@ -17,6 +20,7 @@ MY_TASKS_TEXT = "🗂 Мои задачи"
 def get_tasks_menu_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
+            [KeyboardButton(text=CREATE_TASK_TEXT)],
             [KeyboardButton(text=TODAY_TASKS_TEXT), KeyboardButton(text=OVERDUE_TASKS_TEXT)],
             [KeyboardButton(text=TODAY_CONTACTS_TEXT), KeyboardButton(text=OVERDUE_CONTACTS_TEXT)],
             [KeyboardButton(text=MY_TASKS_TEXT)],
@@ -33,6 +37,22 @@ def get_task_cancel_keyboard() -> ReplyKeyboardMarkup:
         resize_keyboard=True,
         input_field_placeholder="Введите значение или отмените",
     )
+
+
+def get_task_client_pick_keyboard(clients: list[Client]) -> InlineKeyboardMarkup | None:
+    if not clients:
+        return None
+
+    rows: list[list[InlineKeyboardButton]] = []
+    for client in clients:
+        prefix = f"#{client.id} · "
+        compact = format_client_compact(client)
+        max_compact_length = max(1, 64 - len(prefix))
+        if len(compact) > max_compact_length:
+            compact = f"{compact[:max(1, max_compact_length - 3)]}..."
+        rows.append([InlineKeyboardButton(text=f"{prefix}{compact}", callback_data=f"client_task_create:{client.id}")])
+
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def get_task_list_inline_keyboard(tasks: list[Task]) -> InlineKeyboardMarkup | None:

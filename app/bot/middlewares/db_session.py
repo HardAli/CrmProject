@@ -12,8 +12,11 @@ from app.repositories.client_logs import ClientLogRepository
 from app.repositories.client_properties import ClientPropertyRepository
 from app.repositories.client_photo_repository import ClientPhotoRepository
 from app.repositories.clients import ClientRepository
+from app.repositories.buyer_requests import BuyerRequestRepository
 from app.repositories.tasks import TaskRepository
 from app.repositories.properties import PropertyRepository
+from app.repositories.property_photos import PropertyPhotoRepository
+from app.repositories.property_selections import PropertySelectionRepository
 from app.repositories.statistics import StatisticsRepository
 from app.repositories.role_pass_repository import RolePassRepository
 from app.repositories.user_repository import UserRepository
@@ -22,12 +25,14 @@ from app.services.auth_service import AuthService
 from app.services.role_pass_service import RolePassService
 from app.services.role_service import RoleService
 from app.services.clients import ClientService
+from app.services.buyer_requests import BuyerRequestService
 from app.services.client_properties import ClientPropertyService
 from app.services.client_photo_service import ClientPhotoService
 from app.services.auto_link_service import AutoLinkService
 from app.services.property_duplicate_service import PropertyDuplicateService
 from app.services.tasks import TaskService
 from app.services.properties import PropertyService
+from app.services.property_selections import PropertySelectionService
 from app.services.property_import_service import PropertyImportService
 from app.services.property_photo_service import PropertyPhotoService
 from app.services.parsers.krisha_parser import KrishaParser
@@ -58,9 +63,12 @@ class DbSessionMiddleware(BaseMiddleware):
             user_repository = UserRepository(session)
             role_pass_repository = RolePassRepository(session)
             client_repository = ClientRepository(session)
+            buyer_request_repository = BuyerRequestRepository(session)
             client_log_repository = ClientLogRepository(session)
             task_repository = TaskRepository(session)
             property_repository = PropertyRepository(session)
+            property_photo_repository = PropertyPhotoRepository(session)
+            property_selection_repository = PropertySelectionRepository(session)
             client_property_repository = ClientPropertyRepository(session)
             client_photo_repository = ClientPhotoRepository(session)
             statistics_repository = StatisticsRepository(session)
@@ -69,6 +77,7 @@ class DbSessionMiddleware(BaseMiddleware):
             data["user_repository"] = user_repository
             data["role_pass_repository"] = role_pass_repository
             data["client_repository"] = client_repository
+            data["buyer_request_repository"] = buyer_request_repository
             data["auth_service"] = AuthService(user_repository)
             data["role_pass_service"] = RolePassService(
                 role_pass_repository=role_pass_repository,
@@ -86,9 +95,20 @@ class DbSessionMiddleware(BaseMiddleware):
                 property_repository,
                 client_property_repository,
             )
+            data["buyer_request_service"] = BuyerRequestService(
+                buyer_request_repository,
+                client_repository,
+                client_log_repository,
+            )
             data["task_repository"] = task_repository
             data["task_service"] = TaskService(task_repository, client_repository, client_log_repository)
             data["property_repository"] = property_repository
+            data["property_photo_repository"] = property_photo_repository
+            data["property_selection_repository"] = property_selection_repository
+            data["property_selection_service"] = PropertySelectionService(
+                selection_repository=property_selection_repository,
+                property_repository=property_repository,
+            )
             auto_link_service = AutoLinkService(
                 client_repository=client_repository,
                 client_property_repository=client_property_repository,
@@ -108,7 +128,7 @@ class DbSessionMiddleware(BaseMiddleware):
                 client_property_repository=client_property_repository,
                 client_log_repository=client_log_repository,
             )
-            photo_service = PropertyPhotoService()
+            photo_service = PropertyPhotoService(property_photo_repository)
             data["property_import_service"] = PropertyImportService(
                 property_service=data["property_service"],
                 photo_service=photo_service,

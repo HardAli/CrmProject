@@ -15,6 +15,7 @@ from app.bot.keyboards.clients import CANCEL_TEXT
 from app.bot.keyboards.properties import (
     PROPERTY_STATUS_MAP,
     PROPERTY_TYPE_MAP,
+    get_property_created_actions_keyboard,
     get_properties_menu_keyboard,
     get_property_district_keyboard,
     get_property_rooms_keyboard,
@@ -345,6 +346,7 @@ async def save_import(
             state,
             format_duplicate_property_card(duplicate.matched_property, duplicate.matched_fields, duplicate.matched_fields_count),
             reply_markup=get_duplicate_confirm_keyboard(),
+            parse_mode="HTML",
             scope="property_import_duplicate_confirm",
         )
         return
@@ -364,7 +366,8 @@ async def save_import(
             {
                 "scope": "property_created_card",
                 "text": format_property_created_card(property_obj=property_obj, manager_name=manager_name),
-                "reply_markup": get_properties_menu_keyboard(),
+                "reply_markup": get_property_created_actions_keyboard(property_obj.id),
+                "parse_mode": "HTML",
             },
         ],
     )

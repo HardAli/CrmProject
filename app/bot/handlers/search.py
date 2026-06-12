@@ -5,15 +5,19 @@ from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
+from app.bot.keyboards.buyer_requests import get_buyer_requests_list_keyboard
 from app.bot.keyboards.clients import CANCEL_TEXT, SKIP_TEXT, get_clients_list_inline_keyboard
 from app.bot.keyboards.main_menu import get_main_menu_keyboard
 from app.bot.keyboards.properties import get_properties_list_inline_keyboard
 from app.bot.keyboards.search import (
+    ADVANCED_BUYER_SEARCH_TEXT,
     ADVANCED_CLIENT_SEARCH_TEXT,
     ADVANCED_PROPERTY_SEARCH_TEXT,
+    QUICK_BUYER_SEARCH_TEXT,
     QUICK_CLIENT_SEARCH_TEXT,
     QUICK_PROPERTY_SEARCH_TEXT,
     SEARCH_MENU_TEXT,
+    get_buyer_search_status_keyboard,
     get_client_search_request_type_keyboard,
     get_client_search_status_keyboard,
     get_property_search_status_keyboard,
@@ -23,7 +27,7 @@ from app.bot.keyboards.search import (
     get_search_skip_cancel_keyboard,
 )
 from app.bot.states.search_states import SearchStates
-from app.common.enums import ClientStatus, PropertyStatus, PropertyType, RequestType
+from app.common.enums import BuyerRequestStatus, ClientStatus, PropertyStatus, PropertyType, RequestType
 from app.common.utils.money import parse_money_range_to_tenge
 from app.common.utils.property_search import is_query_too_short, normalize_search_text
 from app.common.formatters.search_formatter import (
@@ -32,8 +36,10 @@ from app.common.formatters.search_formatter import (
     format_property_search_applied_filters,
     format_property_search_results,
 )
+from app.common.formatters.buyer_request_formatter import BUYER_STATUS_LABELS, format_buyers_list
 from app.bot.utils.chat_ui import send_clean_bundle, send_clean_screen
 from app.services.auth_service import AuthService
+from app.services.buyer_requests import BuyerRequestService
 from app.services.search import SearchService
 
 router = Router(name="search")
@@ -66,6 +72,11 @@ PROPERTY_STATUS_MAP: dict[str, PropertyStatus] = {
     "Продан": PropertyStatus.SOLD,
     "Сдан": PropertyStatus.RESERVED,
     "Архив": PropertyStatus.ARCHIVED,
+}
+
+BUYER_STATUS_MAP: dict[str, BuyerRequestStatus] = {
+    label: status
+    for status, label in BUYER_STATUS_LABELS.items()
 }
 
 
@@ -141,7 +152,19 @@ async def choose_quick_property_search(message: Message, state: FSMContext) -> N
     await _show_search_step(
         message,
         state,
-        "Введите запрос для объектов (район / адрес / телефон / цена / площадь / этаж / материал / id).",
+        "Введите запрос для объектов (название / адрес или район / часть номера / цена / площадь / этаж).",
+        reply_markup=get_search_cancel_keyboard(),
+    )
+
+
+@router.message(SearchStates.choose_mode, F.text == QUICK_BUYER_SEARCH_TEXT)
+async def choose_quick_buyer_search(message: Message, state: FSMContext) -> None:
+    await state.update_data(entity="buyer_requests")
+    await state.set_state(SearchStates.buyer_quick_query)
+    await _show_search_step(
+        message,
+        state,
+        "Введите запрос для покупателей (имя / телефон / цель / комментарий).",
         reply_markup=get_search_cancel_keyboard(),
     )
 
@@ -151,6 +174,18 @@ async def choose_advanced_client_search(message: Message, state: FSMContext) -> 
     await state.update_data(entity="clients", filters={})
     await state.set_state(SearchStates.client_full_name)
     await _show_search_step(message, state, "Имя клиента (частично) или «Пропустить»:", reply_markup=get_search_skip_cancel_keyboard())
+
+
+@router.message(SearchStates.choose_mode, F.text == ADVANCED_BUYER_SEARCH_TEXT)
+async def choose_advanced_buyer_search(message: Message, state: FSMContext) -> None:
+    await state.update_data(entity="buyer_requests", filters={})
+    await state.set_state(SearchStates.buyer_query)
+    await _show_search_step(
+        message,
+        state,
+        "Имя, телефон, цель или комментарий покупателя. Можно нажать «Пропустить».",
+        reply_markup=get_search_skip_cancel_keyboard(),
+    )
 
 
 @router.message(SearchStates.choose_mode, F.text == ADVANCED_PROPERTY_SEARCH_TEXT)
@@ -201,8 +236,9 @@ async def run_quick_client_search(
         items=[
             {
                 "scope": "search_results",
-                "text": f"{text}\n\n<b>Фильтры:</b>\n{applied}",
+                "text": f"{text}\n\nФильтры:\n{applied}",
                 "reply_markup": get_clients_list_inline_keyboard(clients),
+                "parse_mode": "HTML",
             },
             {
                 "scope": "search_menu",
@@ -248,8 +284,8 @@ async def run_quick_property_search(
             state,
             f"По запросу «{query}» ничего не найдено.\n\n"
             "Попробуйте:\n"
-            "• часть района: Самал, Каратал\n"
-            "• часть телефона: 7775\n"
+            "• название или адрес: Абай, Самал, Каратал\n"
+            "• часть номера: 7775\n"
             "• площадь: 58.6\n"
             "• цена: 19.5\n"
             "• этаж: 2/5",
@@ -265,12 +301,158 @@ async def run_quick_property_search(
         items=[
             {
                 "scope": "search_results",
-                "text": f"{text}\n\n<b>Фильтры:</b>\n{applied}",
+                "text": f"{text}\n\nФильтры:\n{applied}",
                 "reply_markup": get_properties_list_inline_keyboard(properties),
+                "parse_mode": "HTML",
             },
             {
                 "scope": "search_menu",
                 "text": "Можно открыть карточку объекта по кнопке выше или запустить новый поиск.",
+                "reply_markup": get_search_menu_keyboard(),
+            },
+        ],
+    )
+
+
+@router.message(SearchStates.buyer_quick_query)
+async def run_quick_buyer_search(
+    message: Message,
+    state: FSMContext,
+    auth_service: AuthService,
+    buyer_request_service: BuyerRequestService,
+) -> None:
+    query = normalize_search_text(message.text)
+    if not query:
+        await _show_search_step(message, state, "Введите непустой запрос.", reply_markup=get_search_cancel_keyboard())
+        return
+
+    if is_query_too_short(query):
+        await _show_search_step(message, state, "Введите более точный запрос (минимум 3 буквы или 4 цифры телефона).", reply_markup=get_search_cancel_keyboard())
+        return
+
+    user = await _get_current_user(message, auth_service)
+    if user is None:
+        await state.clear()
+        return
+
+    requests = await buyer_request_service.search_requests(
+        current_user=user,
+        query=query,
+        limit=SearchService.DEFAULT_LIMIT,
+    )
+
+    await state.clear()
+    if not requests:
+        await _show_search_step(message, state, "По вашему запросу покупатели не найдены.", reply_markup=get_search_menu_keyboard())
+        return
+
+    text = format_buyers_list(
+        requests,
+        total_count=len(requests),
+        page=1,
+        total_pages=1,
+    )
+    await send_clean_bundle(
+        message,
+        state=state,
+        items=[
+            {
+                "scope": "search_results",
+                "text": text,
+                "reply_markup": get_buyer_requests_list_keyboard(requests=requests, page=1, total_pages=1),
+                "parse_mode": "HTML",
+            },
+            {
+                "scope": "search_menu",
+                "text": "Можно открыть карточку покупателя по кнопке выше или запустить новый поиск.",
+                "reply_markup": get_search_menu_keyboard(),
+            },
+        ],
+    )
+
+
+@router.message(SearchStates.buyer_query)
+async def buyer_filter_query(message: Message, state: FSMContext) -> None:
+    await _save_filter(state, "query", message.text)
+    await state.set_state(SearchStates.buyer_status)
+    await _show_search_step(
+        message,
+        state,
+        "Статус покупателя или «Пропустить»:",
+        reply_markup=get_buyer_search_status_keyboard(),
+    )
+
+
+@router.message(SearchStates.buyer_status)
+async def buyer_filter_status(
+    message: Message,
+    state: FSMContext,
+    auth_service: AuthService,
+    buyer_request_service: BuyerRequestService,
+) -> None:
+    text = (message.text or "").strip()
+    if text != SKIP_TEXT:
+        status = BUYER_STATUS_MAP.get(text)
+        if status is None:
+            await _show_search_step(
+                message,
+                state,
+                "Выберите статус кнопкой или нажмите «Пропустить».",
+                reply_markup=get_buyer_search_status_keyboard(),
+            )
+            return
+        await _save_filter(state, "status", status)
+
+    user = await _get_current_user(message, auth_service)
+    if user is None:
+        await state.clear()
+        return
+
+    data = await state.get_data()
+    filters = dict(data.get("filters", {}))
+    query = str(filters.get("query") or "").strip()
+    status_filter = filters.get("status")
+    if not query and status_filter is None:
+        await _show_search_step(
+            message,
+            state,
+            "Укажите минимум один параметр для поиска покупателей.",
+            reply_markup=get_search_menu_keyboard(),
+        )
+        await state.set_state(SearchStates.choose_mode)
+        return
+
+    requests = await buyer_request_service.search_requests(
+        current_user=user,
+        query=query,
+        status=status_filter if isinstance(status_filter, BuyerRequestStatus) else None,
+        limit=SearchService.DEFAULT_LIMIT,
+    )
+
+    await state.clear()
+    if not requests:
+        await _show_search_step(message, state, "По выбранным фильтрам покупатели не найдены.", reply_markup=get_search_menu_keyboard())
+        return
+
+    text_result = format_buyers_list(
+        requests,
+        total_count=len(requests),
+        page=1,
+        total_pages=1,
+    )
+    await send_clean_bundle(
+        message,
+        state=state,
+        items=[
+            {
+                "scope": "search_results",
+                "text": text_result,
+                "reply_markup": get_buyer_requests_list_keyboard(requests=requests, page=1, total_pages=1),
+                "parse_mode": "HTML",
+            },
+            {
+                "scope": "search_menu",
+                "text": "Поиск завершён. Можно открыть карточку покупателя или запустить новый поиск.",
                 "reply_markup": get_search_menu_keyboard(),
             },
         ],
@@ -365,8 +547,9 @@ async def client_filter_request_type(
         items=[
             {
                 "scope": "search_results",
-                "text": f"{text_result}\n\n<b>Фильтры:</b>\n{applied}",
+                "text": f"{text_result}\n\nФильтры:\n{applied}",
                 "reply_markup": get_clients_list_inline_keyboard(clients),
+                "parse_mode": "HTML",
             },
             {
                 "scope": "search_menu",
@@ -512,6 +695,7 @@ async def property_filter_rooms(
                 "scope": "search_results",
                 "text": f"{text_result}\n\n<b>Фильтры:</b>\n{applied}",
                 "reply_markup": get_properties_list_inline_keyboard(properties),
+                "parse_mode": "HTML",
             },
             {
                 "scope": "search_menu",

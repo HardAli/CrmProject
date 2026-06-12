@@ -8,6 +8,9 @@ from app.database.models.client_log import ClientLog
 
 ACTION_LABELS: dict[ClientActionType, str] = {
     ClientActionType.CLIENT_CREATED: "клиент создан",
+    ClientActionType.BUYER_REQUEST_CREATED: "создан запрос покупателя",
+    ClientActionType.BUYER_REQUEST_STATUS_CHANGED: "статус покупателя изменён",
+    ClientActionType.BUYER_PROPERTY_OFFERED: "предложен объект покупателю",
     ClientActionType.STATUS_CHANGED: "статус изменён",
     ClientActionType.NOTE_ADDED: "добавлена заметка",
     ClientActionType.CARD_VIEWED: "открыта карточка",
@@ -20,12 +23,12 @@ def format_client_history(logs: list[ClientLog], limit: int) -> str:
     if not logs:
         return "История по клиенту пока пустая."
 
-    rows = [f"<b>История действий (последние {limit})</b>", ""]
+    rows = [f"История действий (последние {limit})", ""]
     for log in logs:
         timestamp = log.created_at.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M")
         author = escape(log.user.full_name) if log.user else "Система"
         action = ACTION_LABELS.get(log.action_type, log.action_type.value)
-        line = f"• {timestamp} UTC — <b>{author}</b> — {action}"
+        line = f"• {timestamp} UTC — {author} — {action}"
 
         if log.comment:
             line += f": {escape(log.comment)}"

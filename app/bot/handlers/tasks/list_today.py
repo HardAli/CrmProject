@@ -81,6 +81,7 @@ async def show_dashboard_from_client_card(
             ]
         ),
         reply_markup=get_tasks_menu_keyboard(),
+        parse_mode="HTML",
         prefer_edit=True,
     )
     await callback.answer()
@@ -127,7 +128,7 @@ async def show_today_contacts(message: Message, state: FSMContext, auth_service:
         return
 
     clients = list(await client_service.get_today_contacts(current_user=user, limit=DEFAULT_TASK_LIMIT))
-    await send_clean_screen(message, state=state, scope="contacts_list", text=format_contacts_list(clients, title="📞 Контакты на сегодня", limit=DEFAULT_TASK_LIMIT), prefer_edit=False)
+    await send_clean_screen(message, state=state, scope="contacts_list", text=format_contacts_list(clients, title="📞 Контакты на сегодня", limit=DEFAULT_TASK_LIMIT), parse_mode="HTML", prefer_edit=False)
 
 
 @router.message(F.text == OVERDUE_CONTACTS_TEXT)
@@ -137,7 +138,7 @@ async def show_overdue_contacts(message: Message, state: FSMContext, auth_servic
         return
 
     clients = list(await client_service.get_overdue_contacts(current_user=user, limit=DEFAULT_TASK_LIMIT))
-    await send_clean_screen(message, state=state, scope="contacts_list", text=format_contacts_list(clients, title="🚨 Просроченные контакты", limit=DEFAULT_TASK_LIMIT), prefer_edit=False)
+    await send_clean_screen(message, state=state, scope="contacts_list", text=format_contacts_list(clients, title="🚨 Просроченные контакты", limit=DEFAULT_TASK_LIMIT), parse_mode="HTML", prefer_edit=False)
 
 
 @router.message(F.text == MY_TASKS_TEXT)

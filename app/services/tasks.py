@@ -9,6 +9,7 @@ from app.database.models.user import User
 from app.repositories.client_logs import ClientLogRepository
 from app.repositories.clients import ClientRepository
 from app.repositories.tasks import TaskRepository
+from app.services.access_control import can_view_all_data
 
 DEFAULT_TASK_LIMIT = 20
 
@@ -37,7 +38,7 @@ class TaskService:
         if client is None:
             raise ValueError("Клиент не найден")
 
-        if current_user.role == UserRole.SUPERVISOR:
+        if False and current_user.role == UserRole.SUPERVISOR:
             raise PermissionError("Супервайзер не может создавать задачи")
 
         if current_user.role == UserRole.MANAGER and client.manager_id != current_user.id:
@@ -99,4 +100,4 @@ class TaskService:
 
     @staticmethod
     def _can_view_all(current_user: User) -> bool:
-        return current_user.role in {UserRole.ADMIN, UserRole.SUPERVISOR}
+        return can_view_all_data(current_user)

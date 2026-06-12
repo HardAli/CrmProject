@@ -29,22 +29,22 @@ def format_task_card(task: Task) -> str:
     status = TASK_STATUS_LABELS.get(task.status, task.status.value)
     description = escape(task.description) if task.description else "—"
     return (
-        f"✅ <b>Задача создана</b>\n\n"
-        f"<b>ID:</b> {task.id}\n"
-        f"<b>Заголовок:</b> {escape(task.title)}\n"
-        f"<b>Описание:</b> {description}\n"
-        f"<b>Срок:</b> {_format_datetime(task.due_at)}\n"
-        f"<b>Статус:</b> {status}\n"
-        f"<b>Клиент:</b> {escape(client_name)}\n"
-        f"<b>Ответственный:</b> {escape(assignee)}"
+        f"✅ Задача создана\n\n"
+        f"ID: {task.id}\n"
+        f"Заголовок: {escape(task.title)}\n"
+        f"Описание: {description}\n"
+        f"Срок: {_format_datetime(task.due_at)}\n"
+        f"Статус: {status}\n"
+        f"Клиент: {escape(client_name)}\n"
+        f"Ответственный: {escape(assignee)}"
     )
 
 
 def format_task_list(tasks: Sequence[Task], *, title: str, limit: int) -> str:
     if not tasks:
-        return f"<b>{title}</b>\n\nЗаписей нет."
+        return f"{title}\n\nЗаписей нет."
 
-    rows = [f"<b>{title}</b>", ""]
+    rows = [f"{title}", ""]
     for index, task in enumerate(tasks, start=1):
         client_name = task.client.full_name if task.client else "—"
         status = TASK_STATUS_LABELS.get(task.status, task.status.value)
@@ -59,9 +59,9 @@ def format_task_list(tasks: Sequence[Task], *, title: str, limit: int) -> str:
 
 def format_contacts_list(clients: Sequence[Client], *, title: str, limit: int) -> str:
     if not clients:
-        return f"<b>{title}</b>\n\nКлиентов нет."
+        return f"{title}\n\nКлиентов нет."
 
-    rows = [f"<b>{title}</b>", ""]
+    rows = [f"{title}", ""]
     for index, client in enumerate(clients, start=1):
         rows.append(
             f"{index}. #{client.id} {escape(client.full_name)}\n"

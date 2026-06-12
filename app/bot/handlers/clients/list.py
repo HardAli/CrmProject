@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 from aiogram import F, Router
+from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from app.bot.keyboards.clients import (
-    CLIENTS_BY_STATUS_TEXT,
+    BUY_CLIENTS_BY_STATUS_TEXT,
+    BUY_CLIENTS_TEXT,
     CLIENTS_MENU_TEXT,
-    MY_CLIENTS_TEXT,
     RECENT_CLIENTS_TEXT,
+    SELL_CLIENTS_BY_STATUS_TEXT,
+    SELL_CLIENTS_TEXT,
     build_budget_filter_keyboard,
     build_client_filters_menu_keyboard,
     build_clients_list_keyboard,
@@ -26,7 +29,7 @@ from app.bot.keyboards.clients import (
 from app.bot.keyboards.main_menu import get_main_menu_keyboard
 from app.bot.states.clients import ClientListStates
 from app.common.client_filters import ACTIVE_CLIENT_STATUSES, get_default_client_filters, normalize_filters
-from app.common.enums import ClientStatus
+from app.common.enums import ClientStatus, RequestType
 from app.common.formatters.client_formatter import (
     STATUS_LABELS,
     build_client_filters_menu_text,
@@ -118,6 +121,7 @@ async def _render_filters_menu(target: Message | CallbackQuery, state: FSMContex
         scope="clients_filters",
         text=build_client_filters_menu_text(filters),
         reply_markup=build_client_filters_menu_keyboard(),
+        parse_mode="HTML",
         prefer_edit=isinstance(target, CallbackQuery),
     )
 
@@ -136,15 +140,31 @@ async def back_to_main_menu(message: Message, state: FSMContext) -> None:
     await send_clean_screen(message, state=state, scope="main_menu", text="Главное меню:", reply_markup=get_main_menu_keyboard(), prefer_edit=False)
 
 
-@router.message(F.text == MY_CLIENTS_TEXT)
-async def show_my_clients(message: Message, state: FSMContext, auth_service: AuthService, client_service: ClientService) -> None:
+async def _show_clients_by_deal(
+    message: Message,
+    state: FSMContext,
+    auth_service: AuthService,
+    client_service: ClientService,
+    request_type: RequestType,
+) -> None:
     user = await _get_current_user(message, auth_service)
     if user is None:
         return
 
     filters = get_default_client_filters()
+    filters["deal_types"] = [request_type.value]
     await _save_filters(state, filters)
     await _render_clients_list(target=message, state=state, client_service=client_service, user=user, filters=filters)
+
+
+@router.message(StateFilter(None), F.text == BUY_CLIENTS_TEXT)
+async def show_buy_clients(message: Message, state: FSMContext, auth_service: AuthService, client_service: ClientService) -> None:
+    await _show_clients_by_deal(message, state, auth_service, client_service, RequestType.BUY)
+
+
+@router.message(StateFilter(None), F.text == SELL_CLIENTS_TEXT)
+async def show_sell_clients(message: Message, state: FSMContext, auth_service: AuthService, client_service: ClientService) -> None:
+    await _show_clients_by_deal(message, state, auth_service, client_service, RequestType.SELL)
 
 
 @router.callback_query(F.data == "clients_list_open")
@@ -208,7 +228,7 @@ async def open_status_filter(callback: CallbackQuery, state: FSMContext) -> None
         callback,
         state=state,
         scope="clients_filter_status",
-        text=f"<b>Статус клиента</b>\n\nВыбрано: {selected_text}",
+        text=f"Статус клиента\n\nВыбрано: {selected_text}",
         reply_markup=build_status_filter_keyboard(selected),
         prefer_edit=True,
     )
@@ -264,7 +284,7 @@ async def open_deal_filter(callback: CallbackQuery, state: FSMContext) -> None:
             callback,
             state=state,
             scope="clients_filter_deal",
-            text="<b>Тип сделки</b>",
+            text="Тип сделки",
             reply_markup=build_deal_filter_keyboard(set(filters.get("deal_types") or [])),
             prefer_edit=True,
         )
@@ -306,7 +326,7 @@ async def open_rooms_filter(callback: CallbackQuery, state: FSMContext) -> None:
             callback,
             state=state,
             scope="clients_filter_rooms",
-            text="<b>Комнатность</b>",
+            text="Комнатность",
             reply_markup=build_rooms_filter_keyboard(set(filters.get("rooms") or [])),
             prefer_edit=True,
         )
@@ -347,7 +367,7 @@ async def open_budget_filter(callback: CallbackQuery, state: FSMContext) -> None
             callback,
             state=state,
             scope="clients_filter_budget",
-            text="<b>Бюджет</b>",
+            text="Бюджет",
             reply_markup=build_budget_filter_keyboard(),
             prefer_edit=True,
         )
@@ -395,6 +415,7 @@ async def open_district_filter(callback: CallbackQuery, state: FSMContext) -> No
             scope="clients_filter_district",
             text="<b>Район</b>",
             reply_markup=build_district_filter_keyboard(set(filters.get("districts") or [])),
+            parse_mode="HTML",
             prefer_edit=True,
         )
     await callback.answer()
@@ -436,6 +457,7 @@ async def open_contact_filter(callback: CallbackQuery, state: FSMContext) -> Non
             scope="clients_filter_contact",
             text="<b>Следующий контакт</b>",
             reply_markup=build_contact_filter_keyboard(),
+            parse_mode="HTML",
             prefer_edit=True,
         )
     await callback.answer()
@@ -460,6 +482,7 @@ async def open_tasks_filter(callback: CallbackQuery, state: FSMContext) -> None:
             scope="clients_filter_tasks",
             text="<b>Задачи</b>",
             reply_markup=build_task_filter_keyboard(),
+            parse_mode="HTML",
             prefer_edit=True,
         )
     await callback.answer()
@@ -489,6 +512,7 @@ async def open_quick_filters(callback: CallbackQuery, state: FSMContext) -> None
             scope="clients_quick_filters",
             text="<b>Быстрые фильтры</b>",
             reply_markup=build_quick_filters_keyboard(),
+            parse_mode="HTML",
             prefer_edit=True,
         )
     await callback.answer()
@@ -542,6 +566,7 @@ async def open_sort_menu(callback: CallbackQuery, state: FSMContext) -> None:
             scope="clients_sort",
             text="<b>Сортировка</b>",
             reply_markup=build_sort_keyboard(),
+            parse_mode="HTML",
             prefer_edit=True,
         )
     await callback.answer()
@@ -593,6 +618,7 @@ async def page_next(
 
 @router.callback_query(F.data == "clients_search_open")
 async def open_search_input(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
     await state.set_state(ClientListStates.search_query)
     if callback.message:
         await send_clean_screen(
@@ -602,7 +628,6 @@ async def open_search_input(callback: CallbackQuery, state: FSMContext) -> None:
             text="Введите строку поиска по клиентам (имя/телефон/район/статус/источник/заметка).",
             prefer_edit=True,
         )
-    await callback.answer()
 
 
 @router.message(ClientListStates.search_query)
@@ -625,25 +650,40 @@ async def apply_search_query(message: Message, state: FSMContext) -> None:
         message,
         state=state,
         scope="clients_search_saved",
-        text="Поиск сохранён. Нажмите «👤 Мои клиенты» или «✅ Показать клиентов».",
+        text="Поиск сохранён. Нажмите «Купить», «Продать» или «✅ Показать клиентов».",
         prefer_edit=False,
     )
 
 
-@router.message(F.text == CLIENTS_BY_STATUS_TEXT)
-async def show_status_filter(message: Message, state: FSMContext, auth_service: AuthService) -> None:
+async def _show_status_filter_for_deal(
+    message: Message,
+    state: FSMContext,
+    auth_service: AuthService,
+    request_type: RequestType,
+) -> None:
     user = await _get_current_user(message, auth_service)
     if user is None:
         return
 
+    title = "покупателей" if request_type == RequestType.BUY else "продавцов"
     await send_clean_screen(
         message,
         state=state,
         scope="clients_status_filter",
-        text="Выберите статус клиента:",
-        reply_markup=get_status_filter_keyboard(),
+        text=f"Выберите статус {title}:",
+        reply_markup=get_status_filter_keyboard(request_type.value),
         prefer_edit=False,
     )
+
+
+@router.message(StateFilter(None), F.text == BUY_CLIENTS_BY_STATUS_TEXT)
+async def show_buy_status_filter(message: Message, state: FSMContext, auth_service: AuthService) -> None:
+    await _show_status_filter_for_deal(message, state, auth_service, RequestType.BUY)
+
+
+@router.message(StateFilter(None), F.text == SELL_CLIENTS_BY_STATUS_TEXT)
+async def show_sell_status_filter(message: Message, state: FSMContext, auth_service: AuthService) -> None:
+    await _show_status_filter_for_deal(message, state, auth_service, RequestType.SELL)
 
 
 @router.callback_query(F.data.startswith("client_status:"))
@@ -662,11 +702,35 @@ async def show_clients_by_status(
         await callback.answer("Нет доступа", show_alert=True)
         return
 
-    _, raw_status = callback.data.split(":", maxsplit=1)
+    parts = callback.data.split(":")
+    raw_deal_type: str | None = None
+    raw_status = ""
+    if len(parts) == 2:
+        _, raw_status = parts
+    elif len(parts) == 3:
+        _, raw_deal_type, raw_status = parts
+    else:
+        await callback.answer("Неизвестная команда", show_alert=True)
+        return
+
     try:
         status = ClientStatus(raw_status)
     except ValueError:
         await callback.answer("Неизвестный статус", show_alert=True)
+        return
+    try:
+        request_type = RequestType(raw_deal_type) if raw_deal_type else None
+    except ValueError:
+        await callback.answer("Неизвестный тип клиента", show_alert=True)
+        return
+
+    if request_type is not None:
+        filters = get_default_client_filters()
+        filters["statuses"] = [status.value]
+        filters["deal_types"] = [request_type.value]
+        await _save_filters(state, filters)
+        await _render_clients_list(callback, state, client_service, user, filters)
+        await callback.answer()
         return
 
     clients = list(
@@ -692,6 +756,7 @@ async def show_clients_by_status(
             state=state,
             scope="clients_by_status",
             text=format_clients_list(clients=clients, title=title, limit=10),
+            parse_mode="HTML",
             prefer_edit=True,
         )
 
@@ -713,5 +778,6 @@ async def show_recent_clients(message: Message, state: FSMContext, auth_service:
         state=state,
         scope="recent_clients",
         text=format_clients_list(clients=clients, title="Последние добавленные", limit=10),
+        parse_mode="HTML",
         prefer_edit=False,
     )

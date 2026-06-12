@@ -55,7 +55,7 @@ def get_today_display_date(now: datetime | None = None) -> str:
 def build_date_prompt(label: str, now: datetime | None = None) -> str:
     today = get_today_display_date(now)
     return (
-        f"Сегодня: {today}\n"
+        f"Сегодня: <code>{today}</code>\n"
         f"Введите {label}.\n"
         "Можно в формате:\n"
         f"{DATE_INPUT_FORMAT_HINT}"

@@ -11,6 +11,7 @@ from app.repositories.client_logs import ClientLogRepository
 from app.repositories.client_properties import ClientPropertyRepository
 from app.repositories.clients import ClientRepository
 from app.repositories.properties import PropertyRepository
+from app.services.access_control import can_view_all_data, has_full_access
 
 
 class ClientPropertyService:
@@ -27,9 +28,6 @@ class ClientPropertyService:
         self._client_log_repository = client_log_repository
 
     async def link_property_to_client(self, *, current_user: User, client_id: int, property_id: int) -> ClientProperty:
-        if current_user.role == UserRole.SUPERVISOR:
-            raise PermissionError("У роли supervisor только чтение")
-
         client = await self._client_repository.get_by_id(client_id)
         if client is None or not self._can_view_client(current_user=current_user, client=client):
             raise ValueError("Клиент не найден или недоступен")
@@ -89,8 +87,6 @@ class ClientPropertyService:
         new_status: ClientPropertyRelationStatus,
     ) -> ClientProperty:
         link = await self.get_client_property_link(current_user=current_user, link_id=link_id)
-        if current_user.role == UserRole.SUPERVISOR:
-            raise PermissionError("У роли supervisor только чтение")
 
         if not self.can_manage_client_property(
             current_user=current_user,
@@ -147,32 +143,32 @@ class ClientPropertyService:
         client: Client,
         property_obj: Property,
     ) -> bool:
-        if current_user.role == UserRole.ADMIN:
+        if has_full_access(current_user):
             return True
         if current_user.role == UserRole.MANAGER:
             return client.manager_id == current_user.id and property_obj.manager_id == current_user.id
         return False
 
     def can_link_for_client(self, *, current_user: User, client: Client) -> bool:
-        if current_user.role == UserRole.ADMIN:
+        if has_full_access(current_user):
             return True
         if current_user.role == UserRole.MANAGER:
             return client.manager_id == current_user.id
         return False
 
     def _can_view_client_property(self, *, current_user: User, link: ClientProperty) -> bool:
-        if current_user.role in {UserRole.ADMIN, UserRole.SUPERVISOR}:
+        if can_view_all_data(current_user):
             return True
         return link.client.manager_id == current_user.id and link.property.manager_id == current_user.id
 
     @staticmethod
     def _can_view_client(*, current_user: User, client: Client) -> bool:
-        if current_user.role in {UserRole.ADMIN, UserRole.SUPERVISOR}:
+        if can_view_all_data(current_user):
             return True
         return client.manager_id == current_user.id
 
     @staticmethod
     def _can_view_property(*, current_user: User, property_obj: Property) -> bool:
-        if current_user.role in {UserRole.ADMIN, UserRole.SUPERVISOR}:
+        if can_view_all_data(current_user):
             return True
         return property_obj.manager_id == current_user.id

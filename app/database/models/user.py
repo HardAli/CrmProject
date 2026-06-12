@@ -9,6 +9,8 @@ from app.common.enums import UserRole
 from app.database.base import Base, CreatedAtMixin, IdMixin
 
 if TYPE_CHECKING:
+    from app.database.models.buyer_offer_history import BuyerOfferHistory
+    from app.database.models.buyer_request import BuyerRequest
     from app.database.models.client_photo import ClientPhoto
     from app.database.models.client import Client
     from app.database.models.client_log import ClientLog
@@ -30,6 +32,8 @@ class User(Base, IdMixin, CreatedAtMixin):
 
     managed_clients: Mapped[list[Client]] = relationship(back_populates="manager")
     managed_properties: Mapped[list[Property]] = relationship(back_populates="manager")
+    buyer_requests: Mapped[list[BuyerRequest]] = relationship("BuyerRequest", back_populates="responsible_user")
+    buyer_offer_history: Mapped[list[BuyerOfferHistory]] = relationship("BuyerOfferHistory", back_populates="manager")
     assigned_tasks: Mapped[list[Task]] = relationship(back_populates="assignee")
     client_logs: Mapped[list[ClientLog]] = relationship(back_populates="user")
     uploaded_client_photos: Mapped[list[ClientPhoto]] = relationship(back_populates="uploaded_by_user")

@@ -17,6 +17,7 @@ from app.repositories.client_logs import ClientLogRepository
 from app.repositories.client_properties import ClientPropertyRepository
 from app.repositories.clients import ClientRepository
 from app.repositories.properties import PropertyRepository
+from app.services.access_control import can_view_all_data, has_full_access
 
 
 class ClientService:
@@ -141,7 +142,7 @@ class ClientService:
         )
 
     async def get_my_clients(self, current_user: User, limit: int = 10) -> Sequence[Client]:
-        if current_user.role in {UserRole.ADMIN, UserRole.SUPERVISOR}:
+        if can_view_all_data(current_user):
             return await self._client_repository.get_recent(limit=limit)
         return await self._client_repository.get_by_manager(manager_id=current_user.id, limit=limit)
 
@@ -280,7 +281,7 @@ class ClientService:
         return clients, total_count, total_pages
 
     def can_edit_client(self, current_user: User, client: Client) -> bool:
-        if current_user.role == UserRole.ADMIN:
+        if has_full_access(current_user):
             return True
 
         if current_user.role == UserRole.MANAGER:
@@ -295,7 +296,7 @@ class ClientService:
 
     @staticmethod
     def _can_view_all(current_user: User) -> bool:
-        return current_user.role in {UserRole.ADMIN, UserRole.SUPERVISOR}
+        return can_view_all_data(current_user)
 
     async def _get_client_with_view_check(self, current_user: User, client_id: int) -> Client | None:
         client = await self._client_repository.get_by_id(client_id)

@@ -9,7 +9,6 @@ from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, Index, Numer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.common.enums import PropertyStatus, PropertyType
-from app.common.utils.phone_links import normalize_owner_phone
 from app.database.base import Base, IdMixin, TimestampMixin
 
 if TYPE_CHECKING:
@@ -17,6 +16,7 @@ if TYPE_CHECKING:
     from app.database.models.client_property import ClientProperty
     from app.database.models.showing import Showing
     from app.database.models.property_call_log import PropertyCallLog
+    from app.database.models.property_photo import PropertyPhoto
     from app.database.models.user import User
 
 
@@ -48,6 +48,7 @@ class Property(Base, IdMixin, TimestampMixin):
     district: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
     address: Mapped[str | None] = mapped_column(String(255), nullable=True)
     owner_phone: Mapped[str] = mapped_column(String(32), nullable=False)
+    owner_phone_normalized: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
     price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     area: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     kitchen_area: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
@@ -80,6 +81,12 @@ class Property(Base, IdMixin, TimestampMixin):
 
     manager: Mapped[User] = relationship(back_populates="managed_properties")
     clients: Mapped[list[ClientProperty]] = relationship(back_populates="property", cascade="all, delete-orphan")
+    photos: Mapped[list[PropertyPhoto]] = relationship(
+        "PropertyPhoto",
+        back_populates="property",
+        cascade="all, delete-orphan",
+        order_by="PropertyPhoto.order_index",
+    )
     related_clients: Mapped[list[Client]] = relationship(
         secondary="client_properties",
         primaryjoin="Property.id == ClientProperty.property_id",
@@ -88,8 +95,3 @@ class Property(Base, IdMixin, TimestampMixin):
     )
     showings: Mapped[list[Showing]] = relationship(back_populates="property", cascade="all, delete-orphan")
     call_logs: Mapped[list[PropertyCallLog]] = relationship(back_populates="property", cascade="all, delete-orphan")
-
-    @property
-    def owner_phone_normalized(self) -> str | None:
-        """Runtime fallback until DB migration with owner_phone_normalized is applied."""
-        return normalize_owner_phone(self.owner_phone)

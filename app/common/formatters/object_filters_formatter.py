@@ -109,7 +109,7 @@ def build_objects_list_text(
     per_page: int,
 ) -> str:
     summary = build_object_filters_summary(filters)
-    rows = ["<b>База объектов</b>", "", f"Фильтр: {summary}", f"Найдено: {total_count}", ""]
+    rows = ["База объектов", "", f"Фильтр: {summary}", f"Найдено: {total_count}", ""]
     start_index = (page - 1) * per_page + 1
 
     if not objects:
@@ -122,7 +122,7 @@ def build_objects_list_text(
 
 
 def build_filters_menu_text(filters: dict[str, Any], *, available_fields: set[str]) -> str:
-    lines = ["<b>Фильтры объектов</b>", ""]
+    lines = ["Фильтры объектов", ""]
     lines.append(f"Тип: {PROPERTY_TYPE_LABELS.get(filters.get('property_type'), 'любой')}")
     lines.append(f"Комн.: {', '.join(str(v) for v in filters.get('rooms', [])) or 'любая'}")
 

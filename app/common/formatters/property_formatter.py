@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from decimal import Decimal
 from html import escape
@@ -9,6 +10,9 @@ from app.common.formatters.property_address_formatter import format_property_add
 from app.common.utils.formatters import format_area, format_area_compact, format_decimal_plain
 from app.common.utils.phone_links import format_owner_phone, format_phone_for_display
 from app.database.models.property import Property
+
+EMPTY_SHORT = "—"
+_HOUSE_NUMBER_RE = re.compile(r"(?:^|[\s,])д\.?\s*(\d+[\w/-]*)\b", re.IGNORECASE)
 
 PROPERTY_TYPE_LABELS: dict[PropertyType, str] = {
     PropertyType.APARTMENT: "Квартира",
@@ -41,6 +45,10 @@ def _format_money(value: Decimal | None) -> str:
     return f"{value:,.0f}".replace(",", " ")
 
 
+def _format_money_for_share(value: Decimal | None) -> str:
+    return _format_money(value).replace(" ", ".")
+
+
 def _format_decimal(value: Decimal | None) -> str:
     return format_decimal_plain(value)
 
@@ -62,10 +70,6 @@ def format_rooms_short(rooms: int | str | None, title: str | None = None) -> str
             if f"{rooms_count}-комнат" in lowered:
                 return f"{rooms_count}-х"
     return "—"
-
-
-def format_area_short(area: Decimal | None) -> str:
-    return format_area_compact(area)
 
 
 def format_floor_short(floor: int | None, building_floors: int | None) -> str:
@@ -167,6 +171,235 @@ def _trim_middle(value: str, max_len: int) -> str:
     return f"{value[: max_len - 1]}…"
 
 
+def trim_button_text(value: str, max_length: int | None = None) -> str:
+    text = value.strip() or EMPTY_SHORT
+    if max_length is None or len(text) <= max_length:
+        return text
+    if max_length <= 1:
+        return text[:max_length]
+    return f"{text[: max_length - 1]}…"
+
+
+def format_button_compact_text(value: str, max_length: int | None = None) -> str:
+    text = (value or "").strip() or "?"
+    replacements = (
+        ("млн", "м"),
+        ("тыс", "т"),
+        ("Любой", "?"),
+        ("любой", "?"),
+        ("люб.", "?"),
+        ("Люб.", "?"),
+        (EMPTY_SHORT, "?"),
+    )
+    for source, target in replacements:
+        text = text.replace(source, target)
+    text = text.replace(" ", "")
+    return trim_button_text(text or "?", max_length)
+
+
+def format_price_short(value: object) -> str:
+    if value is None:
+        return EMPTY_SHORT
+    try:
+        price = Decimal(str(value))
+    except Exception:
+        return trim_button_text(str(value), 12) if str(value).strip() else EMPTY_SHORT
+    if price >= Decimal("1000000"):
+        return f"{format_decimal_plain(price / Decimal('1000000'), max_fraction_digits=1)}млн"
+    if price >= Decimal("1000"):
+        return f"{format_decimal_plain(price / Decimal('1000'), max_fraction_digits=0)}тыс"
+    return format_decimal_plain(price, max_fraction_digits=0)
+
+
+def format_rooms_list_short(value: object) -> str:
+    if value is None:
+        return EMPTY_SHORT
+    text = str(value).strip().lower()
+    if not text:
+        return EMPTY_SHORT
+    if text in {"studio", "студия"} or "студ" in text:
+        return "студия"
+    digits = "".join(ch for ch in text if ch.isdigit())
+    if digits:
+        return f"{digits}к"
+    return trim_button_text(text, 8)
+
+
+def format_rooms_range_short(values: list[str] | None) -> str:
+    if not values:
+        return EMPTY_SHORT
+    cleaned = [str(value).strip() for value in values if str(value).strip()]
+    if not cleaned:
+        return EMPTY_SHORT
+    if any(value.lower() in {"studio", "студия"} or "студ" in value.lower() for value in cleaned):
+        return "студия"
+    numeric_values: list[int] = []
+    for value in cleaned:
+        digits = "".join(ch for ch in value if ch.isdigit())
+        if digits:
+            numeric_values.append(int(digits))
+    if not numeric_values:
+        return trim_button_text(",".join(cleaned), 10)
+    unique_values = sorted(set(numeric_values))
+    if len(unique_values) == 1:
+        return f"{unique_values[0]}к"
+    return f"{unique_values[0]}-{unique_values[-1]}к"
+
+
+def format_area_short(value: object) -> str:
+    text = format_area_compact(value)
+    return text if text else EMPTY_SHORT
+
+
+def format_area_range_short(area_min: object = None, area_max: object = None) -> str:
+    if area_min is None and area_max is None:
+        return EMPTY_SHORT
+    if area_min is not None and area_max is not None:
+        return f"{format_decimal_plain(area_min)}-{format_decimal_plain(area_max)}м²"
+    if area_min is not None:
+        return f"от {format_decimal_plain(area_min)}м²"
+    return f"до {format_decimal_plain(area_max)}м²"
+
+
+def format_floor_range_short(
+    floor_min: int | None = None,
+    floor_max: int | None = None,
+    *,
+    allow_first_floor: bool | None = None,
+    allow_last_floor: bool | None = None,
+    preferred_text: str | None = None,
+) -> str:
+    text = (preferred_text or "").strip().lower()
+    if text:
+        if "сред" in text:
+            return "средн."
+        if "не первый" in text and ("не послед" in text or "без послед" in text):
+            return "не 1/посл"
+        if "не первый" in text or "без 1" in text:
+            return "не 1"
+        if "не послед" in text or "без послед" in text:
+            return "не посл"
+        if text != "не важно":
+            return trim_button_text(preferred_text or "", 12)
+    if allow_first_floor is False and allow_last_floor is False:
+        return "не 1/посл"
+    if allow_first_floor is False:
+        return "не 1"
+    if allow_last_floor is False:
+        return "не посл"
+    if floor_min is not None and floor_max is not None:
+        return f"{floor_min}-{floor_max}эт"
+    if floor_min is not None:
+        return f"от {floor_min}эт"
+    if floor_max is not None:
+        return f"до {floor_max}эт"
+    return EMPTY_SHORT
+
+
+def format_property_floor_short(floor: int | None, total_floors: int | None) -> str:
+    if floor is None and total_floors is None:
+        return EMPTY_SHORT
+    if floor is None:
+        return f"—/{total_floors}"
+    if total_floors is None:
+        return f"{floor}эт"
+    return f"{floor}/{total_floors}"
+
+
+def format_year_short(year_min: object = None, year_max: object = None, year: object = None) -> str:
+    if year is not None:
+        return str(year).strip() or EMPTY_SHORT
+    if year_min is not None and year_max is not None:
+        return f"{year_min}-{year_max}"
+    if year_min is not None:
+        return f"от {year_min}"
+    if year_max is not None:
+        return f"до {year_max}"
+    return EMPTY_SHORT
+
+
+def format_material_short(material: object) -> str:
+    if material is None:
+        return EMPTY_SHORT
+    raw = getattr(material, "value", material)
+    text = str(raw).strip().lower()
+    if not text or text == "не важно":
+        return EMPTY_SHORT
+    known = (
+        ("кирп", "кир"),
+        ("brick", "кир"),
+        ("панел", "пан"),
+        ("panel", "пан"),
+        ("монол", "мон"),
+        ("monolith", "мон"),
+        ("керамзит", "кер"),
+        ("саман", "сам"),
+        ("блок", "бло"),
+        ("дерев", "дер"),
+    )
+    for needle, short in known:
+        if needle in text:
+            return short
+    return text[:3] if len(text) > 3 else text
+
+
+def format_property_type_short(property_type: object) -> str:
+    value = getattr(property_type, "value", property_type)
+    text = str(value or "").strip().lower()
+    if not text:
+        return EMPTY_SHORT
+    mapping = {
+        "apartment": "кв",
+        "квартира": "кв",
+        "house": "дм",
+        "дом": "дм",
+        "land": "уч",
+        "участок": "уч",
+        "commercial": "км",
+        "коммерческая": "км",
+        "коммерция": "км",
+        "townhouse": "тх",
+        "таунхаус": "тх",
+        "cottage": "дч",
+        "дача": "дч",
+        "garage": "гр",
+        "гараж": "гр",
+    }
+    return mapping.get(text, EMPTY_SHORT)
+
+
+def format_districts_short(districts: list[str] | tuple[str, ...] | str | None, max_items: int = 2) -> str:
+    if districts is None:
+        return EMPTY_SHORT
+    if isinstance(districts, str):
+        values = [part.strip() for part in districts.split(",") if part.strip()]
+    else:
+        values = [str(value).strip() for value in districts if str(value).strip()]
+    if not values:
+        return EMPTY_SHORT
+    visible = values[:max_items]
+    suffix = f" +{len(values) - len(visible)}" if len(values) > len(visible) else ""
+    return f"{', '.join(visible)}{suffix}"
+
+
+def format_property_button_text(prop: Property, max_length: int | None = None) -> str:
+    parts = [
+        format_price_short(prop.price),
+        format_rooms_list_short(prop.rooms),
+        format_property_floor_short(prop.floor, prop.building_floors),
+        prop.district or EMPTY_SHORT,
+        format_area_short(prop.area),
+        format_material_short(prop.building_material),
+        format_year_short(year=prop.building_year),
+        format_property_type_short(prop.property_type),
+    ]
+    return format_button_compact_text("|".join(parts), max_length)
+
+
+def format_seller_list_button(prop: Property, max_length: int | None = None) -> str:
+    return format_property_button_text(prop, max_length=max_length)
+
+
 def format_object_compact(prop: Property, with_status: bool = True, max_length: int | None = None) -> str:
     status = format_property_status(prop)
     prefix_parts = [
@@ -208,7 +441,7 @@ def format_object_list_item(index: int, prop: Property) -> str:
 
 
 def format_properties_list(properties: list[Property], title: str, limit: int) -> str:
-    rows = [f"<b>{title}</b>", ""]
+    rows = [f"{title}", ""]
 
     for index, prop in enumerate(properties, start=1):
         rows.append(format_object_list_line(index=index, obj=prop))
@@ -218,25 +451,25 @@ def format_properties_list(properties: list[Property], title: str, limit: int) -
 
 
 def format_property_card(property_obj: Property, manager_name: str, updated: bool = False) -> str:
-    header = f"<b>Карточка объекта #{safe_html(property_obj.id)}</b>"
+    header = f"Карточка объекта #{safe_html(property_obj.id)}"
     if updated:
-        header = f"✅ <b>Карточка объекта обновлена</b>\n\n{header}"
+        header = f"✅ Карточка объекта обновлена\n\n{header}"
 
     property_type = safe_html(PROPERTY_TYPE_LABELS.get(property_obj.property_type, property_obj.property_type.value))
     status = safe_html(format_property_status(property_obj))
-    floor_row = f"<b>Этаж:</b> {safe_html(property_obj.floor)}\n"
+    floor_row = f"Этаж: {safe_html(property_obj.floor)}\n"
     if property_obj.property_type == PropertyType.APARTMENT:
         floor_row = (
-            f"<b>Этаж:</b> {safe_html(property_obj.floor)} "
+            f"Этаж: {safe_html(property_obj.floor)} "
             f"из {safe_html(property_obj.building_floors)}\n"
         )
 
     return (
         f"{header}\n\n"
-        f"<b>ID объекта:</b> {safe_html(property_obj.id)}\n"
-        f"<b>Название:</b> {safe_html(property_obj.title)}\n"
-        f"<b>Тип недвижимости:</b> {property_type}\n"
-        f"<b>Район:</b> {safe_html(property_obj.district)}\n"
+        f"ID объекта: {safe_html(property_obj.id)}\n"
+        f"Название: {safe_html(property_obj.title)}\n"
+        f"Тип недвижимости: {property_type}\n"
+        f"Район: {safe_html(property_obj.district)}\n"
         f"<b>Адрес:</b> {safe_html(format_property_address_for_display(property_obj.district, property_obj.address))}\n"
         f"<b>Номер владельца:</b> {format_owner_phone(property_obj.owner_phone)}\n"
         f"<b>Цена:</b> {safe_html(_format_money(property_obj.price))}\n"
@@ -246,13 +479,79 @@ def format_property_card(property_obj: Property, manager_name: str, updated: boo
         f"{floor_row}"
         f"<b>Год постройки:</b> {safe_html(property_obj.building_year)}\n"
         f"<b>Материал дома:</b> {safe_html(property_obj.building_material)}\n"
-         f"<b>Описание:</b> {safe_html(property_obj.description)}\n"
+        f"<b>Описание:</b> {safe_html(property_obj.description)}\n"
         f"<b>Ссылка:</b> {safe_html(property_obj.link)}\n"
         f"<b>Статус:</b> {status}\n"
         f"<b>Ответственный менеджер:</b> {safe_html(manager_name)}\n"
         f"<b>Дата создания:</b> {safe_html(_format_datetime(property_obj.created_at))}\n"
         f"<b>Дата обновления:</b> {safe_html(_format_datetime(property_obj.updated_at))}"
     )
+
+
+def _format_share_value(value: object) -> str:
+    if value is None:
+        return "—"
+    text = str(value).strip()
+    return text or "—"
+
+
+def _format_house_number_for_share(property_obj: Property) -> str:
+    address = format_property_address_for_display(property_obj.district, property_obj.address)
+    if not address or address in {"-", "—"}:
+        return "—"
+
+    match = _HOUSE_NUMBER_RE.search(address)
+    if match:
+        return match.group(1)
+
+    stripped = address.strip()
+    if re.fullmatch(r"\d+[\w/-]*", stripped):
+        return stripped
+    return stripped
+
+
+def _format_area_for_share(property_obj: Property) -> str:
+    area = _format_decimal(property_obj.area)
+    kitchen = _format_decimal(property_obj.kitchen_area)
+    if area == "—" and kitchen == "—":
+        return "—"
+    if kitchen == "—":
+        return area
+    return f"{area}/{kitchen}"
+
+
+def _format_location_for_share(property_obj: Property) -> str:
+    district = (property_obj.district or "").strip()
+    if district:
+        return f"Мкр {district}"
+
+    title = (property_obj.title or "").strip()
+    if title:
+        return title
+
+    address = format_property_address_for_display(property_obj.district, property_obj.address)
+    return address if address and address != "-" else "—"
+
+
+def format_property_info_text(property_obj: Property, manager_name: str) -> str:
+    return "\n".join(
+        [
+            _format_location_for_share(property_obj),
+            f"Дом: {_format_house_number_for_share(property_obj)}",
+            f"Комнат: {_format_share_value(property_obj.rooms)}",
+            f"Этаж: {format_floor_short(property_obj.floor, property_obj.building_floors)}",
+            f"Площадь: {_format_area_for_share(property_obj)}",
+            f"Материал стен: {_format_share_value(property_obj.building_material).lower()}",
+            f"Год: {_format_share_value(property_obj.building_year)}",
+            f"Цена: {_format_money_for_share(property_obj.price)}",
+            f"Осмотрел: {_format_share_value(manager_name)}",
+        ]
+    )
+
+
+def format_property_info_message(property_obj: Property, manager_name: str) -> str:
+    info_text = escape(format_property_info_text(property_obj=property_obj, manager_name=manager_name), quote=False)
+    return f"Информация для отправки:\n\n<pre>{info_text}</pre>"
 
 
 def format_property_status(property_obj: Property) -> str:
@@ -281,16 +580,16 @@ def format_duplicate_property_card(property_obj: Property, matched_fields: list[
     matched_lines = "\n".join(f"- {labels.get(field, field)}" for field in matched_fields) or "- —"
     return (
         f"⚠️ Похоже, такой объект уже есть в базе.\n\n"
-        f"ID: {property_obj.id}\n"
-        f"Район: {property_obj.district or '—'}\n"
-        f"Адрес: {format_property_address_for_display(property_obj.district, property_obj.address)}\n"
+        f"ID: {safe_html(property_obj.id)}\n"
+        f"Район: {safe_html(property_obj.district)}\n"
+        f"Адрес: {safe_html(format_property_address_for_display(property_obj.district, property_obj.address))}\n"
         f"Телефон: {format_owner_phone(property_obj.owner_phone)}\n"
-        f"Цена: {_format_money(property_obj.price)}\n"
-        f"Комнаты: {property_obj.rooms or '—'}\n"
-        f"Площадь: {format_area(property_obj.area)}\n"
-        f"Этаж/Этажность: {property_obj.floor or '—'}/{property_obj.building_floors or '—'}\n"
-        f"Год: {property_obj.building_year or '—'}\n\n"
-        f"Совпадение: {matched_count} из 7\n"
+        f"Цена: {safe_html(_format_money(property_obj.price))}\n"
+        f"Комнаты: {safe_html(property_obj.rooms)}\n"
+        f"Площадь: {safe_html(format_area(property_obj.area))}\n"
+        f"Этаж/Этажность: {safe_html(property_obj.floor)}/{safe_html(property_obj.building_floors)}\n"
+        f"Год: {safe_html(property_obj.building_year)}\n\n"
+        f"Совпадение: {safe_html(matched_count)} из 7\n"
         f"Совпали:\n{matched_lines}\n\n"
         f"Вы точно хотите добавить новый объект?"
     )

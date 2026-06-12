@@ -30,12 +30,12 @@ def _format_datetime(value: datetime | None) -> str:
 
 
 def format_client_properties_list(links: list[ClientProperty], *, client_name: str, limit: int) -> str:
-    rows = [f"<b>Объекты клиента: {client_name}</b>", ""]
+    rows = [f"Объекты клиента: {client_name}", ""]
     for index, link in enumerate(links, start=1):
         relation_status = RELATION_STATUS_LABELS.get(link.relation_status, link.relation_status.value)
         district = link.property.district or "—"
         rows.append(
-            f"{index}. <b>{link.property.title}</b> · {district} · {_format_money(link.property.price)} · {relation_status}"
+            f"{index}. {link.property.title} · {district} · {_format_money(link.property.price)} · {relation_status}"
         )
 
     rows.extend(["", f"Показаны первые {min(len(links), limit)} записей."])
@@ -47,13 +47,13 @@ def format_client_property_link_card(link: ClientProperty) -> str:
     property_status = PROPERTY_STATUS_LABELS.get(link.property.status, link.property.status.value)
     manager_name = link.property.manager.full_name if link.property.manager else "—"
     return (
-        f"<b>Связь клиент ↔ объект #{link.id}</b>\n\n"
-        f"<b>ID связи:</b> {link.id}\n"
-        f"<b>Клиент:</b> {link.client.full_name} (#{link.client_id})\n"
-        f"<b>Объект:</b> {link.property.title} (#{link.property_id})\n"
-        f"<b>Статус связи:</b> {relation_status}\n"
-        f"<b>Дата привязки:</b> {_format_datetime(link.created_at)}\n\n"
-        f"<b>Кратко по объекту</b>\n"
+        f"Связь клиент ↔ объект #{link.id}\n\n"
+        f"ID связи: {link.id}\n"
+        f"Клиент: {link.client.full_name} (#{link.client_id})\n"
+        f"Объект: {link.property.title} (#{link.property_id})\n"
+        f"Статус связи: {relation_status}\n"
+        f"Дата привязки: {_format_datetime(link.created_at)}\n\n"
+        f"Кратко по объекту\n"
         f"• Название: {link.property.title}\n"
         f"• Район: {link.property.district or '—'}\n"
         f"• Цена: {_format_money(link.property.price)}\n"

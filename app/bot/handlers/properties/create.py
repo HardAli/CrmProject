@@ -17,12 +17,12 @@ from app.bot.keyboards.properties import (
     PLAIN_SKIP_TEXT,
     PROPERTY_STATUS_MAP,
     PROPERTY_TYPE_MAP,
-    ROOMS_OPTIONS_FOR_PROPERTY,
     building_floors_reply_keyboard,
     building_material_reply_keyboard,
     building_year_reply_keyboard,
     floor_reply_keyboard,
     get_property_district_keyboard,
+    get_property_created_actions_keyboard,
     get_properties_menu_keyboard,
     get_property_cancel_keyboard,
     get_property_rooms_keyboard,
@@ -41,12 +41,13 @@ from app.common.formatters.property_formatter import format_property_created_car
 from app.common.formatters.property_formatter import format_duplicate_property_card
 from app.common.utils.money import format_price_short, parse_money_to_tenge
 from app.common.utils.phone_links import normalize_owner_phone
-from app.common.utils.property_fields import normalize_building_material, parse_building_year_or_none
+from app.common.utils.property_fields import normalize_building_material, parse_building_year_or_none, parse_property_rooms_or_none
 from app.common.utils.value_parsers import parse_decimal_or_none, parse_int_or_none
 from app.services.auth_service import AuthService
 from app.services.properties import PropertyService
 
 router = Router(name="property_create")
+ROOMS_PROMPT_TEXT = "Выберите количество комнат кнопкой или введите вручную (1-5, Больше 5, Студия, Неизвестно)."
 
 
 async def _get_current_user(message: Message, auth_service: AuthService):
@@ -118,14 +119,7 @@ def _parse_positive_int(raw_value: str, field_name: str) -> int:
 
 
 def _parse_rooms(raw_value: str) -> int | None:
-    value = raw_value.strip()
-    if value.lower() == "студия":
-        return None
-    if value in ROOMS_OPTIONS_FOR_PROPERTY:
-        return parse_int_or_none(value)
-    if value.isdigit() and 0 < int(value) <= 50:
-        return int(value)
-    raise ValueError("Комнаты: выберите 1-5, «Студия» или введите число вручную.")
+    return parse_property_rooms_or_none(raw_value)
 
 
 def _parse_url_or_skip(raw_value: str) -> str | None:
@@ -263,7 +257,7 @@ async def process_area(message: Message, state: FSMContext) -> None:
 
     await state.update_data(kitchen_area=None)
     await state.set_state(PropertyCreateStates.rooms)
-    await _show_property_create_step(message, state, "Выберите количество комнат кнопкой или введите вручную (1-5, Студия).", reply_markup=get_property_rooms_keyboard())
+    await _show_property_create_step(message, state, ROOMS_PROMPT_TEXT, reply_markup=get_property_rooms_keyboard())
 
 
 @router.message(PropertyCreateStates.kitchen_area)
@@ -288,7 +282,7 @@ async def process_kitchen_area(message: Message, state: FSMContext) -> None:
         await state.update_data(kitchen_area=str(kitchen_area))
 
     await state.set_state(PropertyCreateStates.rooms)
-    await _show_property_create_step(message, state, "Выберите количество комнат кнопкой или введите вручную (1-5, Студия).", reply_markup=get_property_rooms_keyboard())
+    await _show_property_create_step(message, state, ROOMS_PROMPT_TEXT, reply_markup=get_property_rooms_keyboard())
 
 
 @router.message(PropertyCreateStates.rooms)
@@ -312,7 +306,7 @@ async def process_floor(message: Message, state: FSMContext) -> None:
         await _show_property_create_step(
             message,
             state,
-            "Выберите количество комнат кнопкой или введите вручную (1-5, Студия).",
+            ROOMS_PROMPT_TEXT,
             reply_markup=get_property_rooms_keyboard(),
         )
         return
@@ -532,6 +526,7 @@ async def process_status(
                 duplicate_result.matched_fields_count,
             ),
             reply_markup=get_duplicate_confirm_keyboard(),
+            parse_mode="HTML",
             scope="property_duplicate_confirm",
         )
         return
@@ -556,7 +551,8 @@ async def process_status(
                 {
                     "scope": "property_created_card",
                     "text": format_property_created_card(property_obj=property_obj, manager_name=manager_name),
-                    "reply_markup": get_properties_menu_keyboard(),
+                    "reply_markup": get_property_created_actions_keyboard(property_obj.id),
+                    "parse_mode": "HTML",
                 },
                 {
                     "scope": "property_linked_clients_notice",
@@ -570,7 +566,8 @@ async def process_status(
         message,
         state,
         format_property_created_card(property_obj=property_obj, manager_name=manager_name),
-        reply_markup=get_properties_menu_keyboard(),
+        reply_markup=get_property_created_actions_keyboard(property_obj.id),
+        parse_mode="HTML",
         scope="property_created_card",
     )
 
@@ -603,7 +600,8 @@ async def confirm_duplicate_create(message: Message, state: FSMContext, auth_ser
                 {
                     "scope": "property_created_card",
                     "text": format_property_created_card(property_obj=property_obj, manager_name=manager_name),
-                    "reply_markup": get_properties_menu_keyboard(),
+                    "reply_markup": get_property_created_actions_keyboard(property_obj.id),
+                    "parse_mode": "HTML",
                 },
                 {
                     "scope": "property_linked_clients_notice",
@@ -617,7 +615,8 @@ async def confirm_duplicate_create(message: Message, state: FSMContext, auth_ser
         message,
         state,
         format_property_created_card(property_obj=property_obj, manager_name=manager_name),
-        reply_markup=get_properties_menu_keyboard(),
+        reply_markup=get_property_created_actions_keyboard(property_obj.id),
+        parse_mode="HTML",
         scope="property_created_card",
     )
 
@@ -644,7 +643,7 @@ async def open_duplicate_property(message: Message, state: FSMContext, property_
         return
     manager_name = property_obj.manager.full_name if property_obj.manager else "—"
     from app.common.formatters.property_formatter import format_property_card
-    await _show_property_create_step(message, state, format_property_card(property_obj, manager_name), scope="property_card")
+    await _show_property_create_step(message, state, format_property_card(property_obj, manager_name), parse_mode="HTML", scope="property_card")
 
 
 @router.message(StateFilter(PropertyCreateStates))

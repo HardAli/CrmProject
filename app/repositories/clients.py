@@ -5,7 +5,7 @@ from datetime import date, datetime, time, timedelta, timezone
 
 from sqlalchemy import Select, and_, case, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 
 from app.common.dto.clients import CreateClientDTO
 from app.common.enums import ClientStatus, RequestType, TaskStatus
@@ -44,7 +44,10 @@ class ClientRepository:
     async def get_by_id(self, client_id: int) -> Client | None:
         stmt = (
             select(Client)
-            .options(joinedload(Client.manager))
+            .options(
+                joinedload(Client.manager),
+                selectinload(Client.properties).selectinload(ClientProperty.property),
+            )
             .where(Client.id == client_id)
         )
         result = await self._session.execute(stmt)
@@ -206,25 +209,39 @@ class ClientRepository:
         return result.scalars().all()
 
     async def get_by_phone_normalized(self, phone_normalized: str) -> Client | None:
-        candidates = {phone_normalized}
-        if phone_normalized.startswith("+"):
-            candidates.add(phone_normalized.replace("+", "8", 1))
-        if phone_normalized.startswith("8"):
-            candidates.add(phone_normalized.replace("8", "+", 1))
+        candidates = self._build_phone_candidates(phone_normalized)
 
         stmt = self._base_list_query().where(Client.phone.in_(candidates)).limit(1)
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
     async def get_all_by_phone_normalized(self, phone_normalized: str) -> Sequence[Client]:
-        candidates = {phone_normalized}
-        if phone_normalized.startswith("+"):
-            candidates.add(phone_normalized.replace("+", "8", 1))
-        if phone_normalized.startswith("8"):
-            candidates.add(phone_normalized.replace("8", "+", 1))
+        candidates = self._build_phone_candidates(phone_normalized)
         stmt = self._base_list_query().where(Client.phone.in_(candidates)).limit(200)
         result = await self._session.execute(stmt)
         return result.scalars().all()
+
+    @staticmethod
+    def _build_phone_candidates(phone_normalized: str) -> set[str]:
+        value = (phone_normalized or "").strip()
+        if not value:
+            return set()
+
+        candidates = {value}
+        digits = "".join(ch for ch in value if ch.isdigit())
+
+        if value.startswith("+"):
+            candidates.add(value.replace("+", "8", 1))
+        if value.startswith("8"):
+            candidates.add(value.replace("8", "+", 1))
+        if len(digits) == 11 and digits.startswith("7"):
+            candidates.add(f"+{digits}")
+            candidates.add(f"8{digits[1:]}")
+        if len(digits) == 11 and digits.startswith("8"):
+            candidates.add(f"+7{digits[1:]}")
+            candidates.add(digits)
+
+        return candidates
 
     async def get_filtered(
         self,
@@ -234,14 +251,17 @@ class ClientRepository:
         page: int,
         per_page: int,
     ) -> tuple[list[Client], int]:
-        stmt = select(Client).options(joinedload(Client.manager))
+        load_options = [joinedload(Client.manager)]
+        if (filters.get("deal_types") or []) == [RequestType.SELL.value]:
+            load_options.append(selectinload(Client.properties).selectinload(ClientProperty.property))
+        stmt = select(Client, func.count().over().label("total_count")).options(*load_options)
         stmt = self.apply_client_filters(stmt=stmt, filters=filters, manager_id=manager_id)
-        count_stmt = select(func.count()).select_from(stmt.order_by(None).subquery())
-        total_count = int((await self._session.execute(count_stmt)).scalar_one())
         stmt = self.apply_client_sorting(stmt=stmt, filters=filters)
         stmt = stmt.limit(per_page).offset((page - 1) * per_page)
-        result = await self._session.execute(stmt)
-        return list(result.scalars().all()), total_count
+        rows = (await self._session.execute(stmt)).all()
+        if not rows:
+            return [], 0
+        return [row[0] for row in rows], int(rows[0].total_count or 0)
 
     def apply_client_filters(
         self,

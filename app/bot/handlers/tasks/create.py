@@ -7,7 +7,7 @@ from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.keyboards.clients import CANCEL_TEXT, get_client_card_actions_keyboard
-from app.bot.keyboards.tasks import get_task_cancel_keyboard
+from app.bot.keyboards.tasks import CREATE_TASK_TEXT, get_task_cancel_keyboard, get_task_client_pick_keyboard
 from app.bot.states.tasks import TaskCreateStates
 from app.bot.utils.chat_ui import send_clean_bundle, send_clean_screen
 from app.common.formatters.client_formatter import format_client_card
@@ -18,6 +18,7 @@ from app.services.clients import ClientService
 from app.services.tasks import TaskService
 
 router = Router(name="task_create")
+CLIENT_PICK_LIMIT = 10
 
 
 async def _show_task_create_step(
@@ -35,6 +36,51 @@ async def _show_task_create_step(
         text=text,
         reply_markup=reply_markup,
         prefer_edit=isinstance(target, CallbackQuery),
+    )
+
+
+@router.message(F.text == CREATE_TASK_TEXT)
+async def open_task_client_picker(
+    message: Message,
+    state: FSMContext,
+    auth_service: AuthService,
+    client_service: ClientService,
+) -> None:
+    if message.from_user is None:
+        await message.answer("Не удалось определить профиль Telegram.")
+        return
+
+    user = await auth_service.get_active_user_by_telegram_id(message.from_user.id)
+    if user is None:
+        await message.answer("У вас нет доступа к этой функции.")
+        return
+
+    if False:
+        await _show_task_create_step(
+            message,
+            state,
+            "Супервайзер не может создавать задачи.",
+            scope="task_create_denied",
+        )
+        return
+
+    clients = list(await client_service.get_my_clients(current_user=user, limit=CLIENT_PICK_LIMIT))
+    await state.clear()
+    if not clients:
+        await _show_task_create_step(
+            message,
+            state,
+            "Клиенты не найдены. Сначала добавьте клиента, затем создайте задачу.",
+            scope="task_client_pick_empty",
+        )
+        return
+
+    await _show_task_create_step(
+        message,
+        state,
+        "Выберите клиента для задачи:",
+        reply_markup=get_task_client_pick_keyboard(clients),
+        scope="task_client_pick",
     )
 
 
@@ -173,6 +219,7 @@ async def process_due_at(
                         client_id=client.id,
                         can_edit=client_service.can_edit_client(current_user=user, client=client),
                     ),
+                    "parse_mode": "HTML",
                 },
             ],
         )

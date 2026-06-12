@@ -79,6 +79,7 @@ async def show_statistics_block(
     await callback.message.edit_text(
         text,
         reply_markup=get_stats_view_keyboard(role=user.role, section=section, period=period),
+        parse_mode="HTML",
     )
     await callback.answer()
 

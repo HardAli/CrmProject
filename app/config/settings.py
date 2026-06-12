@@ -2,8 +2,11 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+DEFAULT_PUBLIC_BASE_URL = "http://localhost:8000"
 
 
 class Settings(BaseSettings):
@@ -21,6 +24,17 @@ class Settings(BaseSettings):
     reminder_task_horizon_minutes: int = Field(default=30, alias="REMINDER_TASK_HORIZON_MINUTES")
     supervisor_secret: str = Field(default="HardAdmin31415926535", alias="SUPERVISOR_SECRET")
     role_pass_expire_minutes: int = Field(default=60, alias="ROLE_PASS_EXPIRE_MINUTES")
+    public_base_url: str = Field(default=DEFAULT_PUBLIC_BASE_URL, alias="PUBLIC_BASE_URL")
+
+    @field_validator("public_base_url", mode="before")
+    @classmethod
+    def _default_public_base_url(cls, value: object) -> str:
+        if value is None:
+            return DEFAULT_PUBLIC_BASE_URL
+        if isinstance(value, str):
+            cleaned = value.strip()
+            return cleaned or DEFAULT_PUBLIC_BASE_URL
+        return str(value).strip() or DEFAULT_PUBLIC_BASE_URL
 
 
 @lru_cache(maxsize=1)

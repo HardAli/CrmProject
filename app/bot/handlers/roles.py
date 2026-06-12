@@ -82,7 +82,7 @@ async def generate_manager_pass(
 
     role_pass = await role_pass_service.generate_manager_pass(user)
     await session.commit()
-    await send_clean_screen(message, state=state, scope="supervisor_role_pass", text=format_role_pass(role_pass), prefer_edit=False)
+    await send_clean_screen(message, state=state, scope="supervisor_role_pass", text=format_role_pass(role_pass), parse_mode="HTML", prefer_edit=False)
 
 
 @router.message(F.text == ADMIN_PASS_BUTTON_TEXT)
@@ -101,7 +101,7 @@ async def generate_admin_pass(
 
     role_pass = await role_pass_service.generate_admin_pass(user)
     await session.commit()
-    await send_clean_screen(message, state=state, scope="supervisor_role_pass", text=format_role_pass(role_pass), prefer_edit=False)
+    await send_clean_screen(message, state=state, scope="supervisor_role_pass", text=format_role_pass(role_pass), parse_mode="HTML", prefer_edit=False)
 
 
 @router.message(F.text == EXIT_TO_MENU_BUTTON_TEXT)

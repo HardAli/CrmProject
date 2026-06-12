@@ -200,6 +200,7 @@ async def noop_callback(callback: CallbackQuery) -> None:
 
 @router.callback_query(F.data == f"{OBJ_FILTER_PREFIX}:search")
 async def open_search_input(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
     await state.set_state(PropertyListStates.search_query)
     if callback.message is not None:
         await send_clean_screen(
@@ -208,11 +209,10 @@ async def open_search_input(callback: CallbackQuery, state: FSMContext) -> None:
             scope="objects_search_prompt",
             text=(
                 "Введите запрос для поиска по базе объектов.\n"
-                "Например: каратал, 7775, 58.6, 19.5, 2/5, 1976."
+                "Например: абай, каратал, 7775, 58.6, 19.5, 2/5."
             ),
             prefer_edit=True,
         )
-    await callback.answer()
 
 
 @router.message(StateFilter(PropertyListStates.search_query))
@@ -325,7 +325,7 @@ async def open_rooms_menu(callback: CallbackQuery, state: FSMContext) -> None:
         return
     filters = await _get_filters(state)
     selected = ", ".join(str(v) for v in filters.get("rooms", [])) or "нет"
-    await callback.message.edit_text("<b>Комнатность</b>\n\nВыбрано: " + selected, reply_markup=build_rooms_filter_keyboard(filters))
+    await callback.message.edit_text("Комнатность\n\nВыбрано: " + selected, reply_markup=build_rooms_filter_keyboard(filters))
     await callback.answer()
 
 
@@ -344,7 +344,7 @@ async def toggle_room(callback: CallbackQuery, state: FSMContext) -> None:
     filters = update_object_filter(filters, "rooms", sorted(rooms))
     await _save_filters(state, filters)
     selected = ", ".join(str(v) for v in filters.get("rooms", [])) or "нет"
-    await callback.message.edit_text("<b>Комнатность</b>\n\nВыбрано: " + selected, reply_markup=build_rooms_filter_keyboard(filters))
+    await callback.message.edit_text("Комнатность\n\nВыбрано: " + selected, reply_markup=build_rooms_filter_keyboard(filters))
     await callback.answer()
 
 
@@ -362,7 +362,7 @@ async def open_price_menu(callback: CallbackQuery, state: FSMContext) -> None:
         await callback.answer()
         return
     filters = await _get_filters(state)
-    await callback.message.edit_text("<b>Цена</b>", reply_markup=build_price_filter_keyboard(filters))
+    await callback.message.edit_text("<b>Цена</b>", reply_markup=build_price_filter_keyboard(filters), parse_mode="HTML")
     await callback.answer()
 
 
@@ -379,7 +379,7 @@ async def set_price_max(callback: CallbackQuery, state: FSMContext) -> None:
     filters = update_object_filter(filters, "price_min", None)
     filters = update_object_filter(filters, "price_max", Decimal(int(value_raw) * 1_000_000))
     await _save_filters(state, filters)
-    await callback.message.edit_text("<b>Цена</b>", reply_markup=build_price_filter_keyboard(filters))
+    await callback.message.edit_text("<b>Цена</b>", reply_markup=build_price_filter_keyboard(filters), parse_mode="HTML")
     await callback.answer("Фильтр цены обновлен")
 
 
@@ -404,7 +404,7 @@ async def open_district_menu(callback: CallbackQuery, state: FSMContext) -> None
         return
     filters = await _get_filters(state)
     selected = ", ".join(filters.get("districts", [])) or "нет"
-    await callback.message.edit_text("<b>Район</b>\n\nВыбрано: " + selected, reply_markup=build_district_filter_keyboard(filters))
+    await callback.message.edit_text("<b>Район</b>\n\nВыбрано: " + selected, reply_markup=build_district_filter_keyboard(filters), parse_mode="HTML")
     await callback.answer()
 
 
@@ -439,7 +439,7 @@ async def open_floor_menu(callback: CallbackQuery, state: FSMContext) -> None:
         await callback.answer()
         return
     filters = await _get_filters(state)
-    await callback.message.edit_text("<b>Этаж</b>", reply_markup=build_floor_filter_keyboard(filters))
+    await callback.message.edit_text("<b>Этаж</b>", reply_markup=build_floor_filter_keyboard(filters), parse_mode="HTML")
     await callback.answer()
 
 
@@ -455,7 +455,7 @@ async def set_floor_mode(callback: CallbackQuery, state: FSMContext) -> None:
     else:
         filters = update_object_filter(filters, "floor_mode", mode)
     await _save_filters(state, filters)
-    await callback.message.edit_text("<b>Этаж</b>", reply_markup=build_floor_filter_keyboard(filters))
+    await callback.message.edit_text("<b>Этаж</b>", reply_markup=build_floor_filter_keyboard(filters), parse_mode="HTML")
     await callback.answer()
 
 
@@ -465,7 +465,7 @@ async def open_sort_menu(callback: CallbackQuery, state: FSMContext) -> None:
         await callback.answer()
         return
     filters = await _get_filters(state)
-    await callback.message.edit_text("<b>Сортировка</b>", reply_markup=build_sort_keyboard(filters))
+    await callback.message.edit_text("<b>Сортировка</b>", reply_markup=build_sort_keyboard(filters), parse_mode="HTML")
     await callback.answer()
 
 
@@ -484,7 +484,7 @@ async def open_type_menu(callback: CallbackQuery, state: FSMContext) -> None:
         await callback.answer()
         return
     filters = await _get_filters(state)
-    await callback.message.edit_text("<b>Тип объекта</b>", reply_markup=build_type_filter_keyboard(filters))
+    await callback.message.edit_text("<b>Тип объекта</b>", reply_markup=build_type_filter_keyboard(filters), parse_mode="HTML")
     await callback.answer()
 
 
@@ -511,7 +511,7 @@ async def open_area_menu(callback: CallbackQuery, state: FSMContext) -> None:
         await callback.answer()
         return
     filters = await _get_filters(state)
-    await callback.message.edit_text("<b>Площадь</b>", reply_markup=build_area_filter_keyboard(filters))
+    await callback.message.edit_text("<b>Площадь</b>", reply_markup=build_area_filter_keyboard(filters), parse_mode="HTML")
     await callback.answer()
 
 
@@ -549,7 +549,7 @@ async def open_date_menu(callback: CallbackQuery, state: FSMContext) -> None:
         await callback.answer()
         return
     filters = await _get_filters(state)
-    await callback.message.edit_text("<b>Дата добавления</b>", reply_markup=build_date_filter_keyboard(filters))
+    await callback.message.edit_text("<b>Дата добавления</b>", reply_markup=build_date_filter_keyboard(filters), parse_mode="HTML")
     await callback.answer()
 
 
@@ -571,7 +571,7 @@ async def open_status_menu(callback: CallbackQuery, state: FSMContext) -> None:
         await callback.answer()
         return
     filters = await _get_filters(state)
-    await callback.message.edit_text("<b>Статус объекта</b>", reply_markup=build_status_filter_keyboard(filters))
+    await callback.message.edit_text("<b>Статус объекта</b>", reply_markup=build_status_filter_keyboard(filters), parse_mode="HTML")
     await callback.answer()
 
 

@@ -7,12 +7,12 @@ from app.services.database_import_service import DatabaseImportReport
 
 def format_database_import_report(report: DatabaseImportReport) -> str:
     lines = [
-        "<b>Импорт завершён</b>",
+        "Импорт завершён",
         "",
-        f"<b>Экспорт:</b> v{escape(str(report.export_version))}",
-        f"<b>Схема экспорта:</b> {escape(str(report.schema_version))}",
+        f"Экспорт: v{escape(str(report.export_version))}",
+        f"Схема экспорта: {escape(str(report.schema_version))}",
         "",
-        "<b>Статистика:</b>",
+        "Статистика:",
     ]
 
     for entity, stats in report.entity_stats.items():
@@ -24,17 +24,17 @@ def format_database_import_report(report: DatabaseImportReport) -> str:
     lines.extend(
         [
             "",
-            f"<b>Warnings:</b> {len(report.warnings)}",
-            f"<b>Errors:</b> {len(report.errors)}",
+            f"Warnings: {len(report.warnings)}",
+            f"Errors: {len(report.errors)}",
         ]
     )
 
     if report.warnings:
-        lines.append("\n<b>Последние warnings:</b>")
+        lines.append("\nПоследние warnings:")
         lines.extend(f"• {escape(item)}" for item in report.warnings[-5:])
 
     if report.errors:
-        lines.append("\n<b>Последние errors:</b>")
+        lines.append("\nПоследние errors:")
         lines.extend(f"• {escape(item)}" for item in report.errors[-5:])
 
     return "\n".join(lines)

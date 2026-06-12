@@ -98,7 +98,7 @@ class NotificationService:
     @staticmethod
     async def _safe_send(*, bot: Bot, telegram_id: int, text: str) -> bool:
         try:
-            await bot.send_message(chat_id=telegram_id, text=text)
+            await bot.send_message(chat_id=telegram_id, text=text, parse_mode="HTML")
             return True
         except TelegramForbiddenError:
             logger.warning("Cannot send notification: user blocked bot", extra={"telegram_id": telegram_id})

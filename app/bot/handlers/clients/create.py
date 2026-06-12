@@ -232,6 +232,7 @@ async def _show_client_card_after_photo_step(
             client_id=client.id,
             can_edit=client_service.can_edit_client(current_user=user, client=client),
         ),
+        parse_mode="HTML",
         prefer_edit=False,
     )
 
@@ -537,6 +538,17 @@ async def process_budget(message: Message, state: FSMContext) -> None:
             state,
             "Выберите этаж (1-16) кнопкой или введите вручную.",
             reply_markup=get_floor_keyboard(),
+        )
+        return
+
+    if property_type in {PropertyType.HOUSE, PropertyType.COMMERCIAL}:
+        await state.update_data(floor=None, building_floors=None, wall_material=None)
+        await state.set_state(ClientCreateStates.year_built)
+        await _show_client_create_step(
+            message,
+            state,
+            "Введите год постройки дома/здания (например, 2012) или нажмите «Пропустить».",
+            reply_markup=get_year_built_keyboard(),
         )
         return
 

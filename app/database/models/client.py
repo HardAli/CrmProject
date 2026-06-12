@@ -4,13 +4,14 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, Index, Numeric, SmallInteger, String, Text
+from sqlalchemy import BigInteger, CheckConstraint, DateTime, Enum, ForeignKey, Index, Numeric, SmallInteger, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.common.enums import ClientStatus, PropertyType, RequestType, WallMaterial
 from app.database.base import Base, IdMixin, TimestampMixin
 
 if TYPE_CHECKING:
+    from app.database.models.buyer_request import BuyerRequest
     from app.database.models.client_photo import ClientPhoto
     from app.database.models.client_log import ClientLog
     from app.database.models.client_property import ClientProperty
@@ -39,6 +40,7 @@ class Client(Base, IdMixin, TimestampMixin):
 
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     phone: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    telegram_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
     source: Mapped[str | None] = mapped_column(String(100), nullable=True)
     request_type: Mapped[RequestType] = mapped_column(
         Enum(RequestType, name="request_type", native_enum=False),
@@ -78,6 +80,7 @@ class Client(Base, IdMixin, TimestampMixin):
     tasks: Mapped[list[Task]] = relationship(back_populates="client", cascade="all, delete-orphan")
     logs: Mapped[list[ClientLog]] = relationship(back_populates="client", cascade="all, delete-orphan")
     photos: Mapped[list[ClientPhoto]] = relationship(back_populates="client", cascade="all, delete-orphan")
+    buyer_requests: Mapped[list[BuyerRequest]] = relationship("BuyerRequest", back_populates="client", cascade="all, delete-orphan")
     properties: Mapped[list[ClientProperty]] = relationship(back_populates="client", cascade="all, delete-orphan")
     related_properties: Mapped[list[Property]] = relationship(
         secondary="client_properties",

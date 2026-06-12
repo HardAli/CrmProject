@@ -10,11 +10,17 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.database.models.buyer_offer_history import BuyerOfferHistory
+from app.database.models.buyer_request import BuyerRequest
 from app.database.models.client import Client
 from app.database.models.client_log import ClientLog
 from app.database.models.client_photo import ClientPhoto
 from app.database.models.client_property import ClientProperty
 from app.database.models.property import Property
+from app.database.models.property_photo import PropertyPhoto
+from app.database.models.property_selection import PropertySelection
+from app.database.models.property_selection_feedback import PropertySelectionFeedback
+from app.database.models.property_selection_item import PropertySelectionItem
 from app.database.models.role_pass import RolePass
 from app.database.models.showing import Showing
 from app.database.models.task import Task
@@ -50,7 +56,13 @@ class DatabaseImportService:
     IMPORT_ORDER = [
         "users",
         "clients",
+        "buyer_requests",
         "properties",
+        "property_photos",
+        "property_selections",
+        "property_selection_items",
+        "property_selection_feedback",
+        "buyer_offer_history",
         "tasks",
         "client_logs",
         "client_properties",
@@ -73,7 +85,13 @@ class DatabaseImportService:
 
         await self._import_users(entities.get("users", []), report, id_map)
         await self._import_clients(entities.get("clients", []), report, id_map)
+        await self._import_buyer_requests(entities.get("buyer_requests", []), report, id_map)
         await self._import_properties(entities.get("properties", []), report, id_map)
+        await self._import_property_photos(entities.get("property_photos", []), report, id_map)
+        await self._import_property_selections(entities.get("property_selections", []), report, id_map)
+        await self._import_property_selection_items(entities.get("property_selection_items", []), report, id_map)
+        await self._import_property_selection_feedback(entities.get("property_selection_feedback", []), report, id_map)
+        await self._import_buyer_offer_history(entities.get("buyer_offer_history", []), report, id_map)
         await self._import_tasks(entities.get("tasks", []), report, id_map)
         await self._import_client_logs(entities.get("client_logs", []), report, id_map)
         await self._import_client_properties(entities.get("client_properties", []), report, id_map)
@@ -139,6 +157,113 @@ class DatabaseImportService:
             id_map=id_map,
             finder=self._find_property,
             relation_mapper=lambda data: self._replace_ids(data, manager_id=id_map["users"]),
+        )
+
+    async def _import_property_selections(self, records: list[dict[str, Any]], report: DatabaseImportReport, id_map: dict[str, dict[int, int]]) -> None:
+        await self._import_with_natural_key(
+            entity_name="property_selections",
+            records=records,
+            model=PropertySelection,
+            report=report,
+            id_map=id_map,
+            finder=self._find_property_selection,
+            relation_mapper=lambda data: self._replace_ids(
+                data,
+                client_id=id_map["clients"],
+                created_by_user_id=id_map["users"],
+            ),
+            mapping_gap_fields=("client_id", "created_by_user_id"),
+        )
+
+    async def _import_property_photos(self, records: list[dict[str, Any]], report: DatabaseImportReport, id_map: dict[str, dict[int, int]]) -> None:
+        stats = report.entity_stats["property_photos"]
+        for record in records:
+            stats.processed += 1
+            old_id = record.get("id")
+            mapped = map_import_record_to_model_fields(record, PropertyPhoto)
+            data = self._replace_ids(mapped.data, property_id=id_map["properties"])
+            data.pop("id", None)
+            if self._has_mapping_gap(data, mapped.data, "property_id"):
+                stats.skipped += 1
+                report.warnings.append("property_photos: отсутствует mapping по property_id")
+                continue
+
+            existing = await self._session.scalar(
+                select(PropertyPhoto).where(
+                    PropertyPhoto.property_id == data["property_id"],
+                    PropertyPhoto.url == data.get("url"),
+                )
+            )
+            if existing:
+                for key, value in data.items():
+                    setattr(existing, key, value)
+                stats.updated += 1
+                if isinstance(old_id, int):
+                    id_map["property_photos"][old_id] = existing.id
+                continue
+
+            entity = PropertyPhoto(**data)
+            self._session.add(entity)
+            await self._session.flush()
+            stats.created += 1
+            if isinstance(old_id, int):
+                id_map["property_photos"][old_id] = entity.id
+
+    async def _import_property_selection_items(self, records: list[dict[str, Any]], report: DatabaseImportReport, id_map: dict[str, dict[int, int]]) -> None:
+        await self._import_selection_unique_rows(
+            entity_name="property_selection_items",
+            records=records,
+            model=PropertySelectionItem,
+            report=report,
+            id_map=id_map,
+            relation_mapper=lambda data: self._replace_ids(
+                data,
+                selection_id=id_map["property_selections"],
+                property_id=id_map["properties"],
+            ),
+        )
+
+    async def _import_property_selection_feedback(self, records: list[dict[str, Any]], report: DatabaseImportReport, id_map: dict[str, dict[int, int]]) -> None:
+        await self._import_selection_unique_rows(
+            entity_name="property_selection_feedback",
+            records=records,
+            model=PropertySelectionFeedback,
+            report=report,
+            id_map=id_map,
+            relation_mapper=lambda data: self._replace_ids(
+                data,
+                selection_id=id_map["property_selections"],
+                property_id=id_map["properties"],
+            ),
+        )
+
+    async def _import_buyer_requests(self, records: list[dict[str, Any]], report: DatabaseImportReport, id_map: dict[str, dict[int, int]]) -> None:
+        await self._import_simple_create(
+            entity_name="buyer_requests",
+            model=BuyerRequest,
+            records=records,
+            report=report,
+            id_map=id_map,
+            relation_mapper=lambda data: self._replace_ids(
+                data,
+                client_id=id_map["clients"],
+                responsible_user_id=id_map["users"],
+            ),
+        )
+
+    async def _import_buyer_offer_history(self, records: list[dict[str, Any]], report: DatabaseImportReport, id_map: dict[str, dict[int, int]]) -> None:
+        await self._import_simple_create(
+            entity_name="buyer_offer_history",
+            model=BuyerOfferHistory,
+            records=records,
+            report=report,
+            id_map=id_map,
+            relation_mapper=lambda data: self._replace_ids(
+                data,
+                buyer_request_id=id_map["buyer_requests"],
+                property_id=id_map["properties"],
+                manager_id=id_map["users"],
+            ),
         )
 
     async def _import_tasks(self, records: list[dict[str, Any]], report: DatabaseImportReport, id_map: dict[str, dict[int, int]]) -> None:
@@ -259,6 +384,60 @@ class DatabaseImportService:
             ),
         )
 
+    async def _import_selection_unique_rows(
+        self,
+        *,
+        entity_name: str,
+        records: list[dict[str, Any]],
+        model: type[Any],
+        report: DatabaseImportReport,
+        id_map: dict[str, dict[int, int]],
+        relation_mapper: Any,
+    ) -> None:
+        stats = report.entity_stats[entity_name]
+        for record in records:
+            stats.processed += 1
+            old_id = record.get("id")
+            try:
+                mapped = map_import_record_to_model_fields(record, model)
+                if mapped.conversion_errors:
+                    stats.skipped += 1
+                    report.warnings.append(f"{entity_name}: ошибки конвертации: {', '.join(mapped.conversion_errors)}")
+                    continue
+
+                data = relation_mapper(dict(mapped.data))
+                data.pop("id", None)
+                if self._has_mapping_gap(data, mapped.data, "selection_id", "property_id"):
+                    stats.skipped += 1
+                    report.warnings.append(f"{entity_name}: отсутствует mapping по selection_id/property_id")
+                    continue
+
+                existing = await self._session.scalar(
+                    select(model).where(
+                        model.selection_id == data["selection_id"],
+                        model.property_id == data["property_id"],
+                    )
+                )
+                if existing is None:
+                    entity = model(**data)
+                    self._session.add(entity)
+                    await self._session.flush()
+                    stats.created += 1
+                    if isinstance(old_id, int):
+                        id_map[entity_name][old_id] = entity.id
+                    continue
+
+                for key, value in data.items():
+                    setattr(existing, key, value)
+                await self._session.flush()
+                stats.updated += 1
+                if isinstance(old_id, int):
+                    id_map[entity_name][old_id] = existing.id
+            except Exception as exc:
+                logger.exception("Import error entity=%s old_id=%s", entity_name, old_id)
+                stats.errors += 1
+                report.errors.append(f"{entity_name}: id={old_id} -> {exc}")
+
     async def _import_with_natural_key(
         self,
         *,
@@ -269,6 +448,7 @@ class DatabaseImportService:
         id_map: dict[str, dict[int, int]],
         finder: Any,
         relation_mapper: Any | None = None,
+        mapping_gap_fields: tuple[str, ...] = (),
     ) -> None:
         stats = report.entity_stats[entity_name]
         for record in records:
@@ -290,6 +470,11 @@ class DatabaseImportService:
                 if required_missing:
                     stats.skipped += 1
                     report.warnings.append(f"{entity_name}: пропуск записи из-за обязательных полей {required_missing}")
+                    continue
+
+                if mapping_gap_fields and self._has_mapping_gap(data, mapped.data, *mapping_gap_fields):
+                    stats.skipped += 1
+                    report.warnings.append(f"{entity_name}: отсутствует mapping для внешних ключей")
                     continue
 
                 existing = await finder(data)
@@ -345,7 +530,23 @@ class DatabaseImportService:
                     report.warnings.append(f"{entity_name}: пропуск записи из-за обязательных полей {required_missing}")
                     continue
 
-                if self._has_mapping_gap(data, mapped.data, *[k for k in ("client_id", "assigned_to", "user_id", "property_id", "manager_id") if k in mapped.data]):
+                if self._has_mapping_gap(
+                    data,
+                    mapped.data,
+                    *[
+                        k
+                        for k in (
+                            "buyer_request_id",
+                            "client_id",
+                            "assigned_to",
+                            "user_id",
+                            "property_id",
+                            "manager_id",
+                            "responsible_user_id",
+                        )
+                        if k in mapped.data
+                    ],
+                ):
                     stats.skipped += 1
                     report.warnings.append(f"{entity_name}: отсутствует mapping для внешних ключей")
                     continue
@@ -392,6 +593,12 @@ class DatabaseImportService:
                 )
             )
         return None
+
+    async def _find_property_selection(self, data: dict[str, Any]) -> PropertySelection | None:
+        token = data.get("token")
+        if token is None:
+            return None
+        return await self._session.scalar(select(PropertySelection).where(PropertySelection.token == token))
 
     async def _find_role_pass(self, data: dict[str, Any]) -> RolePass | None:
         code = data.get("code")

@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 
 from app.common.utils.phone_links import normalize_owner_phone
-from app.common.enums import ClientActionType
+from app.common.enums import ClientActionType, ClientPropertyRelationStatus
 from app.database.models.property import Property
 from app.database.models.user import User
 from app.repositories.client_logs import ClientLogRepository
@@ -32,13 +32,20 @@ class AutoLinkService:
             except ValueError:
                 return 0
 
-        clients = await self._client_repository.get_all_by_phone_normalized(normalized_phone)
+        clients = list(await self._client_repository.get_all_by_phone_normalized(normalized_phone))
+        linked_client_ids = await self._client_property_repository.get_linked_client_ids_for_property(
+            property_id=property_obj.id,
+            client_ids={client.id for client in clients},
+        )
         linked_count = 0
         for client in clients:
-            existing = await self._client_property_repository.get_existing(client_id=client.id, property_id=property_obj.id)
-            if existing is not None:
+            if client.id in linked_client_ids:
                 continue
-            await self._client_property_repository.create(client_id=client.id, property_id=property_obj.id)
+            await self._client_property_repository.create(
+                client_id=client.id,
+                property_id=property_obj.id,
+                relation_status=ClientPropertyRelationStatus.SENT,
+            )
             await self._client_log_repository.create_log(
                 client_id=client.id,
                 user_id=current_user.id,

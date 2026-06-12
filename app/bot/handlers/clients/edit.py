@@ -113,6 +113,7 @@ async def set_client_status(
             client_id=client.id,
             can_edit=client_service.can_edit_client(current_user=user, client=client),
         ),
+        parse_mode="HTML",
         prefer_edit=True,
     )
     await callback.answer("Статус обновлён")
@@ -226,6 +227,7 @@ async def save_note(
             client_id=client.id,
             can_edit=client_service.can_edit_client(current_user=user, client=client),
         ),
+        parse_mode="HTML",
         prefer_edit=False,
     )
 
@@ -269,6 +271,7 @@ async def start_next_contact_change(
         text=build_date_prompt(label="новую дату контакта"),
         reply_markup=get_cancel_keyboard(),
         prefer_edit=True,
+        parse_mode="HTML",
     )
     await callback.answer()
 
@@ -340,7 +343,9 @@ async def save_next_contact(
         text=format_client_card(client=client, manager_name=manager_name, updated=True),
         reply_markup=get_client_card_actions_keyboard(
             client_id=client.id,
-            can_edit=client_service.can_edit_client(current_user=user, client=client),
+            can_edit=client_service.can_edit_client(current_user=user,  client=client),
         ),
+        parse_mode="HTML",
         prefer_edit=False,
     )
+ 

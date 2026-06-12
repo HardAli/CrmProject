@@ -11,12 +11,13 @@ from app.database.models.client import Client
 from app.database.models.property import Property
 from app.database.models.user import User
 from app.common.utils.phone_links import normalize_owner_phone
-from app.common.utils.property_fields import is_valid_building_year, normalize_building_material
+from app.common.utils.property_fields import is_valid_building_year, normalize_building_material, parse_property_rooms_or_none
 from app.common.utils.value_parsers import parse_decimal_or_none, parse_int_or_none
 from app.repositories.client_logs import ClientLogRepository
 from app.repositories.client_properties import ClientPropertyRepository
 from app.repositories.clients import ClientRepository
 from app.repositories.properties import PropertyRepository
+from app.services.access_control import can_view_all_data, has_full_access
 from app.services.auto_link_service import AutoLinkService
 from app.services.property_duplicate_service import DuplicateCheckResult, PropertyDuplicateService
 
@@ -59,7 +60,7 @@ class PropertyService:
         return await self._duplicate_service.find_best_duplicate(data)
 
     async def create_property(self, current_user: User, data: CreatePropertyDTO) -> tuple[Property, int]:
-        if current_user.role == UserRole.SUPERVISOR:
+        if False and current_user.role == UserRole.SUPERVISOR:
             raise PermissionError("Роль supervisor не может создавать объекты")
 
         if current_user.role == UserRole.MANAGER and data.manager_id != current_user.id:
@@ -103,9 +104,11 @@ class PropertyService:
         return await self._property_repository.get_recent(limit=limit)
 
     async def get_recent_properties(self, current_user: User, limit: int = 10) -> Sequence[Property]:
-        if current_user.role not in {UserRole.ADMIN, UserRole.MANAGER, UserRole.SUPERVISOR}:
-            return []
-        return await self._property_repository.get_recent_by_manager(manager_id=current_user.id, limit=limit)
+        if current_user.role == UserRole.MANAGER:
+            return await self._property_repository.get_recent_by_manager(manager_id=current_user.id, limit=limit)
+        if can_view_all_data(current_user):
+            return await self._property_repository.get_recent_global(limit=limit)
+        return []
 
     async def get_global_properties(self, current_user: User, limit: int = 10) -> Sequence[Property]:
         if current_user.role not in {UserRole.ADMIN, UserRole.MANAGER, UserRole.SUPERVISOR}:
@@ -133,16 +136,18 @@ class PropertyService:
             page = 1
         offset = (page - 1) * per_page
 
-        total_count = await self._property_repository.count_filtered_for_user(
-            current_user=current_user,
-            filters=filters,
-        )
-        properties = await self._property_repository.get_filtered_for_user(
+        properties, total_count = await self._property_repository.get_filtered_page_for_user(
             current_user=current_user,
             filters=filters,
             limit=per_page,
             offset=offset,
         )
+        if not properties and page > 1:
+            total_count = await self._property_repository.count_filtered_for_user(
+                current_user=current_user,
+                filters=filters,
+            )
+
         total_pages = max(1, (total_count + per_page - 1) // per_page)
         return properties, total_count, total_pages
 
@@ -161,19 +166,19 @@ class PropertyService:
 
     @staticmethod
     def can_view_property(current_user: User, property_obj: Property) -> bool:
-        return current_user.role in {UserRole.ADMIN, UserRole.MANAGER, UserRole.SUPERVISOR}
+        return has_full_access(current_user) or current_user.role == UserRole.MANAGER
 
     @staticmethod
     def can_create_property(current_user: User) -> bool:
-        return current_user.role in {UserRole.ADMIN, UserRole.MANAGER}
+        return has_full_access(current_user) or current_user.role == UserRole.MANAGER
 
     @staticmethod
     def can_convert_property(*, current_user: User, property_obj: Property) -> bool:
-        return current_user.role in {UserRole.ADMIN, UserRole.MANAGER, UserRole.SUPERVISOR}
+        return has_full_access(current_user) or current_user.role == UserRole.MANAGER
 
     @staticmethod
     def can_delete_property(*, current_user: User, property_obj: Property) -> bool:
-        return current_user.role in {UserRole.ADMIN, UserRole.MANAGER, UserRole.SUPERVISOR}
+        return has_full_access(current_user) or current_user.role == UserRole.MANAGER
 
     async def convert_property_to_client(self, *, current_user: User, property_id: int) -> tuple[str, Client]:
         property_obj = await self._property_repository.get_by_id(property_id)
@@ -278,7 +283,7 @@ class PropertyService:
 
     @staticmethod
     def can_edit_property(*, current_user: User, property_obj: Property) -> bool:
-        if current_user.role == UserRole.ADMIN:
+        if has_full_access(current_user):
             return True
         if current_user.role == UserRole.MANAGER:
             return property_obj.manager_id == current_user.id
@@ -316,10 +321,11 @@ class PropertyService:
             parsed=parse_decimal_or_none(text)
             if parsed is None or parsed <= 0: raise ValueError("Площадь должна быть больше 0")
             return parsed
-        if field_name in {"rooms","floor","building_floors","building_year"}:
+        if field_name == "rooms":
+            return parse_property_rooms_or_none(text)
+        if field_name in {"floor","building_floors","building_year"}:
             parsed=parse_int_or_none(text)
             if parsed is None: raise ValueError("Введите целое число")
-            if field_name == "rooms" and parsed not in {1,2,3,4,5}: raise ValueError("Комнаты: 1-5")
             if field_name == "building_year" and not is_valid_building_year(parsed): raise ValueError("Некорректный год")
             if field_name == "floor" and property_obj.building_floors is not None and parsed > property_obj.building_floors: raise ValueError("Этаж не может быть выше этажности")
             if field_name == "building_floors" and property_obj.floor is not None and property_obj.floor > parsed: raise ValueError("Этажность не может быть меньше этажа")

@@ -18,11 +18,11 @@ def _format_money(value: Decimal | None) -> str:
 
 
 def format_client_search_results(clients: list[Client], limit: int) -> str:
-    rows = ["<b>Результаты поиска клиентов</b>", ""]
+    rows = ["Результаты поиска клиентов", ""]
     for index, client in enumerate(clients, start=1):
         status = STATUS_LABELS.get(client.status, client.status.value)
         rows.append(
-            f"{index}. <b>{client.full_name}</b> · {client.district or '—'} · {status}\n"
+            f"{index}. {escape(str(client.full_name))} · {escape(str(client.district or '—'))} · {escape(status)}\n"
             f"   Телефон: {format_phone_for_copy(client.phone)}"
         )
 
@@ -31,13 +31,13 @@ def format_client_search_results(clients: list[Client], limit: int) -> str:
 
 
 def format_property_search_results(properties: list[Property], limit: int) -> str:
-    rows = ["<b>Результаты поиска объектов</b>", ""]
+    rows = ["Результаты поиска объектов", ""]
     for index, property_obj in enumerate(properties, start=1):
         status = PROPERTY_STATUS_LABELS.get(property_obj.status, property_obj.status.value)
         address = format_property_address_for_display(property_obj.district, property_obj.address)
         rows.append(
-            f"{index}. <b>{escape(property_obj.title)}</b> · {escape(property_obj.district or '—')} · "
-            f"{escape(address)} · {escape(_format_money(property_obj.price))} · {escape(status)}"
+            f"{index}. <b>{escape(property_obj.title)} · {escape(property_obj.district or '—')} · "
+            f"{escape(address)} · {escape(_format_money(property_obj.price))} · {escape(status)}</b>"
         )
 
     rows.extend(["", f"Найдено: {len(properties)} (лимит: {limit})."])
@@ -47,15 +47,15 @@ def format_property_search_results(properties: list[Property], limit: int) -> st
 def format_client_search_applied_filters(filters: dict[str, object]) -> str:
     rows: list[str] = []
     if filters.get("full_name"):
-        rows.append(f"• Имя: {filters['full_name']}")
+        rows.append(f"• Имя: {escape(str(filters['full_name']))}")
     if filters.get("phone"):
-        rows.append(f"• Телефон: {filters['phone']}")
+        rows.append(f"• Телефон: {escape(str(filters['phone']))}")
     if filters.get("district"):
-        rows.append(f"• Район: {filters['district']}")
+        rows.append(f"• Район: {escape(str(filters['district']))}")
     if filters.get("status"):
-        rows.append(f"• Статус: {STATUS_LABELS.get(filters['status'], str(filters['status']))}")
+        rows.append(f"• Статус: {escape(STATUS_LABELS.get(filters['status'], str(filters['status'])))}")
     if filters.get("request_type"):
-        rows.append(f"• Тип запроса: {REQUEST_TYPE_LABELS.get(filters['request_type'], str(filters['request_type']))}")
+        rows.append(f"• Тип запроса: {escape(REQUEST_TYPE_LABELS.get(filters['request_type'], str(filters['request_type'])))}")
 
     return "\n".join(rows)
 

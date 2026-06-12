@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
 
-from app.common.enums import ClientPropertyRelationStatus, ClientStatus
-from app.common.formatters.client_formatter import format_client_compact
+from app.bot.keyboards.buyer_requests import ADD_BUYER_REQUEST_TEXT, BUYER_REQUESTS_TEXT, BUYER_SEARCH_TEXT
+from app.bot.keyboards.property_selections import SELECTIONS_BUTTON_TEXT
+from app.common.enums import ClientPropertyRelationStatus, ClientStatus, RequestType
+from app.common.formatters.client_formatter import format_client_compact, format_seller_client_button
 from app.common.formatters.property_formatter import format_object_compact
 from app.database.models.client import Client
 from app.database.models.client_property import ClientProperty
@@ -15,9 +17,11 @@ SKIP_TEXT = "⏭ Пропустить"
 UNKNOWN_TEXT = "Неизвестно"
 ADD_CLIENT_TEXT = "➕ Добавить клиента"
 CLIENTS_MENU_TEXT = "👥 Клиенты"
-MY_CLIENTS_TEXT = "👤 Мои клиенты"
-CLIENTS_BY_STATUS_TEXT = "🧭 По статусу"
-RECENT_CLIENTS_TEXT = "🕒 Последние добавленные"
+BUY_CLIENTS_TEXT = "📋 База"
+SELL_CLIENTS_TEXT = "📋 База продавцов"
+BUY_CLIENTS_BY_STATUS_TEXT = "По статусу К."
+SELL_CLIENTS_BY_STATUS_TEXT = "По статусу П."
+RECENT_CLIENTS_TEXT = "🕒 Посл.добавленные"
 
 SOURCE_OPTIONS: tuple[str, ...] = (
     "Instagram",
@@ -60,6 +64,15 @@ DISTRICT_OPTIONS: tuple[str, ...] = (
 ROOMS_OPTIONS: tuple[str, ...] = ("1", "2", "3", "4", "5", "Студия")
 NEXT_CONTACT_QUICK_OPTIONS: tuple[str, ...] = ("Сегодня", "Завтра", "Послезавтра")
 WALL_MATERIAL_OPTIONS: tuple[str, ...] = ("Кирпич", "Панель", "Монолит")
+BUDGET_PREFERENCE_OPTIONS: tuple[str, ...] = ("До 20", "До 25", "20-30", "30-40", "40+")
+FLOOR_PREFERENCE_OPTIONS: tuple[str, ...] = (
+    "Не важно",
+    "2-5",
+    "3-9",
+    "Не первый",
+    "Не последний",
+    "Без 1 и последнего",
+)
 
 STATUS_LABELS: dict[ClientStatus, str] = {
     ClientStatus.NEW: "🆕 Новый",
@@ -74,9 +87,10 @@ STATUS_LABELS: dict[ClientStatus, str] = {
 def get_clients_menu_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text=ADD_CLIENT_TEXT)],
-            [KeyboardButton(text=MY_CLIENTS_TEXT), KeyboardButton(text=CLIENTS_BY_STATUS_TEXT)],
-            [KeyboardButton(text=RECENT_CLIENTS_TEXT)],
+            [KeyboardButton(text=ADD_BUYER_REQUEST_TEXT), KeyboardButton(text=ADD_CLIENT_TEXT)],
+            [KeyboardButton(text=BUYER_REQUESTS_TEXT), KeyboardButton(text=SELL_CLIENTS_TEXT)],
+            [KeyboardButton(text=BUY_CLIENTS_BY_STATUS_TEXT), KeyboardButton(text=SELL_CLIENTS_BY_STATUS_TEXT)],
+            [KeyboardButton(text=RECENT_CLIENTS_TEXT), KeyboardButton(text=BUYER_SEARCH_TEXT)],
             [KeyboardButton(text="⬅️ Главное меню")],
         ],
         resize_keyboard=True,
@@ -131,6 +145,32 @@ def get_skip_cancel_keyboard() -> ReplyKeyboardMarkup:
     )
 
 
+def get_budget_preference_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text=BUDGET_PREFERENCE_OPTIONS[0]), KeyboardButton(text=BUDGET_PREFERENCE_OPTIONS[1])],
+            [KeyboardButton(text=BUDGET_PREFERENCE_OPTIONS[2]), KeyboardButton(text=BUDGET_PREFERENCE_OPTIONS[3])],
+            [KeyboardButton(text=BUDGET_PREFERENCE_OPTIONS[4])],
+            [KeyboardButton(text=SKIP_TEXT), KeyboardButton(text=CANCEL_TEXT)],
+        ],
+        resize_keyboard=True,
+        input_field_placeholder="Выберите бюджет или введите вручную",
+    )
+
+
+def get_floor_preference_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text=FLOOR_PREFERENCE_OPTIONS[0]), KeyboardButton(text=FLOOR_PREFERENCE_OPTIONS[1])],
+            [KeyboardButton(text=FLOOR_PREFERENCE_OPTIONS[2]), KeyboardButton(text=FLOOR_PREFERENCE_OPTIONS[3])],
+            [KeyboardButton(text=FLOOR_PREFERENCE_OPTIONS[4]), KeyboardButton(text=FLOOR_PREFERENCE_OPTIONS[5])],
+            [KeyboardButton(text=SKIP_TEXT), KeyboardButton(text=CANCEL_TEXT)],
+        ],
+        resize_keyboard=True,
+        input_field_placeholder="Выберите желательные этажи или введите вручную",
+    )
+
+
 def get_source_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
@@ -138,6 +178,18 @@ def get_source_keyboard() -> ReplyKeyboardMarkup:
             [KeyboardButton(text=SOURCE_OPTIONS[2]), KeyboardButton(text=SOURCE_OPTIONS[3])],
             [KeyboardButton(text=SOURCE_OPTIONS[4]), KeyboardButton(text=SOURCE_OPTIONS[5])],
             [KeyboardButton(text=CANCEL_TEXT)],
+        ],
+        resize_keyboard=True,
+    )
+
+
+def get_source_skip_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text=SOURCE_OPTIONS[0]), KeyboardButton(text=SOURCE_OPTIONS[1])],
+            [KeyboardButton(text=SOURCE_OPTIONS[2]), KeyboardButton(text=SOURCE_OPTIONS[3])],
+            [KeyboardButton(text=SOURCE_OPTIONS[4]), KeyboardButton(text=SOURCE_OPTIONS[5])],
+            [KeyboardButton(text=SKIP_TEXT), KeyboardButton(text=CANCEL_TEXT)],
         ],
         resize_keyboard=True,
     )
@@ -249,8 +301,9 @@ def get_year_built_keyboard() -> ReplyKeyboardMarkup:
     )
 
 
-def get_status_filter_keyboard() -> InlineKeyboardMarkup:
-    rows = [[InlineKeyboardButton(text=label, callback_data=f"client_status:{status.value}")] for status, label in
+def get_status_filter_keyboard(deal_type: str | None = None) -> InlineKeyboardMarkup:
+    callback_prefix = f"client_status:{deal_type}:" if deal_type else "client_status:"
+    rows = [[InlineKeyboardButton(text=label, callback_data=f"{callback_prefix}{status.value}")] for status, label in
             STATUS_LABELS.items()]
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
@@ -271,6 +324,8 @@ def get_clients_list_inline_keyboard(clients: list[Client]) -> InlineKeyboardMar
 
 def get_client_card_actions_keyboard(client_id: int, can_edit: bool) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
+    rows.append([InlineKeyboardButton(text="ℹ️ Информация", callback_data=f"client_info:{client_id}")])
+
     first_row: list[InlineKeyboardButton] = [
         InlineKeyboardButton(text="Объекты клиента", callback_data=f"client_properties:{client_id}")
     ]
@@ -288,6 +343,7 @@ def get_client_card_actions_keyboard(client_id: int, can_edit: bool) -> InlineKe
 
     rows.append(first_row)
     rows.append(second_row)
+    rows.append([InlineKeyboardButton(text=SELECTIONS_BUTTON_TEXT, callback_data=f"client_selections:{client_id}")])
 
     if can_edit:
         rows.append(
@@ -306,6 +362,14 @@ def get_client_card_actions_keyboard(client_id: int, can_edit: bool) -> InlineKe
         ]
     )
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def get_client_info_keyboard(*, client_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="↩️ Назад к карточке", callback_data=f"client_view:{client_id}")],
+        ]
+    )
 
 
 def get_client_photos_menu_keyboard(client_id: int, can_manage: bool) -> InlineKeyboardMarkup:
@@ -327,10 +391,11 @@ def build_clients_list_keyboard(
     total_pages: int,
 ) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
+    is_seller_list = (filters.get("deal_types") or []) == [RequestType.SELL.value]
     for client in clients:
-        compact = format_client_compact(client)
-        if len(compact) > 60:
-            compact = f"{compact[:57]}..."
+        compact = format_seller_client_button(client, max_length=96) if is_seller_list else format_client_compact(client)
+        if len(compact) > 96:
+            compact = f"{compact[:95]}…"
         rows.append(
             [
                 InlineKeyboardButton(

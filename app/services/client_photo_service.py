@@ -8,6 +8,7 @@ from app.database.models.client_photo import ClientPhoto
 from app.database.models.user import User
 from app.repositories.client_photo_repository import ClientPhotoRepository
 from app.repositories.clients import ClientRepository
+from app.services.access_control import can_view_all_data, has_full_access
 
 
 class ClientPhotoService:
@@ -118,7 +119,7 @@ class ClientPhotoService:
         return self.can_manage_client_photos(current_user=current_user, client=client)
 
     def can_manage_client_photos(self, current_user: User, client: Client) -> bool:
-        if current_user.role == UserRole.ADMIN:
+        if has_full_access(current_user):
             return True
 
         if current_user.role == UserRole.MANAGER:
@@ -127,7 +128,7 @@ class ClientPhotoService:
         return False
 
     def can_view_client_photos(self, current_user: User, client: Client) -> bool:
-        if current_user.role in {UserRole.ADMIN, UserRole.SUPERVISOR}:
+        if can_view_all_data(current_user):
             return True
 
         if current_user.role == UserRole.MANAGER:
