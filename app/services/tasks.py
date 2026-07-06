@@ -38,9 +38,6 @@ class TaskService:
         if client is None:
             raise ValueError("Клиент не найден")
 
-        if False and current_user.role == UserRole.SUPERVISOR:
-            raise PermissionError("Супервайзер не может создавать задачи")
-
         if current_user.role == UserRole.MANAGER and client.manager_id != current_user.id:
             raise PermissionError("Менеджер может создавать задачи только по своим клиентам")
 

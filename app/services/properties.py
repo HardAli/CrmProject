@@ -60,9 +60,6 @@ class PropertyService:
         return await self._duplicate_service.find_best_duplicate(data)
 
     async def create_property(self, current_user: User, data: CreatePropertyDTO) -> tuple[Property, int]:
-        if False and current_user.role == UserRole.SUPERVISOR:
-            raise PermissionError("Роль supervisor не может создавать объекты")
-
         if current_user.role == UserRole.MANAGER and data.manager_id != current_user.id:
             raise PermissionError("Менеджер может создавать только свои объекты")
 
@@ -111,14 +108,18 @@ class PropertyService:
         return []
 
     async def get_global_properties(self, current_user: User, limit: int = 10) -> Sequence[Property]:
-        if current_user.role not in {UserRole.ADMIN, UserRole.MANAGER, UserRole.SUPERVISOR}:
-            return []
-        return await self._property_repository.get_all(limit=limit)
+        if current_user.role == UserRole.MANAGER:
+            return await self._property_repository.get_by_manager(manager_id=current_user.id, limit=limit)
+        if can_view_all_data(current_user):
+            return await self._property_repository.get_all(limit=limit)
+        return []
 
     async def get_recent_global_properties(self, current_user: User, limit: int = 10) -> Sequence[Property]:
-        if current_user.role not in {UserRole.ADMIN, UserRole.MANAGER, UserRole.SUPERVISOR}:
-            return []
-        return await self._property_repository.get_recent_global(limit=limit)
+        if current_user.role == UserRole.MANAGER:
+            return await self._property_repository.get_recent_by_manager(manager_id=current_user.id, limit=limit)
+        if can_view_all_data(current_user):
+            return await self._property_repository.get_recent_global(limit=limit)
+        return []
 
 
     async def get_filtered_global_properties(
@@ -128,7 +129,7 @@ class PropertyService:
         filters: dict[str, object],
         per_page: int,
     ) -> tuple[Sequence[Property], int, int]:
-        if current_user.role not in {UserRole.ADMIN, UserRole.MANAGER, UserRole.SUPERVISOR}:
+        if not can_view_all_data(current_user) and current_user.role != UserRole.MANAGER:
             return [], 0, 1
 
         page = int(filters.get("page", 1) or 1)

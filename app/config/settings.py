@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     supervisor_secret: str = Field(default="HardAdmin31415926535", alias="SUPERVISOR_SECRET")
     role_pass_expire_minutes: int = Field(default=60, alias="ROLE_PASS_EXPIRE_MINUTES")
     public_base_url: str = Field(default=DEFAULT_PUBLIC_BASE_URL, alias="PUBLIC_BASE_URL")
+    public_photo_allowed_hosts: str = Field(default="", alias="PUBLIC_PHOTO_ALLOWED_HOSTS")
 
     @field_validator("public_base_url", mode="before")
     @classmethod

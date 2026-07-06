@@ -101,8 +101,6 @@ class PropertyCallService:
         property_obj.needs_recall = True
 
     async def apply_refused(self, *, property_id: int, current_user: User) -> None:
-        if current_user.role == UserRole.SUPERVISOR:
-            raise PermissionError("У роли supervisor только чтение")
         property_obj = await self._repository.get_property_for_call(current_user=current_user, property_id=property_id)
         if property_obj is None:
             raise ValueError("Объект не найден")

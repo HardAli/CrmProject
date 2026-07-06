@@ -6,6 +6,7 @@ from app.common.dto.statistics import ManagerStatsRowDTO, StatsBundleDTO, StatsP
 from app.common.enums import UserRole
 from app.database.models.user import User
 from app.repositories.statistics import StatisticsRepository
+from app.services.access_control import can_view_all_data
 
 
 class StatisticsService:
@@ -23,7 +24,7 @@ class StatisticsService:
 
     async def get_global_stats(self, *, current_user: User, period: StatsPeriod) -> StatsBundleDTO:
         self._ensure_active_user(current_user)
-        if current_user.role not in {UserRole.ADMIN, UserRole.SUPERVISOR}:
+        if not can_view_all_data(current_user):
             raise PermissionError("Недостаточно прав для просмотра общей статистики")
 
         bounds = get_period_bounds(period)
@@ -34,7 +35,7 @@ class StatisticsService:
 
     async def get_manager_stats(self, *, current_user: User, period: StatsPeriod) -> Sequence[ManagerStatsRowDTO]:
         self._ensure_active_user(current_user)
-        if current_user.role not in {UserRole.ADMIN, UserRole.SUPERVISOR}:
+        if not can_view_all_data(current_user):
             raise PermissionError("Недостаточно прав для просмотра статистики по менеджерам")
 
         bounds = get_period_bounds(period)

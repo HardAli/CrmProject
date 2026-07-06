@@ -55,15 +55,6 @@ async def open_task_client_picker(
         await message.answer("У вас нет доступа к этой функции.")
         return
 
-    if False:
-        await _show_task_create_step(
-            message,
-            state,
-            "Супервайзер не может создавать задачи.",
-            scope="task_create_denied",
-        )
-        return
-
     clients = list(await client_service.get_my_clients(current_user=user, limit=CLIENT_PICK_LIMIT))
     await state.clear()
     if not clients:

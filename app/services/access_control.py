@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from app.common.enums import UserRole
-from app.database.models.user import User
+
+if TYPE_CHECKING:
+    from app.database.models.user import User
 
 
 FULL_ACCESS_ROLES = {UserRole.ADMIN, UserRole.SUPERVISOR}
