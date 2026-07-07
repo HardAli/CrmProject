@@ -155,6 +155,12 @@ class TaskRepository:
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def update_status(self, *, task: Task, status: TaskStatus) -> Task:
+        task.status = status
+        await self._session.flush()
+        await self._session.refresh(task)
+        return task
+
     @staticmethod
     def _base_query() -> Select[tuple[Task]]:
         return (

@@ -7,7 +7,12 @@ from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.keyboards.clients import CANCEL_TEXT, get_client_card_actions_keyboard
-from app.bot.keyboards.tasks import CREATE_TASK_TEXT, get_task_cancel_keyboard, get_task_client_pick_keyboard
+from app.bot.keyboards.tasks import (
+    CREATE_TASK_TEXT,
+    get_task_cancel_keyboard,
+    get_task_card_actions_keyboard,
+    get_task_client_pick_keyboard,
+)
 from app.bot.states.tasks import TaskCreateStates
 from app.bot.utils.chat_ui import send_clean_bundle, send_clean_screen
 from app.common.formatters.client_formatter import format_client_card
@@ -202,7 +207,11 @@ async def process_due_at(
             message,
             state=state,
             items=[
-                {"scope": "task_card", "text": format_task_card(task)},
+                {
+                    "scope": "task_card",
+                    "text": format_task_card(task, created=True),
+                    "reply_markup": get_task_card_actions_keyboard(task),
+                },
                 {
                     "scope": "client_card",
                     "text": format_client_card(client=client, manager_name=manager_name),
@@ -216,4 +225,10 @@ async def process_due_at(
         )
         return
 
-    await _show_task_create_step(message, state, format_task_card(task), scope="task_card")
+    await _show_task_create_step(
+        message,
+        state,
+        format_task_card(task, created=True),
+        reply_markup=get_task_card_actions_keyboard(task),
+        scope="task_card",
+    )

@@ -5,7 +5,9 @@ from datetime import date, datetime, timedelta, timezone
 
 from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
+from aiogram.types import InlineKeyboardMarkup
 
+from app.bot.keyboards.tasks import get_contact_reminder_keyboard, get_task_reminder_keyboard
 from app.common.formatters.notification_formatter import (
     format_contact_reminder,
     format_daily_summary,
@@ -70,6 +72,7 @@ class NotificationService:
             user=user,
             guard_key=f"task:{user.id}:{task.id}:{task.status.value}",
             text=format_task_reminder(task),
+            reply_markup=get_task_reminder_keyboard(task),
         )
 
     async def send_contact_reminder(self, bot: Bot, user: User, client: Client) -> bool:
@@ -78,9 +81,18 @@ class NotificationService:
             user=user,
             guard_key=f"contact:{user.id}:{client.id}",
             text=format_contact_reminder(client),
+            reply_markup=get_contact_reminder_keyboard(client),
         )
 
-    async def _send_entity(self, *, bot: Bot, user: User, guard_key: str, text: str) -> bool:
+    async def _send_entity(
+        self,
+        *,
+        bot: Bot,
+        user: User,
+        guard_key: str,
+        text: str,
+        reply_markup: InlineKeyboardMarkup | None = None,
+    ) -> bool:
         if not user.telegram_id:
             return False
 
@@ -89,16 +101,22 @@ class NotificationService:
         if previous and now_dt - previous < self._reminder_cooldown:
             return False
 
-        if not await self._safe_send(bot=bot, telegram_id=user.telegram_id, text=text):
+        if not await self._safe_send(bot=bot, telegram_id=user.telegram_id, text=text, reply_markup=reply_markup):
             return False
 
         self._entity_sent_at[guard_key] = now_dt
         return True
 
     @staticmethod
-    async def _safe_send(*, bot: Bot, telegram_id: int, text: str) -> bool:
+    async def _safe_send(
+        *,
+        bot: Bot,
+        telegram_id: int,
+        text: str,
+        reply_markup: InlineKeyboardMarkup | None = None,
+    ) -> bool:
         try:
-            await bot.send_message(chat_id=telegram_id, text=text, parse_mode="HTML")
+            await bot.send_message(chat_id=telegram_id, text=text, parse_mode="HTML", reply_markup=reply_markup)
             return True
         except TelegramForbiddenError:
             logger.warning("Cannot send notification: user blocked bot", extra={"telegram_id": telegram_id})

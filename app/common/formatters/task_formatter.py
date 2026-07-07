@@ -23,13 +23,14 @@ def _format_datetime(value: datetime | None) -> str:
     return value.astimezone(timezone.utc).strftime("%d.%m.%Y %H:%M UTC")
 
 
-def format_task_card(task: Task) -> str:
+def format_task_card(task: Task, *, created: bool = False) -> str:
     client_name = task.client.full_name if task.client else "—"
     assignee = task.assignee.full_name if task.assignee else "—"
     status = TASK_STATUS_LABELS.get(task.status, task.status.value)
     description = escape(task.description) if task.description else "—"
+    title = "✅ Задача создана" if created else "📌 Карточка задачи"
     return (
-        f"✅ Задача создана\n\n"
+        f"{title}\n\n"
         f"ID: {task.id}\n"
         f"Заголовок: {escape(task.title)}\n"
         f"Описание: {description}\n"

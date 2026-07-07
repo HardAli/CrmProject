@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+from contextlib import suppress
+
 from aiogram import F, Router
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.keyboards.tasks import (
     MY_TASKS_TEXT,
@@ -11,7 +15,10 @@ from app.bot.keyboards.tasks import (
     TASKS_MENU_TEXT,
     TODAY_CONTACTS_TEXT,
     TODAY_TASKS_TEXT,
+    get_contact_reminder_keyboard,
+    get_task_card_actions_keyboard,
     get_task_list_inline_keyboard,
+    get_task_reminder_keyboard,
     get_tasks_menu_keyboard,
 )
 from app.bot.utils.chat_ui import send_clean_screen
@@ -158,6 +165,35 @@ async def show_my_tasks(message: Message, state: FSMContext, auth_service: AuthS
     )
 
 
+@router.callback_query(F.data == "tasks_all")
+async def show_all_tasks_from_callback(
+    callback: CallbackQuery,
+    state: FSMContext,
+    auth_service: AuthService,
+    task_service: TaskService,
+) -> None:
+    if callback.message is None:
+        await callback.answer()
+        return
+
+    user = await auth_service.get_active_user_by_telegram_id(callback.from_user.id)
+    if user is None:
+        await callback.answer("Нет доступа", show_alert=True)
+        return
+
+    tasks = list(await task_service.get_my_tasks(current_user=user, limit=DEFAULT_TASK_LIMIT))
+    await send_clean_screen(
+        callback,
+        state=state,
+        scope="tasks_list",
+        text=format_task_list(tasks, title="🗂 Все задачи", limit=DEFAULT_TASK_LIMIT),
+        reply_markup=get_task_list_inline_keyboard(tasks),
+        parse_mode="HTML",
+        prefer_edit=True,
+    )
+    await callback.answer()
+
+
 @router.callback_query(F.data.startswith("task_open:"))
 async def show_task_card(callback: CallbackQuery, state: FSMContext, auth_service: AuthService, task_service: TaskService) -> None:
     if callback.message is None:
@@ -178,5 +214,91 @@ async def show_task_card(callback: CallbackQuery, state: FSMContext, auth_servic
         await callback.answer("Задача не найдена", show_alert=True)
         return
 
-    await send_clean_screen(callback, state=state, scope="task_card", text=format_task_card(task), prefer_edit=True)
+    await send_clean_screen(
+        callback,
+        state=state,
+        scope="task_card",
+        text=format_task_card(task),
+        reply_markup=get_task_card_actions_keyboard(task),
+        parse_mode="HTML",
+        prefer_edit=True,
+    )
     await callback.answer()
+
+
+@router.callback_query(F.data.startswith("task_complete:"))
+async def complete_task_from_callback(
+    callback: CallbackQuery,
+    auth_service: AuthService,
+    task_service: TaskService,
+    session: AsyncSession,
+) -> None:
+    if callback.message is None:
+        await callback.answer()
+        return
+
+    user = await auth_service.get_active_user_by_telegram_id(callback.from_user.id)
+    if user is None:
+        await callback.answer("Нет доступа", show_alert=True)
+        return
+
+    task_id_raw = callback.data.split(":", maxsplit=1)[1]
+    if not task_id_raw.isdigit():
+        await callback.answer("Некорректный ID задачи", show_alert=True)
+        return
+
+    task = await task_service.complete_task(current_user=user, task_id=int(task_id_raw))
+    if task is None:
+        await callback.answer("Задача не найдена", show_alert=True)
+        return
+
+    await session.commit()
+    with suppress(TelegramBadRequest):
+        await callback.message.edit_reply_markup(reply_markup=get_task_reminder_keyboard(task, completed=True))
+    await callback.answer("Задача завершена")
+
+
+@router.callback_query(F.data.startswith("contact_done:"))
+async def complete_contact_from_callback(
+    callback: CallbackQuery,
+    auth_service: AuthService,
+    client_service: ClientService,
+    session: AsyncSession,
+) -> None:
+    if callback.message is None:
+        await callback.answer()
+        return
+
+    user = await auth_service.get_active_user_by_telegram_id(callback.from_user.id)
+    if user is None:
+        await callback.answer("Нет доступа", show_alert=True)
+        return
+
+    client_id_raw = callback.data.split(":", maxsplit=1)[1]
+    if not client_id_raw.isdigit():
+        await callback.answer("Некорректный ID клиента", show_alert=True)
+        return
+
+    client = await client_service.get_client_for_view(current_user=user, client_id=int(client_id_raw))
+    if client is None:
+        await callback.answer("Клиент не найден или нет прав на просмотр", show_alert=True)
+        return
+
+    try:
+        if client.next_contact_at is not None:
+            client = await client_service.update_next_contact(
+                current_user=user,
+                client_id=client.id,
+                next_contact_at=None,
+            )
+            await session.commit()
+    except PermissionError as error:
+        await callback.answer(str(error), show_alert=True)
+        return
+    except ValueError as error:
+        await callback.answer(str(error), show_alert=True)
+        return
+
+    with suppress(TelegramBadRequest):
+        await callback.message.edit_reply_markup(reply_markup=get_contact_reminder_keyboard(client, completed=True))
+    await callback.answer("Контакт завершён")

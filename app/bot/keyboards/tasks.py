@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
 
+from app.common.enums import TaskStatus
 from app.common.formatters.client_formatter import format_client_compact
 from app.database.models.client import Client
 from app.database.models.task import Task
@@ -65,3 +66,46 @@ def get_task_list_inline_keyboard(tasks: list[Task]) -> InlineKeyboardMarkup | N
             for task in tasks
         ]
     )
+
+
+def get_task_reminder_keyboard(task: Task, *, completed: bool = False) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    if not completed and task.status not in {TaskStatus.DONE, TaskStatus.CANCELED}:
+        rows.append([InlineKeyboardButton(text="✅ Завершена", callback_data=f"task_complete:{task.id}")])
+
+    rows.append(
+        [
+            InlineKeyboardButton(text="📌 Карточка задачи", callback_data=f"task_open:{task.id}"),
+            InlineKeyboardButton(text="👤 Карточка клиента", callback_data=f"client_view:{task.client_id}"),
+        ]
+    )
+    rows.append([InlineKeyboardButton(text="🗂 Все задачи", callback_data="tasks_all")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def get_contact_reminder_keyboard(client: Client, *, completed: bool = False) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    if not completed:
+        rows.append([InlineKeyboardButton(text="✅ Завершена", callback_data=f"contact_done:{client.id}")])
+
+    rows.append(
+        [
+            InlineKeyboardButton(text="👤 Карточка клиента", callback_data=f"client_view:{client.id}"),
+            InlineKeyboardButton(text="🗂 Все задачи", callback_data="tasks_all"),
+        ]
+    )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def get_task_card_actions_keyboard(task: Task) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    if task.status not in {TaskStatus.DONE, TaskStatus.CANCELED}:
+        rows.append([InlineKeyboardButton(text="✅ Завершена", callback_data=f"task_complete:{task.id}")])
+
+    rows.append(
+        [
+            InlineKeyboardButton(text="👤 Карточка клиента", callback_data=f"client_view:{task.client_id}"),
+            InlineKeyboardButton(text="🗂 Все задачи", callback_data="tasks_all"),
+        ]
+    )
+    return InlineKeyboardMarkup(inline_keyboard=rows)

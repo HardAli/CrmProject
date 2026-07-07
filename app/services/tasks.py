@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import datetime, timezone
 
-from app.common.enums import ClientActionType, UserRole
+from app.common.enums import ClientActionType, TaskStatus, UserRole
 from app.database.models.task import Task
 from app.database.models.user import User
 from app.repositories.client_logs import ClientLogRepository
@@ -94,6 +94,14 @@ class TaskService:
         if self._can_view_all(current_user) or task.assigned_to == current_user.id:
             return task
         return None
+
+    async def complete_task(self, *, current_user: User, task_id: int) -> Task | None:
+        task = await self.get_task_by_id(current_user=current_user, task_id=task_id)
+        if task is None:
+            return None
+        if task.status in {TaskStatus.DONE, TaskStatus.CANCELED}:
+            return task
+        return await self._task_repository.update_status(task=task, status=TaskStatus.DONE)
 
     @staticmethod
     def _can_view_all(current_user: User) -> bool:
