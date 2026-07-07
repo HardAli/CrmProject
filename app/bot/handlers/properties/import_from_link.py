@@ -10,12 +10,11 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.bot.handlers.properties.create import _parse_positive_int, _parse_rooms
+from app.bot.handlers.properties.create import _parse_positive_int, _parse_rooms, _property_created_bundle_items
 from app.bot.keyboards.clients import CANCEL_TEXT
 from app.bot.keyboards.properties import (
     PROPERTY_STATUS_MAP,
     PROPERTY_TYPE_MAP,
-    get_property_created_actions_keyboard,
     get_properties_menu_keyboard,
     get_property_district_keyboard,
     get_property_rooms_keyboard,
@@ -33,7 +32,6 @@ from app.bot.keyboards.properties_import import (
 from app.bot.states.property_import_states import PropertyImportStates
 from app.bot.utils.chat_ui import send_clean_bundle, send_clean_screen
 from app.common.enums import PropertyStatus, PropertyType
-from app.common.formatters.property_formatter import format_property_created_card
 from app.common.formatters.property_formatter import format_duplicate_property_card
 from app.common.dto.properties import CreatePropertyDTO
 from app.common.formatters.property_import_formatter import format_import_success
@@ -363,12 +361,7 @@ async def save_import(
                 "scope": "property_import_success",
                 "text": format_import_success(property_id=property_obj.id, linked_clients_count=linked_clients_count, photo_count=photo_count),
             },
-            {
-                "scope": "property_created_card",
-                "text": format_property_created_card(property_obj=property_obj, manager_name=manager_name),
-                "reply_markup": get_property_created_actions_keyboard(property_obj.id),
-                "parse_mode": "HTML",
-            },
+            *_property_created_bundle_items(property_obj, manager_name),
         ],
     )
 

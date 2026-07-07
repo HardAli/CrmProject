@@ -126,6 +126,57 @@ async def _render_filters_menu(target: Message | CallbackQuery, state: FSMContex
     )
 
 
+def _build_status_filter_text(selected: set[str]) -> str:
+    labels = [STATUS_LABELS[ClientStatus(v)] for v in selected if v in {s.value for s in ClientStatus}]
+    selected_text = ", ".join(labels) if labels else "—"
+    return f"Статус клиента\n\nВыбрано: {selected_text}"
+
+
+async def _send_status_filter(callback: CallbackQuery, state: FSMContext, selected: set[str]) -> None:
+    await send_clean_screen(
+        callback,
+        state=state,
+        scope="clients_filter_status",
+        text=_build_status_filter_text(selected),
+        reply_markup=build_status_filter_keyboard(selected),
+        prefer_edit=True,
+    )
+
+
+async def _send_deal_filter(callback: CallbackQuery, state: FSMContext, selected: set[str]) -> None:
+    await send_clean_screen(
+        callback,
+        state=state,
+        scope="clients_filter_deal",
+        text="Тип сделки",
+        reply_markup=build_deal_filter_keyboard(selected),
+        prefer_edit=True,
+    )
+
+
+async def _send_rooms_filter(callback: CallbackQuery, state: FSMContext, selected: set[str]) -> None:
+    await send_clean_screen(
+        callback,
+        state=state,
+        scope="clients_filter_rooms",
+        text="Комнатность",
+        reply_markup=build_rooms_filter_keyboard(selected),
+        prefer_edit=True,
+    )
+
+
+async def _send_district_filter(callback: CallbackQuery, state: FSMContext, selected: set[str]) -> None:
+    await send_clean_screen(
+        callback,
+        state=state,
+        scope="clients_filter_district",
+        text="<b>Район</b>",
+        reply_markup=build_district_filter_keyboard(selected),
+        parse_mode="HTML",
+        prefer_edit=True,
+    )
+
+
 @router.message(F.text == CLIENTS_MENU_TEXT)
 async def open_clients_menu(message: Message, state: FSMContext, auth_service: AuthService) -> None:
     user = await _get_current_user(message, auth_service)
@@ -222,17 +273,8 @@ async def open_status_filter(callback: CallbackQuery, state: FSMContext) -> None
         return
     filters = await _load_filters(state)
     selected = set(filters.get("statuses") or [])
-    labels = [STATUS_LABELS[ClientStatus(v)] for v in selected if v in {s.value for s in ClientStatus}]
-    selected_text = ", ".join(labels) if labels else "—"
-    await send_clean_screen(
-        callback,
-        state=state,
-        scope="clients_filter_status",
-        text=f"Статус клиента\n\nВыбрано: {selected_text}",
-        reply_markup=build_status_filter_keyboard(selected),
-        prefer_edit=True,
-    )
     await callback.answer()
+    await _send_status_filter(callback, state, selected)
 
 
 @router.callback_query(F.data.startswith("clients_filter_status_toggle:"))
@@ -250,8 +292,8 @@ async def toggle_status_filter(callback: CallbackQuery, state: FSMContext) -> No
     filters["statuses"] = list(selected)
     filters["page"] = 1
     await _save_filters(state, filters)
-    await callback.message.edit_reply_markup(reply_markup=build_status_filter_keyboard(selected))
     await callback.answer()
+    await _send_status_filter(callback, state, selected)
 
 
 @router.callback_query(F.data == "clients_filter_status_active")
@@ -260,9 +302,9 @@ async def set_active_statuses(callback: CallbackQuery, state: FSMContext) -> Non
     filters["statuses"] = [status.value for status in ACTIVE_CLIENT_STATUSES]
     filters["page"] = 1
     await _save_filters(state, filters)
-    if callback.message:
-        await callback.message.edit_reply_markup(reply_markup=build_status_filter_keyboard(set(filters["statuses"])))
     await callback.answer("Активные статусы выбраны")
+    if callback.message:
+        await _send_status_filter(callback, state, set(filters["statuses"]))
 
 
 @router.callback_query(F.data == "clients_filter_status_all")
@@ -271,14 +313,15 @@ async def set_all_statuses(callback: CallbackQuery, state: FSMContext) -> None:
     filters["statuses"] = [status.value for status in ClientStatus]
     filters["page"] = 1
     await _save_filters(state, filters)
-    if callback.message:
-        await callback.message.edit_reply_markup(reply_markup=build_status_filter_keyboard(set(filters["statuses"])))
     await callback.answer("Показываем все статусы")
+    if callback.message:
+        await _send_status_filter(callback, state, set(filters["statuses"]))
 
 
 @router.callback_query(F.data == "clients_filters_deal")
 async def open_deal_filter(callback: CallbackQuery, state: FSMContext) -> None:
     filters = await _load_filters(state)
+    await callback.answer()
     if callback.message:
         await send_clean_screen(
             callback,
@@ -288,7 +331,6 @@ async def open_deal_filter(callback: CallbackQuery, state: FSMContext) -> None:
             reply_markup=build_deal_filter_keyboard(set(filters.get("deal_types") or [])),
             prefer_edit=True,
         )
-    await callback.answer()
 
 
 @router.callback_query(F.data.startswith("clients_filter_deal_toggle:"))
@@ -303,9 +345,9 @@ async def toggle_deal_filter(callback: CallbackQuery, state: FSMContext) -> None
     filters["deal_types"] = list(selected)
     filters["page"] = 1
     await _save_filters(state, filters)
-    if callback.message:
-        await callback.message.edit_reply_markup(reply_markup=build_deal_filter_keyboard(selected))
     await callback.answer()
+    if callback.message:
+        await _send_deal_filter(callback, state, selected)
 
 
 @router.callback_query(F.data == "clients_filter_deal_any")
@@ -313,14 +355,15 @@ async def clear_deal_filter(callback: CallbackQuery, state: FSMContext) -> None:
     filters = await _load_filters(state)
     filters["deal_types"] = []
     await _save_filters(state, filters)
-    if callback.message:
-        await callback.message.edit_reply_markup(reply_markup=build_deal_filter_keyboard(set()))
     await callback.answer("Сделка: любая")
+    if callback.message:
+        await _send_deal_filter(callback, state, set())
 
 
 @router.callback_query(F.data == "clients_filters_rooms")
 async def open_rooms_filter(callback: CallbackQuery, state: FSMContext) -> None:
     filters = await _load_filters(state)
+    await callback.answer()
     if callback.message:
         await send_clean_screen(
             callback,
@@ -330,7 +373,6 @@ async def open_rooms_filter(callback: CallbackQuery, state: FSMContext) -> None:
             reply_markup=build_rooms_filter_keyboard(set(filters.get("rooms") or [])),
             prefer_edit=True,
         )
-    await callback.answer()
 
 
 @router.callback_query(F.data.startswith("clients_filter_rooms_toggle:"))
@@ -345,9 +387,9 @@ async def toggle_rooms_filter(callback: CallbackQuery, state: FSMContext) -> Non
     filters["rooms"] = list(selected)
     filters["page"] = 1
     await _save_filters(state, filters)
-    if callback.message:
-        await callback.message.edit_reply_markup(reply_markup=build_rooms_filter_keyboard(selected))
     await callback.answer()
+    if callback.message:
+        await _send_rooms_filter(callback, state, selected)
 
 
 @router.callback_query(F.data == "clients_filter_rooms_any")
@@ -355,13 +397,14 @@ async def clear_rooms_filter(callback: CallbackQuery, state: FSMContext) -> None
     filters = await _load_filters(state)
     filters["rooms"] = []
     await _save_filters(state, filters)
-    if callback.message:
-        await callback.message.edit_reply_markup(reply_markup=build_rooms_filter_keyboard(set()))
     await callback.answer("Комнатность: любая")
+    if callback.message:
+        await _send_rooms_filter(callback, state, set())
 
 
 @router.callback_query(F.data == "clients_filters_budget")
 async def open_budget_filter(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
     if callback.message:
         await send_clean_screen(
             callback,
@@ -371,7 +414,6 @@ async def open_budget_filter(callback: CallbackQuery, state: FSMContext) -> None
             reply_markup=build_budget_filter_keyboard(),
             prefer_edit=True,
         )
-    await callback.answer()
 
 
 @router.callback_query(F.data.startswith("clients_filter_budget_max:"))
@@ -408,6 +450,7 @@ async def clear_budget_filter(callback: CallbackQuery, state: FSMContext) -> Non
 @router.callback_query(F.data == "clients_filters_district")
 async def open_district_filter(callback: CallbackQuery, state: FSMContext) -> None:
     filters = await _load_filters(state)
+    await callback.answer()
     if callback.message:
         await send_clean_screen(
             callback,
@@ -418,7 +461,6 @@ async def open_district_filter(callback: CallbackQuery, state: FSMContext) -> No
             parse_mode="HTML",
             prefer_edit=True,
         )
-    await callback.answer()
 
 
 @router.callback_query(F.data.startswith("clients_filter_district_toggle:"))
@@ -433,9 +475,9 @@ async def toggle_district_filter(callback: CallbackQuery, state: FSMContext) -> 
     filters["districts"] = list(selected)
     filters["page"] = 1
     await _save_filters(state, filters)
-    if callback.message:
-        await callback.message.edit_reply_markup(reply_markup=build_district_filter_keyboard(selected))
     await callback.answer()
+    if callback.message:
+        await _send_district_filter(callback, state, selected)
 
 
 @router.callback_query(F.data == "clients_filter_district_any")
@@ -443,13 +485,14 @@ async def clear_district_filter(callback: CallbackQuery, state: FSMContext) -> N
     filters = await _load_filters(state)
     filters["districts"] = []
     await _save_filters(state, filters)
-    if callback.message:
-        await callback.message.edit_reply_markup(reply_markup=build_district_filter_keyboard(set()))
     await callback.answer("Район: любой")
+    if callback.message:
+        await _send_district_filter(callback, state, set())
 
 
 @router.callback_query(F.data == "clients_filters_contact")
 async def open_contact_filter(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
     if callback.message:
         await send_clean_screen(
             callback,
@@ -460,7 +503,6 @@ async def open_contact_filter(callback: CallbackQuery, state: FSMContext) -> Non
             parse_mode="HTML",
             prefer_edit=True,
         )
-    await callback.answer()
 
 
 @router.callback_query(F.data.startswith("clients_filter_contact:"))
@@ -475,6 +517,7 @@ async def set_contact_filter(callback: CallbackQuery, state: FSMContext) -> None
 
 @router.callback_query(F.data == "clients_filters_tasks")
 async def open_tasks_filter(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
     if callback.message:
         await send_clean_screen(
             callback,
@@ -485,7 +528,6 @@ async def open_tasks_filter(callback: CallbackQuery, state: FSMContext) -> None:
             parse_mode="HTML",
             prefer_edit=True,
         )
-    await callback.answer()
 
 
 @router.callback_query(F.data.in_({"clients_filters_source", "clients_filters_objects", "clients_filters_extra"}))
@@ -505,6 +547,7 @@ async def set_tasks_filter(callback: CallbackQuery, state: FSMContext) -> None:
 
 @router.callback_query(F.data == "clients_quick_open")
 async def open_quick_filters(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
     if callback.message:
         await send_clean_screen(
             callback,
@@ -515,7 +558,6 @@ async def open_quick_filters(callback: CallbackQuery, state: FSMContext) -> None
             parse_mode="HTML",
             prefer_edit=True,
         )
-    await callback.answer()
 
 
 @router.callback_query(F.data.startswith("clients_quick:"))
@@ -559,6 +601,7 @@ async def apply_quick_filter(callback: CallbackQuery, state: FSMContext) -> None
 
 @router.callback_query(F.data == "clients_sort_open")
 async def open_sort_menu(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
     if callback.message:
         await send_clean_screen(
             callback,
@@ -569,7 +612,6 @@ async def open_sort_menu(callback: CallbackQuery, state: FSMContext) -> None:
             parse_mode="HTML",
             prefer_edit=True,
         )
-    await callback.answer()
 
 
 @router.callback_query(F.data.startswith("clients_sort:"))
@@ -592,11 +634,14 @@ async def page_prev(
     filters = await _load_filters(state)
     filters["page"] = max(1, int(filters.get("page", 1)) - 1)
     await _save_filters(state, filters)
-    if callback.message is not None:
-        user = await _get_callback_user(callback, auth_service)
-        if user is not None:
-            await _render_clients_list(callback, state, client_service, user, filters)
+    if callback.message is None:
+        await callback.answer()
+        return
+    user = await _get_callback_user(callback, auth_service)
+    if user is None:
+        return
     await callback.answer()
+    await _render_clients_list(callback, state, client_service, user, filters)
 
 
 @router.callback_query(F.data == "clients_page_next")
@@ -609,11 +654,14 @@ async def page_next(
     filters = await _load_filters(state)
     filters["page"] = int(filters.get("page", 1)) + 1
     await _save_filters(state, filters)
-    if callback.message is not None:
-        user = await _get_callback_user(callback, auth_service)
-        if user is not None:
-            await _render_clients_list(callback, state, client_service, user, filters)
+    if callback.message is None:
+        await callback.answer()
+        return
+    user = await _get_callback_user(callback, auth_service)
+    if user is None:
+        return
     await callback.answer()
+    await _render_clients_list(callback, state, client_service, user, filters)
 
 
 @router.callback_query(F.data == "clients_search_open")

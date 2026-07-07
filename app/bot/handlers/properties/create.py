@@ -10,6 +10,7 @@ from aiogram.types import Message, ReplyKeyboardRemove
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.keyboards.clients import CANCEL_TEXT, SKIP_TEXT
+from app.bot.keyboards.main_menu import get_main_menu_keyboard
 from app.bot.keyboards.properties import (
     ADD_PROPERTY_TEXT,
     BACK_TEXT,
@@ -108,6 +109,32 @@ async def _ask_building_material(message: Message, state: FSMContext) -> None:
 async def _go_to_description_step(message: Message, state: FSMContext) -> None:
     await state.set_state(PropertyCreateStates.description)
     await _show_property_create_step(message, state, "Введите описание (или «Пропустить»).", reply_markup=get_property_skip_cancel_keyboard())
+
+
+def _property_created_bundle_items(property_obj, manager_name: str, linked_clients_count: int = 0) -> list[dict[str, object]]:
+    items: list[dict[str, object]] = [
+        {
+            "scope": "property_created_card",
+            "text": format_property_created_card(property_obj=property_obj, manager_name=manager_name),
+            "reply_markup": get_property_created_actions_keyboard(property_obj.id),
+            "parse_mode": "HTML",
+        },
+    ]
+    if linked_clients_count > 0:
+        items.append(
+            {
+                "scope": "property_linked_clients_notice",
+                "text": f"🔗 Найдено {linked_clients_count} клиентов по совпадающему номеру. Связи созданы автоматически.",
+            }
+        )
+    items.append(
+        {
+            "scope": "main_menu",
+            "text": "Главное меню:",
+            "reply_markup": get_main_menu_keyboard(),
+        }
+    )
+    return items
 
 
 def _parse_positive_int(raw_value: str, field_name: str) -> int:
@@ -543,32 +570,10 @@ async def process_status(
     await state.clear()
 
     manager_name = property_obj.manager.full_name if property_obj.manager else user.full_name
-    if linked_clients_count > 0:
-        await send_clean_bundle(
-            message,
-            state=state,
-            items=[
-                {
-                    "scope": "property_created_card",
-                    "text": format_property_created_card(property_obj=property_obj, manager_name=manager_name),
-                    "reply_markup": get_property_created_actions_keyboard(property_obj.id),
-                    "parse_mode": "HTML",
-                },
-                {
-                    "scope": "property_linked_clients_notice",
-                    "text": f"🔗 Найдено {linked_clients_count} клиентов по совпадающему номеру. Связи созданы автоматически.",
-                },
-            ],
-        )
-        return
-
-    await _show_property_create_step(
+    await send_clean_bundle(
         message,
-        state,
-        format_property_created_card(property_obj=property_obj, manager_name=manager_name),
-        reply_markup=get_property_created_actions_keyboard(property_obj.id),
-        parse_mode="HTML",
-        scope="property_created_card",
+        state=state,
+        items=_property_created_bundle_items(property_obj, manager_name, linked_clients_count),
     )
 
 
@@ -592,32 +597,10 @@ async def confirm_duplicate_create(message: Message, state: FSMContext, auth_ser
     await session.commit()
     await state.clear()
     manager_name = property_obj.manager.full_name if property_obj.manager else user.full_name
-    if linked_clients_count > 0:
-        await send_clean_bundle(
-            message,
-            state=state,
-            items=[
-                {
-                    "scope": "property_created_card",
-                    "text": format_property_created_card(property_obj=property_obj, manager_name=manager_name),
-                    "reply_markup": get_property_created_actions_keyboard(property_obj.id),
-                    "parse_mode": "HTML",
-                },
-                {
-                    "scope": "property_linked_clients_notice",
-                    "text": f"🔗 Найдено {linked_clients_count} клиентов по совпадающему номеру. Связи созданы автоматически.",
-                },
-            ],
-        )
-        return
-
-    await _show_property_create_step(
+    await send_clean_bundle(
         message,
-        state,
-        format_property_created_card(property_obj=property_obj, manager_name=manager_name),
-        reply_markup=get_property_created_actions_keyboard(property_obj.id),
-        parse_mode="HTML",
-        scope="property_created_card",
+        state=state,
+        items=_property_created_bundle_items(property_obj, manager_name, linked_clients_count),
     )
 
 

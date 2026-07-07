@@ -135,8 +135,8 @@ async def _render_global_objects(
     if isinstance(target, CallbackQuery):
         if target.message is None:
             return
-        await send_clean_screen(target, state=state, scope="objects_list", text=text, reply_markup=keyboard, prefer_edit=edit)
         await target.answer()
+        await send_clean_screen(target, state=state, scope="objects_list", text=text, reply_markup=keyboard, prefer_edit=edit)
     else:
         await send_clean_screen(target, state=state, scope="objects_list", text=text, reply_markup=keyboard, prefer_edit=False)
 
@@ -260,8 +260,8 @@ async def open_filters_menu(
     available_fields = await property_service.get_available_object_filter_fields()
     text = build_filters_menu_text(filters, available_fields=available_fields)
     keyboard = build_filters_menu_keyboard(filters, available_fields=available_fields)
-    await callback.message.edit_text(text, reply_markup=keyboard)
     await callback.answer()
+    await callback.message.answer(text, reply_markup=keyboard)
 
 
 @router.callback_query(F.data == f"{OBJ_FILTER_PREFIX}:show")
@@ -325,8 +325,8 @@ async def open_rooms_menu(callback: CallbackQuery, state: FSMContext) -> None:
         return
     filters = await _get_filters(state)
     selected = ", ".join(str(v) for v in filters.get("rooms", [])) or "нет"
-    await callback.message.edit_text("Комнатность\n\nВыбрано: " + selected, reply_markup=build_rooms_filter_keyboard(filters))
     await callback.answer()
+    await callback.message.answer("Комнатность\n\nВыбрано: " + selected, reply_markup=build_rooms_filter_keyboard(filters))
 
 
 @router.callback_query(F.data.startswith(f"{OBJ_FILTER_PREFIX}:room:"))
@@ -344,8 +344,8 @@ async def toggle_room(callback: CallbackQuery, state: FSMContext) -> None:
     filters = update_object_filter(filters, "rooms", sorted(rooms))
     await _save_filters(state, filters)
     selected = ", ".join(str(v) for v in filters.get("rooms", [])) or "нет"
-    await callback.message.edit_text("Комнатность\n\nВыбрано: " + selected, reply_markup=build_rooms_filter_keyboard(filters))
     await callback.answer()
+    await callback.message.answer("Комнатность\n\nВыбрано: " + selected, reply_markup=build_rooms_filter_keyboard(filters))
 
 
 @router.callback_query(F.data == f"{OBJ_FILTER_PREFIX}:rooms:any")
@@ -362,8 +362,8 @@ async def open_price_menu(callback: CallbackQuery, state: FSMContext) -> None:
         await callback.answer()
         return
     filters = await _get_filters(state)
-    await callback.message.edit_text("<b>Цена</b>", reply_markup=build_price_filter_keyboard(filters), parse_mode="HTML")
     await callback.answer()
+    await callback.message.answer("<b>Цена</b>", reply_markup=build_price_filter_keyboard(filters), parse_mode="HTML")
 
 
 @router.callback_query(F.data.startswith(f"{OBJ_FILTER_PREFIX}:price:max:"))
@@ -379,8 +379,8 @@ async def set_price_max(callback: CallbackQuery, state: FSMContext) -> None:
     filters = update_object_filter(filters, "price_min", None)
     filters = update_object_filter(filters, "price_max", Decimal(int(value_raw) * 1_000_000))
     await _save_filters(state, filters)
-    await callback.message.edit_text("<b>Цена</b>", reply_markup=build_price_filter_keyboard(filters), parse_mode="HTML")
     await callback.answer("Фильтр цены обновлен")
+    await callback.message.answer("<b>Цена</b>", reply_markup=build_price_filter_keyboard(filters), parse_mode="HTML")
 
 
 @router.callback_query(F.data == f"{OBJ_FILTER_PREFIX}:price:any")
@@ -404,8 +404,8 @@ async def open_district_menu(callback: CallbackQuery, state: FSMContext) -> None
         return
     filters = await _get_filters(state)
     selected = ", ".join(filters.get("districts", [])) or "нет"
-    await callback.message.edit_text("<b>Район</b>\n\nВыбрано: " + selected, reply_markup=build_district_filter_keyboard(filters), parse_mode="HTML")
     await callback.answer()
+    await callback.message.answer("<b>Район</b>\n\nВыбрано: " + selected, reply_markup=build_district_filter_keyboard(filters), parse_mode="HTML")
 
 
 @router.callback_query(F.data.startswith(f"{OBJ_FILTER_PREFIX}:district:set:"))
@@ -439,8 +439,8 @@ async def open_floor_menu(callback: CallbackQuery, state: FSMContext) -> None:
         await callback.answer()
         return
     filters = await _get_filters(state)
-    await callback.message.edit_text("<b>Этаж</b>", reply_markup=build_floor_filter_keyboard(filters), parse_mode="HTML")
     await callback.answer()
+    await callback.message.answer("<b>Этаж</b>", reply_markup=build_floor_filter_keyboard(filters), parse_mode="HTML")
 
 
 @router.callback_query(F.data.startswith(f"{OBJ_FILTER_PREFIX}:floor:"))
@@ -455,8 +455,8 @@ async def set_floor_mode(callback: CallbackQuery, state: FSMContext) -> None:
     else:
         filters = update_object_filter(filters, "floor_mode", mode)
     await _save_filters(state, filters)
-    await callback.message.edit_text("<b>Этаж</b>", reply_markup=build_floor_filter_keyboard(filters), parse_mode="HTML")
     await callback.answer()
+    await callback.message.answer("<b>Этаж</b>", reply_markup=build_floor_filter_keyboard(filters), parse_mode="HTML")
 
 
 @router.callback_query(F.data == f"{OBJ_FILTER_PREFIX}:sortmenu")
@@ -465,8 +465,8 @@ async def open_sort_menu(callback: CallbackQuery, state: FSMContext) -> None:
         await callback.answer()
         return
     filters = await _get_filters(state)
-    await callback.message.edit_text("<b>Сортировка</b>", reply_markup=build_sort_keyboard(filters), parse_mode="HTML")
     await callback.answer()
+    await callback.message.answer("<b>Сортировка</b>", reply_markup=build_sort_keyboard(filters), parse_mode="HTML")
 
 
 @router.callback_query(F.data.startswith(f"{OBJ_FILTER_PREFIX}:sort:"))
@@ -484,8 +484,8 @@ async def open_type_menu(callback: CallbackQuery, state: FSMContext) -> None:
         await callback.answer()
         return
     filters = await _get_filters(state)
-    await callback.message.edit_text("<b>Тип объекта</b>", reply_markup=build_type_filter_keyboard(filters), parse_mode="HTML")
     await callback.answer()
+    await callback.message.answer("<b>Тип объекта</b>", reply_markup=build_type_filter_keyboard(filters), parse_mode="HTML")
 
 
 @router.callback_query(F.data.startswith(f"{OBJ_FILTER_PREFIX}:type:set:"))
@@ -511,8 +511,8 @@ async def open_area_menu(callback: CallbackQuery, state: FSMContext) -> None:
         await callback.answer()
         return
     filters = await _get_filters(state)
-    await callback.message.edit_text("<b>Площадь</b>", reply_markup=build_area_filter_keyboard(filters), parse_mode="HTML")
     await callback.answer()
+    await callback.message.answer("<b>Площадь</b>", reply_markup=build_area_filter_keyboard(filters), parse_mode="HTML")
 
 
 @router.callback_query(F.data.startswith(f"{OBJ_FILTER_PREFIX}:area:set:"))
@@ -549,8 +549,8 @@ async def open_date_menu(callback: CallbackQuery, state: FSMContext) -> None:
         await callback.answer()
         return
     filters = await _get_filters(state)
-    await callback.message.edit_text("<b>Дата добавления</b>", reply_markup=build_date_filter_keyboard(filters), parse_mode="HTML")
     await callback.answer()
+    await callback.message.answer("<b>Дата добавления</b>", reply_markup=build_date_filter_keyboard(filters), parse_mode="HTML")
 
 
 @router.callback_query(F.data.startswith(f"{OBJ_FILTER_PREFIX}:date:"))
@@ -571,8 +571,8 @@ async def open_status_menu(callback: CallbackQuery, state: FSMContext) -> None:
         await callback.answer()
         return
     filters = await _get_filters(state)
-    await callback.message.edit_text("<b>Статус объекта</b>", reply_markup=build_status_filter_keyboard(filters), parse_mode="HTML")
     await callback.answer()
+    await callback.message.answer("<b>Статус объекта</b>", reply_markup=build_status_filter_keyboard(filters), parse_mode="HTML")
 
 
 @router.callback_query(F.data.startswith(f"{OBJ_FILTER_PREFIX}:status:set:"))

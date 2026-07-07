@@ -8,7 +8,6 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.bot.middlewares.delete_user_message import DeleteUserMessageMiddleware
 from app.bot.middlewares.db_session import DbSessionMiddleware
 from app.bot.routers import setup_routers
 from app.config.settings import get_settings
@@ -39,7 +38,6 @@ async def run_polling() -> None:
     dispatcher = Dispatcher()
 
     dispatcher.update.outer_middleware(DbSessionMiddleware(async_session_factory))
-    dispatcher.message.outer_middleware(DeleteUserMessageMiddleware())
     setup_routers(dispatcher)
 
     reminder_scheduler = ReminderScheduler(

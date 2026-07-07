@@ -17,15 +17,20 @@ router = Router(name="property_edit")
 
 @router.callback_query(F.data.startswith("property_edit:"))
 async def open_edit(callback: CallbackQuery, state: FSMContext, auth_service: AuthService, property_service: PropertyService) -> None:
-    if callback.message is None: return
+    if callback.message is None:
+        await callback.answer()
+        return
     user = await auth_service.get_active_user_by_telegram_id(callback.from_user.id)
-    if user is None: return
+    if user is None:
+        await callback.answer("Нет доступа", show_alert=True)
+        return
     pid = int(callback.data.split(":",1)[1])
     prop = await property_service.get_property_for_edit(current_user=user, property_id=pid)
     if prop is None:
         await callback.answer("Нет прав на редактирование", show_alert=True); return
     await state.set_state(PropertyEditStates.choosing_field)
     await state.update_data(property_id=pid)
+    await callback.answer()
     await send_clean_screen(
         callback,
         state=state,
@@ -34,14 +39,18 @@ async def open_edit(callback: CallbackQuery, state: FSMContext, auth_service: Au
         reply_markup=get_property_edit_menu_keyboard(property_id=pid, is_apartment=prop.property_type == PropertyType.APARTMENT),
         prefer_edit=True,
     )
-    await callback.answer()
 
 @router.callback_query(F.data.startswith("prop_edit:menu:"))
 async def back_menu(callback: CallbackQuery, state: FSMContext, auth_service: AuthService, property_service: PropertyService) -> None:
-    if callback.message is None: return
+    if callback.message is None:
+        await callback.answer()
+        return
     user = await auth_service.get_active_user_by_telegram_id(callback.from_user.id); pid=int(callback.data.split(':')[2])
     prop = await property_service.get_property_for_view(current_user=user, property_id=pid) if user else None
-    if prop is None: return
+    if prop is None:
+        await callback.answer("Объект не найден", show_alert=True)
+        return
+    await callback.answer()
     await send_clean_screen(
         callback,
         state=state,
@@ -50,14 +59,16 @@ async def back_menu(callback: CallbackQuery, state: FSMContext, auth_service: Au
         reply_markup=get_property_edit_menu_keyboard(property_id=pid, is_apartment=prop.property_type == PropertyType.APARTMENT),
         prefer_edit=True,
     )
-    await callback.answer()
 
 @router.callback_query(F.data.startswith("prop_edit:field:"))
 async def choose_field(callback: CallbackQuery, state: FSMContext) -> None:
-    if callback.message is None: return
+    if callback.message is None:
+        await callback.answer()
+        return
     _,_,pid,field = callback.data.split(':',3)
     await state.set_state(PropertyEditStates.waiting_for_value)
     await state.update_data(property_id=int(pid), field_name=field)
+    await callback.answer()
     await send_clean_screen(
         callback,
         state=state,
@@ -66,20 +77,22 @@ async def choose_field(callback: CallbackQuery, state: FSMContext) -> None:
         reply_markup=get_property_edit_choice_keyboard(property_id=int(pid), field_name=field),
         prefer_edit=True,
     )
-    await callback.answer()
 
 @router.callback_query(F.data.startswith("prop_edit:value:"))
 async def quick_value(callback: CallbackQuery, state: FSMContext, auth_service: AuthService, property_service: PropertyService, session: AsyncSession) -> None:
-    if callback.message is None: return
+    if callback.message is None:
+        await callback.answer()
+        return
     _,_,pid,field,val = callback.data.split(':',4)
-    await _save(callback, int(pid), field, val, state, auth_service, property_service, session)
     await callback.answer()
+    await _save(callback, int(pid), field, val, state, auth_service, property_service, session)
 
 @router.callback_query(F.data.startswith("prop_edit:manual:"))
 async def manual_value(callback: CallbackQuery, state: FSMContext) -> None:
     _,_,pid,field = callback.data.split(':',3)
     await state.set_state(PropertyEditStates.waiting_for_value)
     await state.update_data(property_id=int(pid), field_name=field)
+    await callback.answer()
     await send_clean_screen(
         callback,
         state=state,
@@ -87,7 +100,6 @@ async def manual_value(callback: CallbackQuery, state: FSMContext) -> None:
         text="Введите новое значение текстом.",
         prefer_edit=True,
     )
-    await callback.answer()
 
 @router.message(PropertyEditStates.waiting_for_value)
 async def process_manual(message: Message, state: FSMContext, auth_service: AuthService, property_service: PropertyService, session: AsyncSession) -> None:
