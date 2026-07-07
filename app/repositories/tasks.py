@@ -140,6 +140,23 @@ class TaskRepository:
         result = await self._session.execute(stmt)
         return result.scalars().all()
 
+    async def get_active_by_client(
+        self,
+        *,
+        client_id: int,
+        assigned_to: int | None,
+        limit: int = 20,
+    ) -> Sequence[Task]:
+        stmt = self._base_query().where(
+            Task.client_id == client_id,
+            Task.status.in_(ACTIVE_TASK_STATUSES),
+        )
+        if assigned_to is not None:
+            stmt = stmt.where(Task.assigned_to == assigned_to)
+
+        result = await self._session.execute(stmt.limit(limit))
+        return result.scalars().all()
+
     async def get_by_assignee(self, *, assigned_to: int, limit: int = 20) -> Sequence[Task]:
         stmt = self._base_query().where(Task.assigned_to == assigned_to).limit(limit)
         result = await self._session.execute(stmt)

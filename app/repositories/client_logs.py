@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
@@ -42,3 +42,20 @@ class ClientLogRepository:
         )
         result = await self._session.execute(stmt)
         return result.scalars().all()
+
+    async def get_page_by_client(self, *, client_id: int, limit: int, offset: int) -> Sequence[ClientLog]:
+        stmt = (
+            select(ClientLog)
+            .options(joinedload(ClientLog.user))
+            .where(ClientLog.client_id == client_id)
+            .order_by(ClientLog.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        result = await self._session.execute(stmt)
+        return result.scalars().all()
+
+    async def count_by_client(self, client_id: int) -> int:
+        stmt = select(func.count(ClientLog.id)).where(ClientLog.client_id == client_id)
+        result = await self._session.execute(stmt)
+        return int(result.scalar_one() or 0)

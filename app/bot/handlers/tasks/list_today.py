@@ -226,6 +226,44 @@ async def show_task_card(callback: CallbackQuery, state: FSMContext, auth_servic
     await callback.answer()
 
 
+@router.callback_query(F.data.startswith("contact_task_card:"))
+async def show_contact_task_card(
+    callback: CallbackQuery,
+    state: FSMContext,
+    auth_service: AuthService,
+    task_service: TaskService,
+) -> None:
+    if callback.message is None:
+        await callback.answer()
+        return
+
+    user = await auth_service.get_active_user_by_telegram_id(callback.from_user.id)
+    if user is None:
+        await callback.answer("Нет доступа", show_alert=True)
+        return
+
+    client_id_raw = callback.data.split(":", maxsplit=1)[1]
+    if not client_id_raw.isdigit():
+        await callback.answer("Некорректный ID клиента", show_alert=True)
+        return
+
+    task = await task_service.get_nearest_client_task(current_user=user, client_id=int(client_id_raw))
+    if task is None:
+        await callback.answer("У этого клиента нет активной задачи", show_alert=True)
+        return
+
+    await send_clean_screen(
+        callback,
+        state=state,
+        scope="task_card",
+        text=format_task_card(task),
+        reply_markup=get_task_card_actions_keyboard(task),
+        parse_mode="HTML",
+        prefer_edit=True,
+    )
+    await callback.answer()
+
+
 @router.callback_query(F.data.startswith("task_complete:"))
 async def complete_task_from_callback(
     callback: CallbackQuery,

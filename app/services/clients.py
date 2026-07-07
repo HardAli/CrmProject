@@ -217,6 +217,29 @@ class ClientService:
 
         return await self._client_log_repository.get_recent_by_client(client_id=client.id, limit=limit)
 
+    async def get_client_history_page(
+            self,
+            current_user: User,
+            client_id: int,
+            *,
+            page: int,
+            per_page: int,
+    ) -> tuple[list[ClientLog], int, int]:
+        client = await self._get_client_with_view_check(current_user=current_user, client_id=client_id)
+        if client is None:
+            raise ValueError("Клиент не найден или недоступен")
+
+        normalized_per_page = max(1, per_page)
+        total_count = await self._client_log_repository.count_by_client(client.id)
+        total_pages = max(1, (total_count + normalized_per_page - 1) // normalized_per_page)
+        normalized_page = min(max(1, page), total_pages)
+        logs = await self._client_log_repository.get_page_by_client(
+            client_id=client.id,
+            limit=normalized_per_page,
+            offset=(normalized_page - 1) * normalized_per_page,
+        )
+        return list(logs), total_count, normalized_page
+
     async def update_next_contact(
             self,
             *,

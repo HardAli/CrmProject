@@ -90,7 +90,12 @@ def get_contact_reminder_keyboard(client: Client, *, completed: bool = False) ->
 
     rows.append(
         [
+            InlineKeyboardButton(text="📌 Карточка задачи", callback_data=f"contact_task_card:{client.id}"),
             InlineKeyboardButton(text="👤 Карточка клиента", callback_data=f"client_view:{client.id}"),
+        ]
+    )
+    rows.append(
+        [
             InlineKeyboardButton(text="🗂 Все задачи", callback_data="tasks_all"),
         ]
     )

@@ -372,6 +372,21 @@ def get_client_info_keyboard(*, client_id: int) -> InlineKeyboardMarkup:
     )
 
 
+def get_client_history_keyboard(*, client_id: int, page: int, total_pages: int) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    if total_pages > 1:
+        nav_row: list[InlineKeyboardButton] = []
+        if page > 1:
+            nav_row.append(InlineKeyboardButton(text="⬅️ Назад", callback_data=f"client_history:{client_id}:{page - 1}"))
+        nav_row.append(InlineKeyboardButton(text=f"{page}/{total_pages}", callback_data=f"client_history:{client_id}:{page}"))
+        if page < total_pages:
+            nav_row.append(InlineKeyboardButton(text="Далее ➡️", callback_data=f"client_history:{client_id}:{page + 1}"))
+        rows.append(nav_row)
+
+    rows.append([InlineKeyboardButton(text="↩️ Назад к карточке", callback_data=f"client_view:{client_id}")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
 def get_client_photos_menu_keyboard(client_id: int, can_manage: bool) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = [
         [InlineKeyboardButton(text="👀 Показать фото", callback_data=f"client_photo_view:{client_id}")],

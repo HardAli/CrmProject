@@ -95,6 +95,21 @@ class TaskService:
             return task
         return None
 
+    async def get_nearest_client_task(self, *, current_user: User, client_id: int) -> Task | None:
+        client = await self._client_repository.get_by_id(client_id)
+        if client is None:
+            return None
+        if current_user.role == UserRole.MANAGER and client.manager_id != current_user.id:
+            return None
+
+        assigned_to = None if self._can_view_all(current_user) else current_user.id
+        tasks = await self._task_repository.get_active_by_client(
+            client_id=client_id,
+            assigned_to=assigned_to,
+            limit=1,
+        )
+        return tasks[0] if tasks else None
+
     async def complete_task(self, *, current_user: User, task_id: int) -> Task | None:
         task = await self.get_task_by_id(current_user=current_user, task_id=task_id)
         if task is None:

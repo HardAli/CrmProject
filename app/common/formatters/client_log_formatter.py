@@ -19,11 +19,19 @@ ACTION_LABELS: dict[ClientActionType, str] = {
 }
 
 
-def format_client_history(logs: list[ClientLog], limit: int) -> str:
+def format_client_history(
+    logs: list[ClientLog],
+    *,
+    page: int,
+    per_page: int,
+    total_count: int,
+) -> str:
     if not logs:
         return "История по клиенту пока пустая."
 
-    rows = [f"История действий (последние {limit})", ""]
+    first_item = (page - 1) * per_page + 1
+    last_item = min(first_item + len(logs) - 1, total_count)
+    rows = [f"История действий · {first_item}-{last_item} из {total_count}", ""]
     for log in logs:
         timestamp = log.created_at.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M")
         author = escape(log.user.full_name) if log.user else "Система"
