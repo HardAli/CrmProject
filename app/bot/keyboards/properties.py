@@ -323,6 +323,14 @@ def get_property_actions_inline_keyboard_with_access(
 ) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
     rows.append([InlineKeyboardButton(text="ℹ️ Информация", callback_data=f"property_info:{property_obj.id}")])
+    rows.append(
+        [
+            InlineKeyboardButton(
+                text="👤 Информация для клиента",
+                callback_data=f"property_public_info:{property_obj.id}",
+            )
+        ]
+    )
 
     whatsapp_url = build_whatsapp_url(property_obj.owner_phone)
     if whatsapp_url:

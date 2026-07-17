@@ -325,6 +325,14 @@ def get_clients_list_inline_keyboard(clients: list[Client]) -> InlineKeyboardMar
 def get_client_card_actions_keyboard(client_id: int, can_edit: bool) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
     rows.append([InlineKeyboardButton(text="ℹ️ Информация", callback_data=f"client_info:{client_id}")])
+    rows.append(
+        [
+            InlineKeyboardButton(
+                text="👤 Информация для клиента",
+                callback_data=f"client_public_info:{client_id}",
+            )
+        ]
+    )
 
     first_row: list[InlineKeyboardButton] = [
         InlineKeyboardButton(text="Объекты клиента", callback_data=f"client_properties:{client_id}")

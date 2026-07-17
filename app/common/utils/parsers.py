@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 
 _PHONE_PATTERN = re.compile(r"^\+?[0-9\-()\s]{10,20}$")
@@ -39,17 +39,23 @@ def parse_money(raw_value: str) -> Decimal:
     return value
 
 
-
-
-DATE_INPUT_FORMAT_HINT = """- 03 05
-- 03 05 16:00
-- 03 05 2026
-- 03 05 2026 16:00"""
-
-
 def get_today_display_date(now: datetime | None = None) -> str:
     current = now or datetime.now(tz=timezone.utc)
     return current.strftime("%d %m %Y")
+
+
+def build_date_format_hint(now: datetime | None = None) -> str:
+    current = now or datetime.now(tz=timezone.utc)
+    examples = (
+        ("Завтра", current + timedelta(days=1)),
+        ("Через день", current + timedelta(days=2)),
+        ("Через 2 дня", current + timedelta(days=3)),
+    )
+    future_examples = (
+        f"- {label}: <code>{example_date.strftime('%d %m %Y')} 18:00</code>"
+        for label, example_date in examples
+    )
+    return "\n".join(("- Сегодня в 18:00: <code>18:00</code>", *future_examples))
 
 
 def build_date_prompt(label: str, now: datetime | None = None) -> str:
@@ -58,12 +64,13 @@ def build_date_prompt(label: str, now: datetime | None = None) -> str:
         f"Сегодня: <code>{today}</code>\n"
         f"Введите {label}.\n"
         "Можно в формате:\n"
-        f"{DATE_INPUT_FORMAT_HINT}"
+        f"{build_date_format_hint(now)}"
     )
 
 
 def build_date_error_message(error_text: str, label: str, now: datetime | None = None) -> str:
     return f"{error_text}\n\n{build_date_prompt(label=label, now=now)}"
+
 
 def parse_next_contact_at(raw_value: str, *, now: datetime | None = None) -> datetime:
     value = raw_value.strip()
@@ -72,6 +79,19 @@ def parse_next_contact_at(raw_value: str, *, now: datetime | None = None) -> dat
 
     current = now or datetime.now(tz=timezone.utc)
     default_year = current.year
+
+    try:
+        parsed_time = datetime.strptime(value, "%H:%M").time()
+        return datetime(
+            current.year,
+            current.month,
+            current.day,
+            parsed_time.hour,
+            parsed_time.minute,
+            tzinfo=timezone.utc,
+        )
+    except ValueError:
+        pass
 
     formats = (
         "%d %m %Y %H:%M",

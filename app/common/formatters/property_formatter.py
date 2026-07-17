@@ -533,6 +533,11 @@ def _format_location_for_share(property_obj: Property) -> str:
     return address if address and address != "-" else "—"
 
 
+def _format_public_location_for_share(property_obj: Property) -> str:
+    district = (property_obj.district or "").strip()
+    return f"Мкр {district}" if district else "Мкр —"
+
+
 def format_property_info_text(property_obj: Property, manager_name: str) -> str:
     return "\n".join(
         [
@@ -549,9 +554,27 @@ def format_property_info_text(property_obj: Property, manager_name: str) -> str:
     )
 
 
+def format_property_public_info_text(property_obj: Property) -> str:
+    return "\n".join(
+        [
+            _format_public_location_for_share(property_obj),
+            f"Комнат: {_format_share_value(property_obj.rooms)}",
+            f"Этаж: {format_floor_short(property_obj.floor, property_obj.building_floors)}",
+            f"Площадь: {_format_area_for_share(property_obj)}",
+            f"Материал стен: {_format_share_value(property_obj.building_material).lower()}",
+            f"Год: {_format_share_value(property_obj.building_year)}",
+        ]
+    )
+
+
 def format_property_info_message(property_obj: Property, manager_name: str) -> str:
     info_text = escape(format_property_info_text(property_obj=property_obj, manager_name=manager_name), quote=False)
     return f"Информация для отправки:\n\n<pre>{info_text}</pre>"
+
+
+def format_property_public_info_message(property_obj: Property) -> str:
+    info_text = escape(format_property_public_info_text(property_obj=property_obj), quote=False)
+    return f"Информация для клиента:\n\n<pre>{info_text}</pre>"
 
 
 def format_property_status(property_obj: Property) -> str:

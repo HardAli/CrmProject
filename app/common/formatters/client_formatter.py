@@ -13,6 +13,7 @@ from app.common.formatters.property_formatter import (
     format_price_short,
     format_property_floor_short,
     format_property_info_text,
+    format_property_public_info_text,
     format_property_type_short,
     format_rooms_list_short,
     format_seller_list_button,
@@ -351,6 +352,31 @@ def _format_seller_client_info_text(client: Client, manager_name: str) -> str:
     )
 
 
+def _format_seller_client_public_info_text(client: Client) -> str:
+    property_obj = _get_loaded_seller_property(client)
+    if property_obj is not None:
+        return format_property_public_info_text(property_obj=property_obj)
+
+    wall_material = client.wall_material
+    if wall_material is not None:
+        wall_material_text = WALL_MATERIAL_LABELS.get(wall_material, wall_material.value).lower()
+    else:
+        wall_material_text = "—"
+
+    district = _format_share_value(client.district)
+    district_line = f"Мкр {district}" if district != "—" else "Мкр —"
+    return "\n".join(
+        [
+            district_line,
+            f"Комнат: {_format_share_value(client.rooms)}",
+            f"Этаж: {format_property_floor_short(client.floor, client.building_floors)}",
+            "Площадь: —",
+            f"Материал стен: {wall_material_text}",
+            f"Год: {_format_share_value(client.year_built)}",
+        ]
+    )
+
+
 def format_client_info_text(client: Client, manager_name: str) -> str:
     if client.request_type == RequestType.SELL:
         return _format_seller_client_info_text(client=client, manager_name=manager_name)
@@ -369,6 +395,27 @@ def format_client_info_text(client: Client, manager_name: str) -> str:
     )
 
 
+def format_client_public_info_text(client: Client) -> str:
+    if client.request_type == RequestType.SELL:
+        return _format_seller_client_public_info_text(client=client)
+
+    request_type = REQUEST_TYPE_LABELS.get(client.request_type, client.request_type.value)
+    return "\n".join(
+        [
+            f"Клиент: {_format_share_value(client.full_name)}",
+            f"Телефон: {format_phone_for_display(client.phone)}",
+            f"Запрос: {_format_share_value(request_type)}",
+            f"Район: {_format_share_value(client.district)}",
+            f"Комнат: {_format_share_value(client.rooms)}",
+        ]
+    )
+
+
 def format_client_info_message(client: Client, manager_name: str) -> str:
     info_text = escape(format_client_info_text(client=client, manager_name=manager_name), quote=False)
     return f"Информация для отправки:\n\n<pre>{info_text}</pre>"
+
+
+def format_client_public_info_message(client: Client) -> str:
+    info_text = escape(format_client_public_info_text(client=client), quote=False)
+    return f"Информация для клиента:\n\n<pre>{info_text}</pre>"
